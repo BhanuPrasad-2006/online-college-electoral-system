@@ -1,0 +1,102 @@
+version: "3.9"
+
+services:
+  # ========================
+  # PostgreSQL Database
+  # ========================
+  db:
+    image: postgres:16-alpine
+    container_name: election_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-election_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-election_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-college_election}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-election_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================
+  # Redis Cache
+  # ========================
+  redis:
+    image: redis:7-alpine
+    container_name: election_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================
+  # FastAPI Backend
+  # ========================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: election_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  # ========================
+  # AI Microservice
+  # ========================
+  ai_service:
+    build:
+      context: ./ai_service
+      dockerfile: Dockerfile
+    container_name: election_ai
+    restart: unless-stopped
+    env_file:
+      - ./ai_service/.env
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+    volumes:
+      - ./ai_service:/app
+
+  # ========================
+  # Next.js Frontend
+  # ========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: election_frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+  redis_data:
