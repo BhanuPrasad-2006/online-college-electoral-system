@@ -3,6 +3,12 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    SUPABASE_URL: str
+    SUPABASE_SERVICE_KEY: str
+    SUPABASE_ANON_KEY: str
+    JWT_SECRET: str
+
+    
 
     # ── App ───────────────────────────────────────────────────
     APP_ENV:       str = "development"
@@ -56,6 +62,8 @@ class Settings(BaseSettings):
         env_file     = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        env_file = ".env"
+        extra = "ignore"
 
 
 @lru_cache()
