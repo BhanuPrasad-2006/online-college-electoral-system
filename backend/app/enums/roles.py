@@ -1,7 +1,11 @@
-from enum import Enum
+import enum
+from sqlalchemy import Enum as SAEnum
 
 
-class UserRole(str, Enum):
-    STUDENT = "STUDENT"
-    CANDIDATE = "CANDIDATE"
-    ADMIN = "ADMIN"
+class UserRoleEnum(str, enum.Enum):
+    voter     = "voter"
+    candidate = "candidate"
+    admin     = "admin"
+
+
+UserRole = SAEnum(UserRoleEnum, name="user_role", create_type=False)
