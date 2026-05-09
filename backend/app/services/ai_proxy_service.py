@@ -1,10 +1,10 @@
-"""AI service proxy — forwards requests to AI microservice."""
+"""AI proxy service — forwards requests to AI microservice."""
 
 import httpx
 from app.core.config import settings
 
 
-class AIService:
+class AIProxyService:
     def __init__(self):
         self.base_url = settings.AI_SERVICE_URL
 
@@ -30,4 +30,10 @@ class AIService:
         """Detect voting anomalies."""
         async with httpx.AsyncClient() as client:
             response = await client.post(f"{self.base_url}/detect-anomalies", json=voting_data)
+            return response.json()
+
+    async def generate_report(self, election_id: str) -> dict:
+        """Generate AI election analysis report."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{self.base_url}/generate-report", json={"election_id": election_id})
             return response.json()

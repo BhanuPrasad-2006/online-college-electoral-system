@@ -1,3 +1,5 @@
+"""VoteStats model — tracks participation statistics by department and year."""
+
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Float, ForeignKey, DateTime
@@ -5,8 +7,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
 
 
-class ClassVoteStats(Base):
-    __tablename__ = "class_vote_stats"
+class VoteStats(Base):
+    __tablename__ = "vote_stats"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     election_id = Column(UUID(as_uuid=True), ForeignKey("elections.id"), nullable=False)
