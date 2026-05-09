@@ -27,7 +27,11 @@ export default function AdminCandidatesPage() {
   }, []);
 
   const filtered = filter === 'all' ? candidates : candidates.filter((c) => c.status === filter);
-  const badgeVariant = { pending: 'warning' as const, approved: 'success' as const, rejected: 'error' as const };
+  const badgeVariant = {
+  pending: 'warning' as const,
+  approved: 'success' as const,
+  rejected: 'danger' as const,
+};
 
   const handleAction = (id: string, action: 'approved' | 'rejected') => {
     // TODO: Call API to update candidate status
