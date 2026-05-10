@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.db.session import check_db_connection
 from app.db.init_db import init_db
+from sqlalchemy import text
 
 
 # ── Startup / Shutdown ────────────────────────────────────────
@@ -51,3 +52,20 @@ app.add_middleware(
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok", "env": settings.APP_ENV}
+    from sqlalchemy import text
+from app.db.session import SessionLocal
+
+
+@app.get("/db-check")
+def db_check():
+    db = SessionLocal()
+
+    result = db.execute(text("SELECT COUNT(*) FROM voters"))
+    count = result.scalar()
+
+    db.close()
+
+    return {
+        "database": "connected",
+        "voters_count": count
+    }

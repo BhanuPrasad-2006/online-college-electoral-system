@@ -18,6 +18,7 @@ class Voter(Base):
     is_verified   = Column(Boolean, default=False)   # email OTP verified
     has_voted     = Column(Boolean, default=False)   # one-vote enforcement
     created_at    = Column(TIMESTAMP(timezone=True))
+    mobile_number = Column(String(15))
 
     # relationships
     candidate_profile = relationship("Candidate", back_populates="voter", uselist=False)

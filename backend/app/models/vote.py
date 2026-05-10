@@ -24,6 +24,7 @@ class Vote(Base):
     election_id      = Column(UUID(as_uuid=True), ForeignKey("elections.election_id"), nullable=False)
     position_id      = Column(UUID(as_uuid=True), ForeignKey("positions.position_id"), nullable=False)
     voted_at         = Column(TIMESTAMP(timezone=True))
+    
 
     # relationships — NO voter relationship here (intentional)
     candidate = relationship("Candidate", back_populates="votes")
