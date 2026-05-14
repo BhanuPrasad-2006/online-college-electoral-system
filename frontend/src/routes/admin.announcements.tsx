@@ -1,0 +1,72 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Megaphone } from "lucide-react";
+import { toast } from "sonner";
+
+function Page() {
+  const [recipients, setRecipients] = useState("All Users");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [history, setHistory] = useState([
+    { id: 1, title: "Voting opens tomorrow", recipients: "All Users", time: "2 hours ago", preview: "Cast your vote between 9 AM and 5 PM..." },
+    { id: 2, title: "Candidate review complete", recipients: "Candidates Only", time: "1 day ago", preview: "All applications have been reviewed..." },
+  ]);
+
+  function send() {
+    if (!title.trim() || !body.trim()) return;
+    setHistory((h) => [{ id: Date.now(), title, recipients, time: "just now", preview: body.slice(0, 80) }, ...h]);
+    setTitle(""); setBody("");
+    toast.success("Announcement sent");
+  }
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div>
+        <h1 className="text-2xl md:text-[28px] font-bold">Announcements</h1>
+        <p className="text-sm text-muted-foreground mt-1">Broadcast messages to voters and candidates.</p>
+      </div>
+      <div className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
+        <h2 className="text-base font-semibold flex items-center gap-2"><Megaphone className="h-4 w-4 text-[#6C63FF]" /> Compose</h2>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Send To</label>
+          <Select value={recipients} onValueChange={setRecipients}>
+            <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {["All Users", "Voters Only", "Candidates Only"].map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Title</label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1.5" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Message</label>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} className="mt-1.5 w-full h-32 p-3 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+        </div>
+        <Button className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={send}>Send Announcement</Button>
+      </div>
+
+      <div className="bg-card rounded-2xl shadow-sm p-6">
+        <h2 className="text-base font-semibold mb-4">Recent Announcements</h2>
+        <div className="divide-y">
+          {history.map((h) => (
+            <div key={h.id} className="py-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-sm">{h.title}</p>
+                <span className="text-xs text-muted-foreground">{h.time}</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">To: {h.recipients}</p>
+              <p className="text-sm mt-2 text-muted-foreground">{h.preview}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const Route = createFileRoute("/admin/announcements")({ component: Page });
