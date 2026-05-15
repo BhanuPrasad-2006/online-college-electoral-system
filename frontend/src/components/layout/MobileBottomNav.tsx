@@ -31,7 +31,7 @@ export function MobileBottomNav({ kind }: { kind: SidebarKind }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const links = MAP[kind];
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border z-30">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 glass-panel border-t border-border/60 z-30 pb-safe shadow-[0_-4px_24px_oklch(0_0_0/0.06)]">
       <div className="grid grid-cols-5">
         {links.map((l) => {
           const Icon = l.icon;
@@ -41,11 +41,16 @@ export function MobileBottomNav({ kind }: { kind: SidebarKind }) {
               key={l.to}
               to={l.to}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium",
-                active ? "text-[#6C63FF]" : "text-muted-foreground"
+                "relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold transition-all duration-200",
+                active ? "text-[#6C63FF]" : "text-muted-foreground active:scale-95",
               )}
             >
-              <Icon className="h-5 w-5" />
+              {active && (
+                <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-[#6C63FF]" />
+              )}
+              <span className={cn("p-1.5 rounded-xl transition-all", active && "bg-[#6C63FF]/10")}>
+                <Icon className={cn("h-5 w-5", active && "scale-110")} />
+              </span>
               {l.label}
             </Link>
           );

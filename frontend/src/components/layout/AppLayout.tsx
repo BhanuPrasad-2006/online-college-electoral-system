@@ -35,7 +35,7 @@ export function AppLayout() {
   if (role && role !== kind) return <Navigate to={`/${role}/dashboard` as any} />;
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div className="min-h-screen flex w-full mesh-bg">
       <ElectionIsland />
       <div className="hidden md:block">
         <Sidebar kind={kind} />

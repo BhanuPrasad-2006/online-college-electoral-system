@@ -59,7 +59,7 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
   return (
     <aside className="w-[260px] shrink-0 bg-sidebar text-sidebar-foreground h-screen sticky top-0 flex flex-col">
       <div className="px-6 py-5 flex items-center gap-2 border-b border-sidebar-border">
-        <div className="h-9 w-9 rounded-lg bg-[#6C63FF] flex items-center justify-center">
+        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] flex items-center justify-center shadow-md shadow-[#6C63FF]/30">
           <GraduationCap className="h-5 w-5 text-white" />
         </div>
         <div>
@@ -77,10 +77,10 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
               to={l.to}
               onClick={onNavigate}
               className={cn(
-                "relative flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "relative flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                 active
-                  ? "bg-sidebar-accent text-white before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-[#6C63FF] before:rounded-r"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white"
+                  ? "bg-sidebar-accent text-white shadow-md before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-[#6C63FF] before:rounded-r before:shadow-[0_0_8px_#6C63FF]"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-white hover:translate-x-0.5",
               )}
             >
               <Icon className="h-[18px] w-[18px]" />
