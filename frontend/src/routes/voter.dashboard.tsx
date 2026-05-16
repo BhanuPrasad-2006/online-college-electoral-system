@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CANDIDATES, KPI as KPI_DATA, NOTIFICATIONS } from "@/lib/mock";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates, useKpi, useNotifications, useVoterProfile } from "@/hooks/use-election-data";
 import { Lock, Users, TrendingUp, AlertCircle, Bell, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -11,16 +12,24 @@ export const Route = createFileRoute("/voter/dashboard")({ component: VoterDash 
 
 function VoterDash() {
   const nav = useNavigate();
-  const matched = [...CANDIDATES].sort((a, b) => b.match - a.match);
+  const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
+  const { data: kpi, isPending: loadingKpi } = useKpi();
+  const { data: notifications = [], isPending: loadingNotifications } = useNotifications();
+  const { data: voter } = useVoterProfile();
+
+  if (loadingCandidates || loadingKpi || loadingNotifications) return <PageLoader />;
+
+  const matched = [...candidates].sort((a, b) => b.match - a.match);
+  const firstName = voter?.name.split(" ")[0] ?? "Aditya";
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Welcome back, Aditya" subtitle="Here's what's happening with the election." />
+      <PageHeader title={`Welcome back, ${firstName}`} subtitle="Here's what's happening with the election." />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon={Users} label="Total Candidates" value={CANDIDATES.length} tone="bg-[#6C63FF]/10 text-[#6C63FF]" delay={50} />
-        <StatCard icon={TrendingUp} label="Voter Turnout" value={`${KPI_DATA.turnout}%`} tone="bg-success/15 text-success" delay={100} />
-        <StatCard icon={AlertCircle} label="Your Status" value="Not Voted" tone="bg-warning/20 text-warning-foreground" delay={150} />
+        <StatCard icon={Users} label="Total Candidates" value={candidates.length} tone="bg-[#6C63FF]/10 text-[#6C63FF]" delay={50} />
+        <StatCard icon={TrendingUp} label="Voter Turnout" value={`${kpi?.turnout ?? 43.4}%`} tone="bg-success/15 text-success" delay={100} />
+        <StatCard icon={AlertCircle} label="Your Status" value={voter?.voted ? "Voted" : "Not Voted"} tone="bg-warning/20 text-warning-foreground" delay={150} />
       </div>
 
       <SectionCard delay={200}>
@@ -88,7 +97,7 @@ function VoterDash() {
           <h2 className="text-base font-semibold">Recent Announcements</h2>
         </div>
         <div className="divide-y divide-border">
-          {NOTIFICATIONS.slice(0, 4).map((n, i) => (
+          {notifications.slice(0, 4).map((n, i) => (
             <div
               key={n.id}
               className={cn(

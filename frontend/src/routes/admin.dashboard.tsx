@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { KPI, AI_ALERTS } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useAiAlerts, useKpi } from "@/hooks/use-election-data";
 import { Users, CheckCircle2, TrendingUp, AlertTriangle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,15 +9,20 @@ import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
 
 function Page() {
+  const { data: kpi, isPending: loadingKpi } = useKpi();
+  const { data: aiAlerts = [], isPending: loadingAlerts } = useAiAlerts();
+
+  if (loadingKpi || loadingAlerts || !kpi) return <PageLoader />;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Admin Dashboard" subtitle="Election operations overview" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Users} label="Registered Voters" value={KPI.registered.toLocaleString()} layout="col" delay={50} />
-        <StatCard icon={CheckCircle2} label="Votes Cast" value={KPI.votesCast.toLocaleString()} tone="bg-success/15 text-success" layout="col" delay={100} />
-        <StatCard icon={TrendingUp} label="Turnout" value={`${KPI.turnout}%`} tone="bg-[#1F3A6E]/10 text-[#1F3A6E]" layout="col" delay={150} />
-        <StatCard icon={AlertTriangle} label="Active AI Alerts" value={KPI.alerts} tone="bg-destructive/10 text-destructive" layout="col" delay={200} />
+        <StatCard icon={Users} label="Registered Voters" value={kpi.registered.toLocaleString()} layout="col" delay={50} />
+        <StatCard icon={CheckCircle2} label="Votes Cast" value={kpi.votesCast.toLocaleString()} tone="bg-success/15 text-success" layout="col" delay={100} />
+        <StatCard icon={TrendingUp} label="Turnout" value={`${kpi.turnout}%`} tone="bg-[#1F3A6E]/10 text-[#1F3A6E]" layout="col" delay={150} />
+        <StatCard icon={AlertTriangle} label="Active AI Alerts" value={kpi.alerts} tone="bg-destructive/10 text-destructive" layout="col" delay={200} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -31,7 +37,7 @@ function Page() {
           <Badge variant="outline" className="border-destructive/40 text-destructive animate-pulse">Live</Badge>
         </div>
         <div className="space-y-3">
-          {AI_ALERTS.map((a, i) => (
+          {aiAlerts.map((a, i) => (
             <div
               key={a.id}
               className={cn(

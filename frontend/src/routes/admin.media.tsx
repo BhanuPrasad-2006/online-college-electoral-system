@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { MEDIA_ITEMS, type MediaItem } from "@/lib/mock";
+import { useEffect, useState } from "react";
+import type { MediaItem } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useMediaItems } from "@/hooks/use-election-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -10,7 +12,14 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/admin/media")({ component: Page });
 
 function Page() {
-  const [items, setItems] = useState<MediaItem[]>(MEDIA_ITEMS);
+  const { data: media = [], isPending } = useMediaItems();
+  const [items, setItems] = useState<MediaItem[]>([]);
+
+  useEffect(() => {
+    if (media.length) setItems(media);
+  }, [media]);
+
+  if (isPending && !items.length) return <PageLoader />;
 
   function decide(id: string, status: "Approved" | "Rejected") {
     setItems((s) => s.map((m) => (m.id === id ? { ...m, status } : m)));

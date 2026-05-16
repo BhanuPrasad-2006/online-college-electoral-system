@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AUDIT_LOGS } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useAuditLogs } from "@/hooks/use-election-data";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Page() {
+  const { data: logs = [], isPending } = useAuditLogs();
   const [q, setQ] = useState("");
   const [type, setType] = useState("ALL");
   const types = ["ALL", "LOGIN", "VOTE_CAST", "CANDIDATE_APPROVED", "OTP_REQUESTED", "ADMIN_ACTION"];
-  const list = AUDIT_LOGS.filter((l) => (type === "ALL" || l.event === type) && (l.actor.includes(q) || l.ip.includes(q)));
+
+  if (isPending) return <PageLoader />;
+
+  const list = logs.filter((l) => (type === "ALL" || l.event === type) && (l.actor.includes(q) || l.ip.includes(q)));
 
   return (
     <div className="space-y-6">

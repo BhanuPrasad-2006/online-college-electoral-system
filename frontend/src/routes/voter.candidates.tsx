@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { CANDIDATES } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates } from "@/hooks/use-election-data";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,11 +14,15 @@ export const Route = createFileRoute("/voter/candidates")({ component: Page });
 const COVERAGE_CATS = ["Infrastructure", "Academics", "Welfare", "Events", "Sports", "Hostel"];
 
 function Page() {
+  const { data: candidates = [], isPending } = useCandidates();
   const [q, setQ] = useState("");
   const [pos, setPos] = useState("all");
   const [open, setOpen] = useState<string | null>(null);
-  const filtered = CANDIDATES.filter((c) => (pos === "all" || c.position === pos) && c.name.toLowerCase().includes(q.toLowerCase()));
-  const active = CANDIDATES.find((c) => c.id === open);
+
+  if (isPending) return <PageLoader />;
+
+  const filtered = candidates.filter((c) => (pos === "all" || c.position === pos) && c.name.toLowerCase().includes(q.toLowerCase()));
+  const active = candidates.find((c) => c.id === open);
 
   return (
     <div className="space-y-6">

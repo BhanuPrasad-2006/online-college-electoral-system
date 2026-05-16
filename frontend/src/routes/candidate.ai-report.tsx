@@ -1,14 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CONCERN_CATEGORIES } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useConcernCategories } from "@/hooks/use-election-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 
 function Page() {
-  const chartData = CONCERN_CATEGORIES.map((c) => ({ name: c.name.split(" ")[0], Positive: c.positive, Neutral: c.neutral, Negative: c.negative }));
+  const { data: categories = [], isPending } = useConcernCategories();
+  if (isPending) return <PageLoader />;
+
+  const chartData = categories.map((c) => ({ name: c.name.split(" ")[0], Positive: c.positive, Neutral: c.neutral, Negative: c.negative }));
   const overall = [{ name: "Positive", value: 14 }, { name: "Neutral", value: 34 }, { name: "Negative", value: 52 }];
   const COLORS = ["#22c55e", "#cbd5e1", "#ef4444"];
-  const priorities = CONCERN_CATEGORIES.filter((c) => !c.covered).slice(0, 3);
+  const priorities = categories.filter((c) => !c.covered).slice(0, 3);
 
   return (
     <div className="space-y-6">

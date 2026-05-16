@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { RESULTS } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useResults } from "@/hooks/use-election-data";
 import { Lock, Copy, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { toast } from "sonner";
 
 function Page() {
+  const { data: results = [], isPending } = useResults();
   const [published, setPublished] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const hash = "a3f1e9b87c4d2e1a5f6b9c8d7e2a1f4b3c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f";
@@ -42,6 +44,8 @@ function Page() {
     );
   }
 
+  if (isPending) return <PageLoader />;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -49,7 +53,7 @@ function Page() {
         <Button variant="outline" onClick={() => toast.success("PDF exported")}><FileDown className="h-4 w-4 mr-2" />Export PDF</Button>
       </div>
 
-      {RESULTS.map((r) => (
+      {results.map((r) => (
         <div key={r.position} className="bg-card rounded-2xl shadow-sm p-5">
           <h2 className="text-base font-semibold mb-4">{r.position}</h2>
           <ResponsiveContainer width="100%" height={220}>

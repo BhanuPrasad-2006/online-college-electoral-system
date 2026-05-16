@@ -1,11 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { HOURLY_VOTES, DEPT_TURNOUT } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useDeptTurnout, useHourlyVotes } from "@/hooks/use-election-data";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/voter/statistics")({ component: Page });
 
 function Page() {
+  const { data: deptTurnout = [], isPending: loadingDept } = useDeptTurnout();
+  const { data: hourlyVotes = [], isPending: loadingHourly } = useHourlyVotes();
+
+  if (loadingDept || loadingHourly) return <PageLoader />;
+
   const turnoutData = [{ name: "Voted", value: 43 }, { name: "Remaining", value: 57 }];
   const COLORS = ["#6C63FF", "#E5E7EB"];
   return (
@@ -21,7 +27,7 @@ function Page() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Chart title="Votes by Department">
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={DEPT_TURNOUT} layout="vertical">
+            <BarChart data={deptTurnout} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
               <XAxis type="number" stroke="#94a3b8" fontSize={12} />
               <YAxis type="category" dataKey="dept" stroke="#94a3b8" fontSize={12} />
@@ -32,7 +38,7 @@ function Page() {
         </Chart>
         <Chart title="Votes by Hour">
           <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={HOURLY_VOTES}>
+            <LineChart data={hourlyVotes}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
               <XAxis dataKey="hour" stroke="#94a3b8" fontSize={12} />
               <YAxis stroke="#94a3b8" fontSize={12} />

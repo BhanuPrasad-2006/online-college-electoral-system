@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CANDIDATE_USER, NOTIFICATIONS } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidateProfile, useNotifications } from "@/hooks/use-election-data";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
@@ -8,11 +9,16 @@ import { CheckCircle2, Clock, FileCheck, Brain, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Page() {
+  const { data: profile, isPending: loadingProfile } = useCandidateProfile();
+  const { data: notifications = [], isPending: loadingNotifications } = useNotifications();
+
+  if (loadingProfile || loadingNotifications || !profile) return <PageLoader />;
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Welcome back, ${CANDIDATE_USER.name.split(" ")[0]}`}
-        subtitle={`Running for ${CANDIDATE_USER.position} · ${CANDIDATE_USER.department}`}
+        title={`Welcome back, ${profile.name.split(" ")[0]}`}
+        subtitle={`Running for ${profile.position} · ${profile.department}`}
       />
 
       <SectionCard delay={100}>
@@ -80,7 +86,7 @@ function Page() {
           <h2 className="text-base font-semibold">Recent Notifications</h2>
         </div>
         <div className="space-y-1">
-          {NOTIFICATIONS.slice(0, 4).map((n, i) => (
+          {notifications.slice(0, 4).map((n, i) => (
             <div
               key={n.id}
               className={cn(

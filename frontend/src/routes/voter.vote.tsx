@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { CANDIDATES } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates } from "@/hooks/use-election-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban } from "lucide-react";
@@ -19,7 +20,11 @@ function VotePage() {
   const [review, setReview] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
-  const presidents = CANDIDATES.filter((c) => c.position === "President");
+  const { data: candidates = [], isPending } = useCandidates();
+
+  if (isPending && !verified && !confirmed) return <PageLoader />;
+
+  const presidents = candidates.filter((c) => c.position === "President");
 
   function tryVerify() {
     if (studentId.trim().length >= 6) setVerified(true);
