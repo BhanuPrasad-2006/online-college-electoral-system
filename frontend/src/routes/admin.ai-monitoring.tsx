@@ -1,11 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { HOURLY_VOTES, AI_ALERTS } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useAiAlerts, useHourlyVotes } from "@/hooks/use-election-data";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 function Page() {
-  const predict = HOURLY_VOTES.map((h) => ({ ...h, predicted: Math.round(h.baseline * 1.05) }));
+  const { data: hourlyVotes = [], isPending: loadingVotes } = useHourlyVotes();
+  const { data: alerts = [], isPending: loadingAlerts } = useAiAlerts();
+
+  if (loadingVotes || loadingAlerts) return <PageLoader />;
+
+  const predict = hourlyVotes.map((h) => ({ ...h, predicted: Math.round(h.baseline * 1.05) }));
   return (
     <div className="space-y-6">
       <div>
@@ -16,7 +22,7 @@ function Page() {
       <div className="bg-card rounded-2xl shadow-sm p-5">
         <h2 className="text-base font-semibold mb-4">Vote Velocity</h2>
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={HOURLY_VOTES}>
+          <LineChart data={hourlyVotes}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
             <XAxis dataKey="hour" stroke="#94a3b8" fontSize={12} />
             <YAxis stroke="#94a3b8" fontSize={12} />
@@ -51,7 +57,7 @@ function Page() {
         <div className="bg-card rounded-2xl shadow-sm p-5">
           <h2 className="text-base font-semibold mb-4">Behavioral Alerts</h2>
           <div className="space-y-2">
-            {AI_ALERTS.map((a) => (
+            {alerts.map((a) => (
               <div key={a.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
                 <div>
                   <p className="text-sm font-medium">{a.title}</p>

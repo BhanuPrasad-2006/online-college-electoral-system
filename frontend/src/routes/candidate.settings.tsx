@@ -2,9 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { VOTER } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidateProfile } from "@/hooks/use-election-data";
 
 function Page() {
+  const { data: profile, isPending } = useCandidateProfile();
+  if (isPending || !profile) return <PageLoader />;
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
@@ -12,10 +16,10 @@ function Page() {
         <p className="text-sm text-muted-foreground mt-1">Manage your profile and preferences.</p>
       </div>
       <Card title="Account">
-        <Field label="Full Name" value={VOTER.name} />
-        <Field label="Email" value="aditya.rao@college.edu.in" />
-        <Field label="Department" value={VOTER.department} />
-        <Field label="Year" value={VOTER.year} />
+        <Field label="Full Name" value={profile.name} />
+        <Field label="Email" value="priya.sharma@college.edu.in" />
+        <Field label="Department" value={profile.department} />
+        <Field label="Year" value={profile.year} />
       </Card>
       <Card title="Change Password">
         <Field label="Current Password" type="password" />

@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { MEDIA_ITEMS, VOTER_CONCERNS, CANDIDATES, type MediaItem } from "@/lib/mock";
+import { useEffect, useState } from "react";
+import type { MediaItem } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates, useMediaItems, useVoterConcerns } from "@/hooks/use-election-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,16 +13,25 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/candidate/media")({ component: Page });
 
-const ME = CANDIDATES[0];
-
 function Page() {
-  const [items, setItems] = useState<MediaItem[]>(
-    MEDIA_ITEMS.filter((m) => m.candidateId === ME.id)
-  );
+  const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
+  const { data: allMedia = [], isPending: loadingMedia } = useMediaItems();
+  const { data: concerns = [], isPending: loadingConcerns } = useVoterConcerns();
+  const me = candidates[0];
+
   const [type, setType] = useState<"video" | "poster" | "message">("video");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [file, setFile] = useState("");
+  const [items, setItems] = useState<MediaItem[]>([]);
+
+  useEffect(() => {
+    if (me && allMedia.length) {
+      setItems(allMedia.filter((m) => m.candidateId === me.id));
+    }
+  }, [me, allMedia]);
+
+  if (loadingCandidates || loadingMedia || loadingConcerns || !me) return <PageLoader />;
 
   function submit() {
     if (!title.trim()) return toast.error("Title required");
@@ -30,9 +41,9 @@ function Page() {
       setItems((s) => [
         {
           id: `m-${Date.now()}`,
-          candidateId: ME.id,
-          candidateName: ME.name,
-          party: ME.party,
+          candidateId: me.id,
+          candidateName: me.name,
+          party: me.party,
           type,
           title,
           body: type === "message" ? body : undefined,
@@ -47,7 +58,7 @@ function Page() {
     }, 400);
   }
 
-  const incoming = VOTER_CONCERNS.filter((c) => c.toCandidateId === ME.id);
+  const incoming = concerns.filter((c) => c.toCandidateId === me.id);
 
   return (
     <div className="space-y-6">

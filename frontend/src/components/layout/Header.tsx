@@ -5,12 +5,14 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ELECTION, NOTIFICATIONS } from "@/lib/mock";
+import { ELECTION } from "@/lib/mock";
+import { useNotifications } from "@/hooks/use-election-data";
 import { useAuth } from "@/context/AuthContext";
 
 export function Header({ onMenu }: { onMenu?: () => void }) {
   const { role } = useAuth();
-  const unread = NOTIFICATIONS.filter((n) => n.unread).length;
+  const { data: notifications = [] } = useNotifications();
+  const unread = notifications.filter((n) => n.unread).length;
   const initials = role === "voter" ? "AR" : role === "candidate" ? "PS" : "MI";
   return (
     <header className="sticky top-0 z-30 glass-panel border-b border-border/60 shadow-sm">
@@ -38,7 +40,7 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel>Notifications</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {NOTIFICATIONS.slice(0, 5).map((n) => (
+              {notifications.slice(0, 5).map((n) => (
                 <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5 py-2">
                   <span className="text-sm">{n.title}</span>
                   <span className="text-xs text-muted-foreground">{n.time}</span>

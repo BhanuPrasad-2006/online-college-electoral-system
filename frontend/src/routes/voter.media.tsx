@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { MEDIA_ITEMS, CANDIDATES } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates, useMediaItems } from "@/hooks/use-election-data";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,15 +10,20 @@ import { Play, Image as ImageIcon, MessageSquare, FileText } from "lucide-react"
 export const Route = createFileRoute("/voter/media")({ component: Page });
 
 function Page() {
-  const approved = MEDIA_ITEMS.filter((m) => m.status === "Approved");
+  const { data: mediaItems = [], isPending: loadingMedia } = useMediaItems();
+  const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
   const [tab, setTab] = useState("all");
+
+  if (loadingMedia || loadingCandidates) return <PageLoader />;
+
+  const approved = mediaItems.filter((m) => m.status === "Approved");
 
   const groups = {
     all: approved,
     video: approved.filter((m) => m.type === "video"),
     poster: approved.filter((m) => m.type === "poster"),
     message: approved.filter((m) => m.type === "message"),
-    manifesto: CANDIDATES.map((c) => ({
+    manifesto: candidates.map((c) => ({
       id: `mf-${c.id}`,
       candidateId: c.id,
       candidateName: c.name,

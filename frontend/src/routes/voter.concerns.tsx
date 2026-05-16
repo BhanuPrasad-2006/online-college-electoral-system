@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { CANDIDATES, VOTER_CONCERNS, type VoterConcern } from "@/lib/mock";
+import { submitConcern } from "@/lib/demo-api";
+import type { VoterConcern } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates, useVoterConcerns } from "@/hooks/use-election-data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,33 +16,36 @@ export const Route = createFileRoute("/voter/concerns")({ component: Page });
 const CATEGORIES = ["Wi-Fi & Infrastructure", "Placements", "Hostel Facilities", "Cafeteria", "Transportation", "Sports & Events", "Mental Health", "Other"];
 
 function Page() {
+  const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
+  const { data: initialConcerns = [], isPending: loadingConcerns } = useVoterConcerns();
   const [candidateId, setCandidateId] = useState("");
   const [category, setCategory] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [sent, setSent] = useState<VoterConcern[]>(VOTER_CONCERNS);
+  const [sent, setSent] = useState<VoterConcern[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
-  function submit() {
+  if (loadingCandidates || loadingConcerns) return <PageLoader />;
+
+  const concerns = sent.length > 0 ? sent : initialConcerns;
+
+  async function submit() {
     if (!candidateId || !category || !subject.trim() || !message.trim()) {
       toast.error("Please complete all fields");
       return;
     }
-    setTimeout(() => {
-      setSent((s) => [
-        {
-          id: `vc-${Date.now()}`,
-          fromName: "Aditya Rao",
-          department: "CSE",
-          toCandidateId: candidateId,
-          category,
-          message: `${subject}\n${message}`,
-          submittedAt: "Just now",
-        },
-        ...s,
-      ]);
-      setCategory(""); setSubject(""); setMessage(""); setCandidateId("");
+    setSubmitting(true);
+    try {
+      const created = await submitConcern({ toCandidateId: candidateId, category, subject, message });
+      setSent((s) => [created, ...s.length ? s : initialConcerns]);
+      setCategory("");
+      setSubject("");
+      setMessage("");
+      setCandidateId("");
       toast.success("Concern delivered to candidate");
-    }, 400);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -60,7 +66,7 @@ function Page() {
             <Select value={candidateId} onValueChange={setCandidateId}>
               <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select candidate" /></SelectTrigger>
               <SelectContent>
-                {CANDIDATES.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} — {c.position}</SelectItem>)}
+                {candidates.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} — {c.position}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -89,7 +95,7 @@ function Page() {
           />
           <p className="text-[11px] text-muted-foreground mt-1">{message.length}/1000</p>
         </div>
-        <Button onClick={submit} className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
+            <Button onClick={submit} disabled={submitting} className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
           <Send className="h-4 w-4 mr-2" /> Send Concern
         </Button>
       </div>
@@ -97,8 +103,8 @@ function Page() {
       <div className="bg-card rounded-2xl shadow-sm p-5 md:p-6">
         <h2 className="text-base font-semibold mb-4">Recently Sent</h2>
         <div className="space-y-3">
-          {sent.map((c) => {
-            const to = CANDIDATES.find((x) => x.id === c.toCandidateId);
+          {concerns.map((c) => {
+            const to = candidates.find((x) => x.id === c.toCandidateId);
             return (
               <div key={c.id} className="p-4 bg-muted/40 rounded-lg">
                 <div className="flex items-center justify-between gap-2 flex-wrap">

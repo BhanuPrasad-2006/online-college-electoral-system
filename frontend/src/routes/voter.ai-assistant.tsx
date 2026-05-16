@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { sendAiMessage } from "@/lib/demo-api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, Sparkles, ShieldAlert } from "lucide-react";
@@ -17,15 +18,20 @@ type Msg = { from: "user" | "ai"; text: string; source?: string };
 function Page() {
   const [msgs, setMsgs] = useState<Msg[]>([{ from: "ai", text: "Hi! I can help you compare candidates and explore manifestos. Ask me anything." }]);
   const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
 
-  function send(text: string) {
-    if (!text.trim()) return;
-    setMsgs((m) => [...m, { from: "user", text }, {
-      from: "ai",
-      text: `Based on the manifestos, Priya Sharma's plan most directly addresses "${text.slice(0, 40)}..." with specific commitments to upgrade campus Wi-Fi and infrastructure.`,
-      source: "Source: Priya Sharma's manifesto — Infrastructure section",
-    }]);
+  async function send(text: string) {
+    if (!text.trim() || sending) return;
+    const userText = text.trim();
+    setMsgs((m) => [...m, { from: "user", text: userText }]);
     setInput("");
+    setSending(true);
+    try {
+      const { reply, source } = await sendAiMessage(userText);
+      setMsgs((m) => [...m, { from: "ai", text: reply, source }]);
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -37,12 +43,12 @@ function Page() {
 
       <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 text-warning-foreground" />
-        <p className="text-xs">This AI is strictly neutral and cannot recommend candidates.</p>
+        <p className="text-xs">This AI is strictly neutral and cannot recommend candidates. Demo mode uses local sample responses.</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {SUGGESTIONS.map((s) => (
-          <button key={s} onClick={() => send(s)} className="px-3 py-2 rounded-full bg-muted hover:bg-muted/70 text-xs flex items-center gap-1.5">
+          <button key={s} onClick={() => send(s)} disabled={sending} className="px-3 py-2 rounded-full bg-muted hover:bg-muted/70 text-xs flex items-center gap-1.5 disabled:opacity-50">
             <Sparkles className="h-3 w-3 text-[#6C63FF]" /> {s}
           </button>
         ))}
@@ -58,10 +64,13 @@ function Page() {
               </div>
             </div>
           ))}
+          {sending && (
+            <p className="text-xs text-muted-foreground animate-pulse">Thinking…</p>
+          )}
         </div>
         <div className="border-t border-border p-3 flex gap-2">
-          <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(input)} placeholder="Ask about candidates..." />
-          <Button onClick={() => send(input)} size="icon" className="bg-[#1F3A6E] hover:bg-[#1F3A6E]/90"><Send className="h-4 w-4" /></Button>
+          <Input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send(input)} placeholder="Ask about candidates..." disabled={sending} />
+          <Button onClick={() => send(input)} size="icon" disabled={sending} className="bg-[#1F3A6E] hover:bg-[#1F3A6E]/90"><Send className="h-4 w-4" /></Button>
         </div>
       </section>
     </div>

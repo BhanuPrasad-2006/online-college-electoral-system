@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { CANDIDATES } from "@/lib/mock";
+import { PageLoader } from "@/components/PageLoader";
+import { useCandidates } from "@/hooks/use-election-data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +12,15 @@ import { toast } from "sonner";
 const STATUS_FILTERS = ["All", "Pending", "Under Review", "Approved", "Rejected"];
 
 function Page() {
+  const { data: candidates = [], isPending } = useCandidates();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("All");
   const [reject, setReject] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
-  const list = CANDIDATES.filter(
+  if (isPending) return <PageLoader />;
+
+  const list = candidates.filter(
     (c) => (filter === "All" || c.status === filter) &&
       (c.name.toLowerCase().includes(q.toLowerCase()) || c.email.toLowerCase().includes(q.toLowerCase()))
   );
