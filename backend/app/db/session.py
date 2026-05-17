@@ -1,5 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import text
+import logging
+logger = logging.getLogger(__name__)
+from uuid import uuid4  # <-- Add this import at the top of your file
 
 from app.core.config import settings
 
@@ -24,7 +27,12 @@ engine = create_async_engine(
     max_overflow=20,
     pool_recycle=300,
     echo=(settings.APP_ENV == "development"),
-    connect_args={"statement_cache_size": 0},   # required for Supabase pgBouncer
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        # This completely randomizes statement names so pgBouncer can never throw duplicate name conflicts
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
+    },   
 )
 
 SessionLocal = async_sessionmaker(
@@ -49,6 +57,10 @@ async def get_db():
 # ── Health Check (async) ──────────────────────────────────────
 async def check_db_connection() -> bool:
     """Async check — verifies Supabase is reachable."""
-    async with engine.begin() as conn:
-        await conn.execute(text("SELECT 1"))
-    return True
+    try:
+        async with engine.connect() as conn:
+            await conn.exec_driver_sql("SELECT 1")
+        return True
+    except Exception as e:
+        logger.warning(f"Database startup ping returned a warning/error: {e}. Proceeding anyway.")
+        return False
