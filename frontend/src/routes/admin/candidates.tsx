@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageLoader } from "@/components/PageLoader";
 import { useCandidates } from "@/hooks/use-election-data";
+import { useQueryClient } from "@tanstack/react-query";
+import { updateCandidateStatus } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,17 +15,49 @@ const STATUS_FILTERS = ["All", "Pending", "Under Review", "Approved", "Rejected"
 
 function Page() {
   const { data: candidates = [], isPending } = useCandidates();
+  const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("All");
   const [reject, setReject] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   if (isPending) return <PageLoader />;
 
   const list = candidates.filter(
     (c) => (filter === "All" || c.status === filter) &&
-      (c.name.toLowerCase().includes(q.toLowerCase()) || c.email.toLowerCase().includes(q.toLowerCase()))
+      ((c.full_name || "").toLowerCase().includes(q.toLowerCase()) || 
+       (c.college_email || "").toLowerCase().includes(q.toLowerCase()))
   );
+
+  async function handleApprove(candidateId: string, name: string) {
+    setActionLoading(candidateId);
+    try {
+      await updateCandidateStatus(candidateId, "APPROVED");
+      toast.success(`${name} approved successfully`);
+      await queryClient.invalidateQueries({ queryKey: ["candidates"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve candidate");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleRejectConfirm() {
+    if (!reject) return;
+    setActionLoading(reject);
+    try {
+      await updateCandidateStatus(reject, "REJECTED", reason);
+      toast.success("Application rejected successfully");
+      await queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      setReject(null);
+      setReason("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject candidate");
+    } finally {
+      setActionLoading(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -55,20 +89,48 @@ function Page() {
           </thead>
           <tbody>
             {list.map((c) => (
-              <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="p-4 font-medium">{c.name}</td>
-                <td className="p-4 text-xs text-muted-foreground">{c.email}</td>
+              <tr key={c.candidate_id} className="border-b last:border-0 hover:bg-muted/30">
+                <td className="p-4 font-medium">{c.full_name}</td>
+                <td className="p-4 text-xs text-muted-foreground">{c.college_email}</td>
                 <td className="p-4">{c.position}</td>
                 <td className="p-4">{c.department}</td>
                 <td className="p-4">{c.semester}</td>
                 <td className="p-4 text-xs">{c.party}</td>
                 <td className="p-4"><Badge variant={c.payment === "Paid" ? "default" : "outline"}>{c.payment}</Badge></td>
-                <td className="p-4"><Badge className={c.status === "Approved" ? "bg-success text-white" : c.status === "Rejected" ? "bg-destructive text-white" : "bg-warning text-warning-foreground"}>{c.status}</Badge></td>
+                <td className="p-4">
+                  <Badge 
+                    className={
+                      c.status === "Approved" 
+                        ? "bg-success text-white" 
+                        : c.status === "Rejected" 
+                        ? "bg-destructive text-white" 
+                        : c.status === "Under Review"
+                        ? "bg-[#6C63FF]/20 text-[#6C63FF]"
+                        : "bg-warning text-warning-foreground"
+                    }
+                  >
+                    {c.status}
+                  </Badge>
+                </td>
                 <td className="p-4">
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost">Preview</Button>
-                    <Button size="sm" className="bg-success text-white hover:bg-success/90" onClick={() => toast.success(`${c.name} approved`)}>Approve</Button>
-                    <Button size="sm" variant="outline" onClick={() => setReject(c.id)}>Reject</Button>
+                    <Button size="sm" variant="ghost" disabled={!!actionLoading}>Preview</Button>
+                    <Button 
+                      size="sm" 
+                      className="bg-success text-white hover:bg-success/90" 
+                      onClick={() => handleApprove(c.candidate_id, c.full_name)}
+                      disabled={!!actionLoading}
+                    >
+                      {actionLoading === c.candidate_id ? "..." : "Approve"}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setReject(c.candidate_id)}
+                      disabled={!!actionLoading}
+                    >
+                      Reject
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -83,8 +145,14 @@ function Page() {
           <p className="text-sm text-muted-foreground">Provide a reason — this will be shown to the candidate.</p>
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for rejection..." className="w-full h-28 p-3 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setReject(null)}>Cancel</Button>
-            <Button disabled={!reason.trim()} className="bg-destructive text-white hover:bg-destructive/90" onClick={() => { toast.success("Application rejected"); setReject(null); setReason(""); }}>Confirm Reject</Button>
+            <Button variant="outline" onClick={() => setReject(null)} disabled={!!actionLoading}>Cancel</Button>
+            <Button 
+              disabled={!reason.trim() || !!actionLoading} 
+              className="bg-destructive text-white hover:bg-destructive/90" 
+              onClick={handleRejectConfirm}
+            >
+              {actionLoading === reject ? "Confirming..." : "Confirm Reject"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -93,3 +161,4 @@ function Page() {
 }
 
 export const Route = createFileRoute("/admin/candidates")({ component: Page });
+

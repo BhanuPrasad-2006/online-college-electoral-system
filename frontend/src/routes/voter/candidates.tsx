@@ -21,8 +21,13 @@ function Page() {
 
   if (isPending) return <PageLoader />;
 
-  const filtered = candidates.filter((c) => (pos === "all" || c.position === pos) && c.name.toLowerCase().includes(q.toLowerCase()));
-  const active = candidates.find((c) => c.id === open);
+  const filtered = candidates.filter((c) => {
+    const nameStr = c.full_name || c.name || "";
+    const isApproved = (c.status || "").toLowerCase() === "approved";
+    return isApproved && (pos === "all" || c.position === pos) && nameStr.toLowerCase().includes(q.toLowerCase());
+  });
+
+  const active = candidates.find((c) => (c.candidate_id || c.id) === open);
 
   return (
     <div className="space-y-6">
@@ -48,21 +53,23 @@ function Page() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((c) => {
-          const initials = c.name.split(" ").map((n) => n[0]).join("");
-          const tone = c.match >= 70 ? "bg-success/15 text-success" : c.match >= 40 ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground";
+          const nameStr = c.full_name || c.name || "Candidate";
+          const candId = c.candidate_id || c.id;
+          const initials = nameStr.split(" ").map((n: string) => n[0] || "").join("");
+          const tone = (c.match || 75) >= 70 ? "bg-success/15 text-success" : (c.match || 75) >= 40 ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground";
           return (
-            <button key={c.id} onClick={() => setOpen(c.id)} className="bg-card rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition-shadow">
+            <button key={candId} onClick={() => setOpen(candId)} className="bg-card rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition-shadow">
               <div className="flex items-center gap-4">
                 <Avatar className="h-14 w-14"><AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">{initials}</AvatarFallback></Avatar>
                 <div className="min-w-0">
-                  <p className="font-semibold truncate">{c.name}</p>
+                  <p className="font-semibold truncate">{nameStr}</p>
                   <p className="text-xs text-muted-foreground">{c.department} · {c.semester} Sem</p>
                   <p className="text-[11px] text-muted-foreground italic mt-0.5 truncate">{c.party}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-3">
                 <Badge variant="outline">{c.position}</Badge>
-                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>Match {c.match}%</span>
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>Match {c.match || 75}%</span>
               </div>
             </button>
           );
@@ -74,12 +81,12 @@ function Page() {
           {active && (
             <>
               <SheetHeader>
-                <SheetTitle>{active.name}</SheetTitle>
+                <SheetTitle>{active.full_name || active.name}</SheetTitle>
                 <p className="text-sm text-muted-foreground">{active.position} · {active.department} · {active.party}</p>
               </SheetHeader>
               <div className="mt-6 space-y-6">
                 <div className="bg-success/10 border border-success/30 rounded-lg p-3 inline-block text-xs font-semibold text-success">
-                  Covers {Math.round(active.coverage / 100 * COVERAGE_CATS.length)}/{COVERAGE_CATS.length} student concerns
+                  Covers {Math.round((active.coverage || 78) / 100 * COVERAGE_CATS.length)}/{COVERAGE_CATS.length} student concerns
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold mb-2">Manifesto</h3>
@@ -89,7 +96,7 @@ function Page() {
                   <h3 className="text-sm font-semibold mb-3">AI Coverage Breakdown</h3>
                   <div className="space-y-2">
                     {COVERAGE_CATS.map((cat, i) => {
-                      const covered = i < Math.round((active.coverage / 100) * COVERAGE_CATS.length);
+                      const covered = i < Math.round(((active.coverage || 78) / 100) * COVERAGE_CATS.length);
                       const pct = covered ? 60 + ((i * 11) % 35) : 5 + ((i * 7) % 20);
                       return (
                         <div key={cat}>
@@ -116,3 +123,4 @@ function Page() {
     </div>
   );
 }
+

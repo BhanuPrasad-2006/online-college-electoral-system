@@ -14,27 +14,40 @@ function Page() {
 
   if (loadingProfile || loadingNotifications || !profile) return <PageLoader />;
 
+  const candidateName = profile.full_name || profile.name || "Candidate";
+  const statusUpper = (profile.status || "PENDING").toUpperCase();
+
+  const timelineStages = [
+    { label: "Submitted", date: "Oct 28, 10:14 AM", state: "done" as const },
+    { 
+      label: "Under Review", 
+      date: "Oct 29, 2:30 PM", 
+      state: (statusUpper === "APPROVED" || statusUpper === "REJECTED") ? "done" : "active" as const 
+    },
+    { 
+      label: statusUpper === "REJECTED" ? "Rejected" : "Approved", 
+      date: "Oct 30, 9:00 AM", 
+      state: (statusUpper === "APPROVED" || statusUpper === "REJECTED") ? "done" : "pending" as const 
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Welcome back, ${profile.name.split(" ")[0]}`}
+        title={`Welcome back, ${candidateName.split(" ")[0]}`}
         subtitle={`Running for ${profile.position} · ${profile.department}`}
       />
 
       <SectionCard delay={100}>
         <h2 className="text-base font-semibold mb-5">Application Status</h2>
         <div className="flex items-center">
-          {[
-            { label: "Submitted", date: "Oct 28, 10:14 AM", state: "done" },
-            { label: "Under Review", date: "Oct 29, 2:30 PM", state: "done" },
-            { label: "Approved", date: "Oct 30, 9:00 AM", state: "active" },
-          ].map((s, i, a) => (
+          {timelineStages.map((s, i, a) => (
             <div key={i} className="flex-1 flex items-center">
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
                     "h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold transition-transform hover:scale-110",
-                    s.state === "done" ? "bg-success text-white shadow-md shadow-success/30" : s.state === "active" ? "bg-gradient-to-br from-[#1F3A6E] to-[#6C63FF] text-white shadow-md" : "bg-muted text-muted-foreground",
+                    s.state === "done" ? "bg-success text-white shadow-md shadow-success/30" : s.state === "active" ? "bg-gradient-to-br from-[#1F3A6E] to-[#6C63FF] text-white shadow-md animate-pulse" : "bg-muted text-muted-foreground",
                   )}
                 >
                   {s.state === "done" ? <CheckCircle2 className="h-5 w-5" /> : i + 1}
@@ -49,7 +62,27 @@ function Page() {
       </SectionCard>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon={FileCheck} label="Application Status" value={<Badge className="bg-success text-white">Approved</Badge>} delay={150} />
+        <StatCard 
+          icon={FileCheck} 
+          label="Application Status" 
+          value={
+            <Badge 
+              className={cn(
+                statusUpper === "APPROVED" 
+                  ? "bg-success text-white" 
+                  : statusUpper === "REJECTED" 
+                  ? "bg-destructive text-white" 
+                  : statusUpper === "UNDER_REVIEW"
+                  ? "bg-info text-white"
+                  : "bg-warning text-warning-foreground"
+              )}
+            >
+              {profile.status}
+            </Badge>
+          } 
+          delay={150} 
+        />
+
         <StatCard icon={FileCheck} label="Manifesto Status" value={<Badge className="bg-[#6C63FF] text-white">Published</Badge>} tone="bg-[#6C63FF]/10 text-[#6C63FF]" delay={200} />
         <StatCard icon={Brain} label="AI Report" value={<Link to="/candidate/ai-report" className="text-[#6C63FF] font-semibold hover:underline">View →</Link>} delay={250} />
       </div>

@@ -67,6 +67,54 @@ async function post<T>(path: string, body: object): Promise<T> {
   return data as T;
 }
 
+async function get<T>(path: string): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { "Accept": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BASE}${path}`, {
+    method: "GET",
+    headers,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Request failed");
+  return data as T;
+}
+
+async function put<T>(path: string, body: object): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Request failed");
+  return data as T;
+}
+
+// ── Candidate Management ──────────────────────────────────────
+export async function fetchCandidates() {
+  return get<any[]>("/candidates/");
+}
+
+export async function updateCandidateStatus(candidateId: string, status: string, adminRemarks?: string) {
+  return put<{ message: string; candidate_id: string; status: string }>(
+    `/candidates/${candidateId}/status`,
+    { status, admin_remarks: adminRemarks }
+  );
+}
+
+export async function fetchCandidateProfile() {
+  return get<any>("/candidates/me");
+}
+
+
 // ── Voter Login ──────────────────────────────────────────────
 export async function voterLoginStep1(email: string, password: string) {
   return post<{ otp_session_token: string; hint: string; message: string }>(
@@ -174,15 +222,16 @@ export async function resendCandidateOtp(sessionToken: string) {
 }
 
 export async function resendCandidateEmailOtp(sessionToken: string) {
-  return post<{ otp_session_token: string; hint: string }>(
+  return post<{ otp_session_token: string; hint: string; message?: string }>(
     "/auth/candidate/resend-email-otp",
     { otp_session_token: sessionToken }
   );
 }
 
 export async function resendCandidateSmsOtp(sessionToken: string) {
-  return post<{ otp_session_token: string; hint: string }>(
+  return post<{ otp_session_token: string; hint: string; message?: string }>(
     "/auth/candidate/resend-sms-otp",
     { otp_session_token: sessionToken }
   );
 }
+

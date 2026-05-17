@@ -2,8 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchAiAlerts,
   fetchAuditLogs,
-  fetchCandidateProfile,
-  fetchCandidates,
   fetchConcernCategories,
   fetchDeptTurnout,
   fetchElection,
@@ -15,6 +13,12 @@ import {
   fetchVoterConcerns,
   fetchVoterProfile,
 } from "@/lib/demo-api";
+
+import {
+  fetchCandidates,
+  fetchCandidateProfile,
+} from "@/lib/api";
+
 
 const demoQuery = {
   retry: false,
