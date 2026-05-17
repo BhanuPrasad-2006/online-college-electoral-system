@@ -6,7 +6,7 @@ import { Countdown } from "@/components/Countdown";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { candidateLoginStep2, getOtpSession, saveAuth, resendCandidateOtp, saveOtpSession } from "@/lib/api";
+import { candidateLoginStep2, getOtpSession, saveAuth, resendCandidateOtp, saveOtpSession, resendCandidateEmailOtp, resendCandidateSmsOtp } from "@/lib/api";
 
 export const Route = createFileRoute("/candidate/otp-verify")({ component: Page });
 
@@ -17,7 +17,8 @@ function Page() {
   const [phoneOtp, setPhoneOtp] = useState(Array(6).fill(""));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [resendIn, setResendIn] = useState(60);
+  const [emailResendIn, setEmailResendIn] = useState(60);
+  const [phoneResendIn, setPhoneResendIn] = useState(60);
 
   const ready = emailOtp.every((d) => d) && phoneOtp.every((d) => d);
   const { sessionToken: initialToken, email, mobile } = getOtpSession();
@@ -29,10 +30,16 @@ function Page() {
   }, []);
 
   useEffect(() => {
-    if (resendIn <= 0) return;
-    const t = setTimeout(() => setResendIn((v) => v - 1), 1000);
+    if (emailResendIn <= 0) return;
+    const t = setTimeout(() => setEmailResendIn((v) => v - 1), 1000);
     return () => clearTimeout(t);
-  }, [resendIn]);
+  }, [emailResendIn]);
+
+  useEffect(() => {
+    if (phoneResendIn <= 0) return;
+    const t = setTimeout(() => setPhoneResendIn((v) => v - 1), 1000);
+    return () => clearTimeout(t);
+  }, [phoneResendIn]);
 
   async function verify() {
     if (!ready) return;
@@ -62,18 +69,36 @@ function Page() {
     }
   }
 
-  async function resend() {
+  async function resendEmail() {
     if (!sessionToken) return;
     setLoading(true);
     setError("");
     try {
-      const res = await resendCandidateOtp(sessionToken);
+      const res = await resendCandidateEmailOtp(sessionToken);
       saveOtpSession(res.otp_session_token, email, mobile);
       setSessionToken(res.otp_session_token);
-      toast.success(res.hint || "OTPs resent successfully!");
-      setResendIn(60);
+      toast.success(res.message || "Email OTP resent successfully!");
+      setEmailResendIn(60);
     } catch (err: any) {
-      setError(err.message || "Failed to resend OTPs.");
+      setError(err.message || "Failed to resend Email OTP.");
+      toast.error(err.message || "Resend failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendPhone() {
+    if (!sessionToken) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await resendCandidateSmsOtp(sessionToken);
+      saveOtpSession(res.otp_session_token, email, mobile);
+      setSessionToken(res.otp_session_token);
+      toast.success(res.message || "SMS OTP resent successfully!");
+      setPhoneResendIn(60);
+    } catch (err: any) {
+      setError(err.message || "Failed to resend SMS OTP.");
       toast.error(err.message || "Resend failed.");
     } finally {
       setLoading(false);
@@ -93,14 +118,34 @@ function Page() {
 
         <Section icon={<Mail className="h-4 w-4" />} title="Email OTP" subtitle={email ? `Sent to ${email.slice(0,2)}***@${email.split("@")[1]}` : "Sent to your college email"}>
           <OtpInput value={emailOtp} onChange={setEmailOtp} />
-          <p className="text-xs text-muted-foreground text-center mt-2">Expires in <Countdown seconds={10 * 60} /></p>
+          <div className="flex items-center justify-between mt-2.5">
+            <p className="text-[11px] text-muted-foreground">Expires in <Countdown seconds={10 * 60} /></p>
+            <button
+              type="button"
+              disabled={emailResendIn > 0 || loading}
+              onClick={resendEmail}
+              className="text-[11px] text-[#6C63FF] font-semibold hover:underline disabled:opacity-50 disabled:no-underline"
+            >
+              {emailResendIn > 0 ? `Resend in ${emailResendIn}s` : "Resend Email OTP"}
+            </button>
+          </div>
         </Section>
 
         <div className="my-6 border-t border-border" />
 
         <Section icon={<Phone className="h-4 w-4" />} title="Phone OTP" subtitle={mobile ? `Sent to +91-XXXXXX${mobile.slice(-4)}` : "Sent via SMS"}>
           <OtpInput value={phoneOtp} onChange={setPhoneOtp} />
-          <p className="text-xs text-muted-foreground text-center mt-2">Expires in <Countdown seconds={10 * 60} /></p>
+          <div className="flex items-center justify-between mt-2.5">
+            <p className="text-[11px] text-muted-foreground">Expires in <Countdown seconds={10 * 60} /></p>
+            <button
+              type="button"
+              disabled={phoneResendIn > 0 || loading}
+              onClick={resendPhone}
+              className="text-[11px] text-[#6C63FF] font-semibold hover:underline disabled:opacity-50 disabled:no-underline"
+            >
+              {phoneResendIn > 0 ? `Resend in ${phoneResendIn}s` : "Resend SMS OTP"}
+            </button>
+          </div>
         </Section>
 
         {error && (
@@ -121,15 +166,6 @@ function Page() {
               Verifying...
             </span>
           ) : "Verify Both & Continue"}
-        </Button>
-
-        <Button
-          variant="outline"
-          disabled={resendIn > 0 || loading}
-          onClick={resend}
-          className="w-full mt-3 transition-all hover:border-[#6C63FF]/40"
-        >
-          {resendIn > 0 ? `Resend OTPs in ${resendIn}s` : "Resend OTPs"}
         </Button>
 
         <button

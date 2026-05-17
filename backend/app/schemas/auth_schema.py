@@ -49,6 +49,9 @@ class AuthTokenResponse(BaseModel):
     user_id: str
     full_name: str
     expires_in_seconds: int
+    is_registered: Optional[bool] = None
+    department: Optional[str] = None
+    semester: Optional[str] = None
 
 
 # ─────────────────────────────────────────────

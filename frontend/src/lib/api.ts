@@ -172,3 +172,17 @@ export async function resendCandidateOtp(sessionToken: string) {
     { otp_session_token: sessionToken }
   );
 }
+
+export async function resendCandidateEmailOtp(sessionToken: string) {
+  return post<{ otp_session_token: string; hint: string }>(
+    "/auth/candidate/resend-email-otp",
+    { otp_session_token: sessionToken }
+  );
+}
+
+export async function resendCandidateSmsOtp(sessionToken: string) {
+  return post<{ otp_session_token: string; hint: string }>(
+    "/auth/candidate/resend-sms-otp",
+    { otp_session_token: sessionToken }
+  );
+}

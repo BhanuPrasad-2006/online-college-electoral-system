@@ -210,15 +210,13 @@ function Login() {
                 <div>
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-muted-foreground">Password</label>
-                    {tab === "voter" && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setError(""); setMode("forgot_email"); }}
-                        className="text-xs text-[#6C63FF] font-semibold hover:underline"
-                      >
-                        Forgot Password?
-                      </button>
-                    )}
+                    <button 
+                      type="button" 
+                      onClick={() => { setError(""); setMode("forgot_email"); }}
+                      className="text-xs text-[#6C63FF] font-semibold hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
                   </div>
                   <div className="mt-1.5 relative">
                     <Input type={show ? "text" : "password"} required placeholder="••••••••" className="pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} />
