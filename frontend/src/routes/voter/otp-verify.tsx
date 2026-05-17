@@ -6,9 +6,13 @@ import { Countdown } from "@/components/Countdown";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { voterLoginStep1, voterLoginStep2, getOtpSession, saveOtpSession, saveAuth } from "@/lib/api";
+import { voterLoginStep1, voterLoginStep2, getOtpSession, saveOtpSession, saveAuth, resendVoterOtp } from "@/lib/api";
 
-export const Route = createFileRoute("/voter/otp-verify")({ component: OtpVerify });
+export const Route = createFileRoute("/voter/otp-verify")({ component: Page });
+
+function Page() {
+  return <OtpVerify />;
+}
 
 function OtpVerify() {
   const nav = useNavigate();
@@ -18,7 +22,8 @@ function OtpVerify() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { sessionToken, email } = getOtpSession();
+  const { sessionToken: initialToken, email } = getOtpSession();
+  const [sessionToken, setSessionToken] = useState(initialToken);
 
   // If there's no session token at all, go back to login
   useEffect(() => {
@@ -49,12 +54,21 @@ function OtpVerify() {
   }
 
   async function resend() {
-    if (!email) return;
+    if (!sessionToken) return;
+    setLoading(true);
+    setError("");
     try {
-      // We don't have the password here, so just show a prompt to go back
-      toast.info("Please go back to login and enter your credentials again to resend OTP.");
+      const res = await resendVoterOtp(sessionToken);
+      saveOtpSession(res.otp_session_token, email);
+      setSessionToken(res.otp_session_token);
+      toast.success(res.hint || "OTP resent successfully!");
       setResendIn(60);
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend OTP.");
+      toast.error(err.message || "Resend failed.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

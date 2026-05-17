@@ -6,7 +6,7 @@ import { Countdown } from "@/components/Countdown";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { candidateLoginStep2, getOtpSession, saveAuth } from "@/lib/api";
+import { candidateLoginStep2, getOtpSession, saveAuth, resendCandidateOtp, saveOtpSession } from "@/lib/api";
 
 export const Route = createFileRoute("/candidate/otp-verify")({ component: Page });
 
@@ -17,14 +17,22 @@ function Page() {
   const [phoneOtp, setPhoneOtp] = useState(Array(6).fill(""));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resendIn, setResendIn] = useState(60);
 
   const ready = emailOtp.every((d) => d) && phoneOtp.every((d) => d);
-  const { sessionToken, email, mobile } = getOtpSession();
+  const { sessionToken: initialToken, email, mobile } = getOtpSession();
+  const [sessionToken, setSessionToken] = useState(initialToken);
 
   // If no session token, redirect back
   useEffect(() => {
     if (!sessionToken) nav({ to: "/" });
   }, []);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((v) => v - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   async function verify() {
     if (!ready) return;
@@ -50,6 +58,24 @@ function Page() {
       nav({ to: isRegistered ? "/candidate/dashboard" : "/candidate/register" });
     } catch (err: any) {
       setError(err.message || "OTP verification failed. Please check both codes.");
+      setLoading(false);
+    }
+  }
+
+  async function resend() {
+    if (!sessionToken) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await resendCandidateOtp(sessionToken);
+      saveOtpSession(res.otp_session_token, email, mobile);
+      setSessionToken(res.otp_session_token);
+      toast.success(res.hint || "OTPs resent successfully!");
+      setResendIn(60);
+    } catch (err: any) {
+      setError(err.message || "Failed to resend OTPs.");
+      toast.error(err.message || "Resend failed.");
+    } finally {
       setLoading(false);
     }
   }
@@ -95,6 +121,15 @@ function Page() {
               Verifying...
             </span>
           ) : "Verify Both & Continue"}
+        </Button>
+
+        <Button
+          variant="outline"
+          disabled={resendIn > 0 || loading}
+          onClick={resend}
+          className="w-full mt-3 transition-all hover:border-[#6C63FF]/40"
+        >
+          {resendIn > 0 ? `Resend OTPs in ${resendIn}s` : "Resend OTPs"}
         </Button>
 
         <button

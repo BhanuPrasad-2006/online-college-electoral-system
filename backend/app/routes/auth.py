@@ -14,6 +14,11 @@ from app.schemas.auth_schema import (
     CandidateOTPVerifyRequest,
     AdminLoginRequest,
     AdminOTPVerifyRequest,
+    PasswordChangeRequest,
+    PasswordChangeConfirmRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordConfirmRequest,
+    ResendOTPRequest,
     OTPSentResponse,
     AuthTokenResponse,
 )
@@ -24,6 +29,12 @@ from app.services.auth_service import (
     candidate_login_step2,
     admin_login_step1,
     admin_login_step2,
+    request_password_change_otp,
+    confirm_password_change,
+    request_forgot_password_otp,
+    confirm_forgot_password,
+    resend_voter_otp,
+    resend_candidate_otp,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -238,3 +249,123 @@ async def get_candidate_profile(
         "position": position_title,
         "status": status_str,
     }
+
+
+# ─── Password Change Endpoints ────────────────────────────────
+
+@router.post(
+    "/change-password/request",
+    status_code=status.HTTP_200_OK,
+    summary="Request a password change (Step 1 — Verify current, dispatch OTP)",
+)
+async def request_password_change(
+    body: PasswordChangeRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    voter_id = current_user.get("user_id")
+    if not voter_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    result = await request_password_change_otp(
+        db=db,
+        voter_id=voter_id,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+    return result
+
+
+@router.post(
+    "/change-password/confirm",
+    status_code=status.HTTP_200_OK,
+    summary="Confirm password change (Step 2 — Verify OTP, commit change)",
+)
+async def confirm_password_change_route(
+    body: PasswordChangeConfirmRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    voter_id = current_user.get("user_id")
+    if not voter_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    result = await confirm_password_change(
+        db=db,
+        voter_id=voter_id,
+        otp_session_token=body.otp_session_token,
+        otp=body.otp,
+    )
+    return result
+
+
+# ─── Forgot Password Endpoints ───────────────────────────────
+
+@router.post(
+    "/forgot-password/request",
+    status_code=status.HTTP_200_OK,
+    summary="Request password reset (Step 1 — Verify email, dispatch OTP)",
+)
+async def forgot_password_request_route(
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await request_forgot_password_otp(
+        db=db,
+        email=body.email,
+    )
+    return result
+
+
+@router.post(
+    "/forgot-password/confirm",
+    status_code=status.HTTP_200_OK,
+    summary="Confirm password reset (Step 2 — Verify OTP, apply new password)",
+)
+async def forgot_password_confirm_route(
+    body: ForgotPasswordConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await confirm_forgot_password(
+        db=db,
+        otp_session_token=body.otp_session_token,
+        otp=body.otp,
+        new_password=body.new_password,
+    )
+    return result
+
+
+# ─── Resend OTP Routes ────────────────────────────────────────
+
+@router.post(
+    "/voter/resend-otp",
+    response_model=OTPSentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resend Voter Login OTP",
+)
+async def voter_resend_otp_route(
+    body: ResendOTPRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await resend_voter_otp(
+        db=db,
+        otp_session_token=body.otp_session_token,
+    )
+    return result
+
+
+@router.post(
+    "/candidate/resend-otp",
+    response_model=OTPSentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resend Candidate Login OTP",
+)
+async def candidate_resend_otp_route(
+    body: ResendOTPRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await resend_candidate_otp(
+        db=db,
+        otp_session_token=body.otp_session_token,
+    )
+    return result

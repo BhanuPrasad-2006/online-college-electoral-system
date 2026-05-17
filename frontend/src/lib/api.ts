@@ -52,9 +52,14 @@ export function getFullName() {
 
 // ── Generic fetch wrapper ────────────────────────────────────
 async function post<T>(path: string, body: object): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -121,4 +126,49 @@ export async function castVote(candidateId: string | null) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail ?? "Failed to cast vote");
   return data;
+}
+
+// ── Change Password ──────────────────────────────────────────
+export async function requestPasswordChange(currentPassword: string, newPassword: string) {
+  return post<{ otp_session_token: string; hint: string }>(
+    "/auth/change-password/request",
+    { current_password: currentPassword, new_password: newPassword }
+  );
+}
+
+export async function confirmPasswordChange(sessionToken: string, otp: string) {
+  return post<{ message: string }>(
+    "/auth/change-password/confirm",
+    { otp_session_token: sessionToken, otp }
+  );
+}
+
+// ── Forgot Password ──────────────────────────────────────────
+export async function requestForgotPassword(email: string) {
+  return post<{ otp_session_token: string; hint: string }>(
+    "/auth/forgot-password/request",
+    { email }
+  );
+}
+
+export async function confirmForgotPassword(sessionToken: string, otp: string, newPassword: string) {
+  return post<{ message: string }>(
+    "/auth/forgot-password/confirm",
+    { otp_session_token: sessionToken, otp, new_password: newPassword }
+  );
+}
+
+// ── Resend OTP ───────────────────────────────────────────────
+export async function resendVoterOtp(sessionToken: string) {
+  return post<{ otp_session_token: string; hint: string }>(
+    "/auth/voter/resend-otp",
+    { otp_session_token: sessionToken }
+  );
+}
+
+export async function resendCandidateOtp(sessionToken: string) {
+  return post<{ otp_session_token: string; hint: string }>(
+    "/auth/candidate/resend-otp",
+    { otp_session_token: sessionToken }
+  );
 }

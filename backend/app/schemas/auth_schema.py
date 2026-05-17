@@ -65,3 +65,35 @@ class AdminOTPVerifyRequest(BaseModel):
     otp_session_token: str
     email_otp: str
     sms_otp: str
+
+
+# ─────────────────────────────────────────────
+# CHANGE PASSWORD SCHEMAS
+# ─────────────────────────────────────────────
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class PasswordChangeConfirmRequest(BaseModel):
+    otp_session_token: str
+    otp: str
+
+
+class ResendOTPRequest(BaseModel):
+    otp_session_token: str
+
+
+# ─────────────────────────────────────────────
+# FORGOT PASSWORD SCHEMAS
+# ─────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordConfirmRequest(BaseModel):
+    otp_session_token: str
+    otp: str
+    new_password: str
