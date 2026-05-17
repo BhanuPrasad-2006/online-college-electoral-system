@@ -16,6 +16,12 @@ def _make_async_url(url: str) -> str:
     return url
 
 
+import ssl
+
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 # ── Async Engine (runtime) ────────────────────────────────────
 engine = create_async_engine(
     _make_async_url(settings.DATABASE_POOLER_URL),
@@ -24,8 +30,12 @@ engine = create_async_engine(
     max_overflow=20,
     pool_recycle=300,
     echo=(settings.APP_ENV == "development"),
-    connect_args={"statement_cache_size": 0},   # required for Supabase pgBouncer
+    connect_args={
+        "statement_cache_size": 0,
+        "ssl": ssl_context
+    },   # required for Supabase pgBouncer + permissive SSL
 )
+
 
 SessionLocal = async_sessionmaker(
     bind=engine,

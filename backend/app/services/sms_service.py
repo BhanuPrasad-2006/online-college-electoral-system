@@ -20,7 +20,7 @@ async def send_otp_sms(mobile_number: str, otp: str, recipient_name: str = "") -
         return False
 
     # Development fallback
-    logger.info(f"🔑 [DEV MODE] SMS OTP for {mobile}: {otp}")
+    logger.info(f"[SMS] [DEV MODE] SMS OTP for {mobile}: {otp}")
 
     message = (
         f"Dear {recipient_name}, your OTP for College Election Portal login is "
@@ -74,7 +74,7 @@ async def send_custom_sms(mobile_number: str, message: str) -> bool:
         logger.error(f"Invalid mobile number format: {mobile_number}")
         return False
 
-    logger.info(f"📱 [DEV MODE] Custom SMS Alert for {mobile}: '{message}'")
+    logger.info(f"[SMS] [DEV MODE] Custom SMS Alert for {mobile}: '{message}'")
 
     headers = {
         "authorization": settings.FAST2SMS_API_KEY,
