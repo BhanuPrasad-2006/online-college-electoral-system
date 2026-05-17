@@ -91,6 +91,7 @@ async def send_otp_email(
     Send OTP via Gmail SMTP.
     Runs sync SMTP in thread pool to avoid blocking the event loop.
     """
+    logger.info(f"📧 [DEV MODE] Email OTP for {to_email} ({purpose}): {otp}")
     subject_map = {
         "login": "Your Login OTP - College Election Portal",
         "registration": "Verify Your Email - College Election Portal",

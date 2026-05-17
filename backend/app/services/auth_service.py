@@ -361,6 +361,9 @@ async def candidate_login_step2(
         "user_id": str(candidate.candidate_id),
         "full_name": voter.full_name,
         "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "is_registered": candidate.party_symbol_url is not None,
+        "department": voter.department,
+        "semester": str(voter.year_of_study) if voter.year_of_study is not None else None,
     }
 
 
@@ -523,8 +526,16 @@ async def request_password_change_otp(
     Step 1: Verify current password, then generate and send Email OTP for password change request.
     """
     # 1. Fetch voter
-    voter_uuid = uuid.UUID(voter_id)
-    query = select(Voter).where(Voter.voter_id == voter_uuid)
+    user_uuid = uuid.UUID(voter_id)
+    cand_query = select(Candidate).where(Candidate.candidate_id == user_uuid)
+    cand_result = await db.execute(cand_query)
+    candidate = cand_result.scalar_one_or_none()
+
+    if candidate:
+        query = select(Voter).where(Voter.voter_id == candidate.voter_id)
+    else:
+        query = select(Voter).where(Voter.voter_id == user_uuid)
+
     result = await db.execute(query)
     voter = result.scalar_one_or_none()
 
@@ -611,8 +622,16 @@ async def confirm_password_change(
         raise OTPError(email_msg)
 
     # Fetch and update voter password
-    voter_uuid = uuid.UUID(voter_id)
-    query = select(Voter).where(Voter.voter_id == voter_uuid)
+    user_uuid = uuid.UUID(voter_id)
+    cand_query = select(Candidate).where(Candidate.candidate_id == user_uuid)
+    cand_result = await db.execute(cand_query)
+    candidate = cand_result.scalar_one_or_none()
+
+    if candidate:
+        query = select(Voter).where(Voter.voter_id == candidate.voter_id)
+    else:
+        query = select(Voter).where(Voter.voter_id == user_uuid)
+
     result = await db.execute(query)
     voter = result.scalar_one_or_none()
 
@@ -871,4 +890,127 @@ async def resend_candidate_otp(
             f"OTP sent to {_mask_email(voter.college_email)} "
             f"and {_mask_mobile(candidate.mobile_number)}"
         ),
+    }
+
+
+async def resend_candidate_email_otp(
+    db: AsyncSession,
+    otp_session_token: str,
+) -> dict:
+    """
+    Resend ONLY the Email OTP for Candidate Login based on their active OTP session token.
+    """
+    try:
+        payload = decode_access_token(otp_session_token)
+        if not payload or payload.get("type") != "otp_session":
+            raise InvalidCredentialsError("Invalid or expired OTP session")
+    except jwt.PyJWTError:
+        raise InvalidCredentialsError("Invalid or expired OTP session")
+
+    voter_id = payload.get("sub")
+    voter_uuid = uuid.UUID(voter_id)
+
+    # Get voter to get email
+    query_v = select(Voter).where(Voter.voter_id == voter_uuid)
+    result_v = await db.execute(query_v)
+    voter = result_v.scalar_one_or_none()
+
+    if not voter:
+        raise InvalidCredentialsError("Voter profile not found")
+
+    # Generate new Email OTP
+    email_otp_record, email_otp = await create_and_store_otp(
+        db=db,
+        recipient=voter.college_email,
+        otp_type=OTPTypeEnum.EMAIL,
+    )
+
+    # Dispatch in background
+    asyncio.create_task(
+        send_otp_email(
+            to_email=voter.college_email,
+            recipient_name=voter.full_name,
+            otp=email_otp,
+            purpose="login",
+        )
+    )
+
+    await db.commit()
+
+    # Generate new token
+    new_session_token = create_otp_session_token(
+        voter_id=str(voter.voter_id),
+        email=voter.college_email,
+        otp_id=str(email_otp_record.otp_id),
+    )
+
+    return {
+        "message": "OTP has been successfully resent to your registered email.",
+        "otp_session_token": new_session_token,
+        "hint": f"OTP sent to {_mask_email(voter.college_email)}",
+    }
+
+
+async def resend_candidate_sms_otp(
+    db: AsyncSession,
+    otp_session_token: str,
+) -> dict:
+    """
+    Resend ONLY the SMS OTP for Candidate Login based on their active OTP session token.
+    """
+    try:
+        payload = decode_access_token(otp_session_token)
+        if not payload or payload.get("type") != "otp_session":
+            raise InvalidCredentialsError("Invalid or expired OTP session")
+    except jwt.PyJWTError:
+        raise InvalidCredentialsError("Invalid or expired OTP session")
+
+    voter_id = payload.get("sub")
+    voter_uuid = uuid.UUID(voter_id)
+
+    # Get voter
+    query_v = select(Voter).where(Voter.voter_id == voter_uuid)
+    result_v = await db.execute(query_v)
+    voter = result_v.scalar_one_or_none()
+
+    if not voter:
+        raise InvalidCredentialsError("Voter profile not found")
+
+    # Get candidate to get mobile number
+    query_c = select(Candidate).where(Candidate.voter_id == voter_uuid)
+    result_c = await db.execute(query_c)
+    candidate = result_c.scalar_one_or_none()
+
+    if not candidate:
+        raise InvalidCredentialsError("Candidate profile not found")
+
+    # Generate new SMS OTP
+    sms_otp_record, sms_otp = await create_and_store_otp(
+        db=db,
+        recipient=candidate.mobile_number,
+        otp_type=OTPTypeEnum.SMS,
+    )
+
+    # Dispatch in background
+    asyncio.create_task(
+        send_otp_sms(
+            mobile_number=candidate.mobile_number,
+            otp=sms_otp,
+            recipient_name=voter.full_name,
+        )
+    )
+
+    await db.commit()
+
+    # Generate new token
+    new_session_token = create_otp_session_token(
+        voter_id=str(candidate.voter_id),
+        email=voter.college_email,
+        otp_id=str(sms_otp_record.otp_id),
+    )
+
+    return {
+        "message": "OTP has been successfully resent to your registered mobile number.",
+        "otp_session_token": new_session_token,
+        "hint": f"OTP sent to {_mask_mobile(candidate.mobile_number)}",
     }

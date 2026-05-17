@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -35,6 +36,8 @@ from app.services.auth_service import (
     confirm_forgot_password,
     resend_voter_otp,
     resend_candidate_otp,
+    resend_candidate_email_otp,
+    resend_candidate_sms_otp,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -125,6 +128,7 @@ async def candidate_verify_otp(
     result = await candidate_login_step2(
         db, body.otp_session_token, body.email_otp, body.sms_otp
     )
+    return AuthTokenResponse(**result)
 # ─── Admin Routes ─────────────────────────────────────────────
 
 @router.post(
@@ -207,20 +211,34 @@ async def get_candidate_profile(
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch current logged-in candidate's profile from the database."""
-    voter_id = current_user.get("user_id")
-    if not voter_id:
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    query = select(Candidate).where(Candidate.voter_id == voter_id)
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID format")
+
+    query = select(Candidate).where(Candidate.candidate_id == user_uuid)
     result = await db.execute(query)
     candidate = result.scalar_one_or_none()
 
-    voter_query = select(Voter).where(Voter.voter_id == voter_id)
+    if not candidate:
+        # Fallback: check if the subject was voter_id
+        query = select(Candidate).where(Candidate.voter_id == user_uuid)
+        result = await db.execute(query)
+        candidate = result.scalar_one_or_none()
+
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
+
+    voter_query = select(Voter).where(Voter.voter_id == candidate.voter_id)
     voter_result = await db.execute(voter_query)
     voter = voter_result.scalar_one_or_none()
 
     if not voter:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter profile not found")
 
     position_title = "—"
     status_str = "Pending"
@@ -365,6 +383,40 @@ async def candidate_resend_otp_route(
     db: AsyncSession = Depends(get_db),
 ):
     result = await resend_candidate_otp(
+        db=db,
+        otp_session_token=body.otp_session_token,
+    )
+    return result
+
+
+@router.post(
+    "/candidate/resend-email-otp",
+    response_model=OTPSentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resend Candidate Email OTP",
+)
+async def candidate_resend_email_otp_route(
+    body: ResendOTPRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await resend_candidate_email_otp(
+        db=db,
+        otp_session_token=body.otp_session_token,
+    )
+    return result
+
+
+@router.post(
+    "/candidate/resend-sms-otp",
+    response_model=OTPSentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resend Candidate SMS OTP",
+)
+async def candidate_resend_sms_otp_route(
+    body: ResendOTPRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await resend_candidate_sms_otp(
         db=db,
         otp_session_token=body.otp_session_token,
     )
