@@ -16,6 +16,10 @@ const AUTH_PATHS = new Set([
   "/candidate/register",
   "/adminlogin",
   "/admin-otp-verify",
+  "/voter/otp-verify",
+  "/candidate/otp-verify",
+  "/admin/otp-verify",
+  "/admin/login",
 ]);
 
 export function AppLayout() {

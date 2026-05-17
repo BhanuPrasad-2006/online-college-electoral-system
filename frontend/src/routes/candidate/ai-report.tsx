@@ -22,7 +22,7 @@ function Page() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {CONCERN_CATEGORIES.slice(0, 6).map((c) => (
+        {categories.slice(0, 6).map((c) => (
           <div key={c.name} className="bg-card rounded-2xl shadow-sm p-5">
             <div className="flex items-start justify-between gap-2">
               <div>

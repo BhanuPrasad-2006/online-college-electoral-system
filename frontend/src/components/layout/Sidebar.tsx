@@ -25,7 +25,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/context/NotificationStore";
 
-const VOTER_LINKS = [
+interface SidebarLink {
+  to: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  badge?: number;
+}
+
+const VOTER_LINKS: SidebarLink[] = [
   { to: "/voter/dashboard", label: "Dashboard", icon: Home },
   { to: "/voter/candidates", label: "Candidates & Manifestos", icon: Users },
   { to: "/voter/media", label: "Campaign Gallery", icon: Film },
@@ -33,7 +40,7 @@ const VOTER_LINKS = [
   { to: "/voter/statistics", label: "Statistics", icon: BarChart2 },
 ];
 
-const CANDIDATE_LINKS = [
+const CANDIDATE_LINKS: SidebarLink[] = [
   { to: "/candidate/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/candidate/manifesto", label: "Manifesto Editor", icon: FileEdit },
   { to: "/candidate/media", label: "Campaign Media", icon: Film },
@@ -43,7 +50,7 @@ const CANDIDATE_LINKS = [
   { to: "/candidate/settings", label: "Settings", icon: Settings },
 ];
 
-const ADMIN_LINKS = [
+const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: Shield },
   { to: "/admin/candidates", label: "Manage Candidates", icon: Users },
   { to: "/admin/media", label: "Content Approval", icon: ShieldCheck },
@@ -56,7 +63,7 @@ const ADMIN_LINKS = [
 
 export type SidebarKind = "voter" | "candidate" | "admin";
 
-const LINKS_FOR: Record<SidebarKind, typeof VOTER_LINKS> = {
+const LINKS_FOR: Record<SidebarKind, SidebarLink[]> = {
   voter: VOTER_LINKS,
   candidate: CANDIDATE_LINKS,
   admin: ADMIN_LINKS,

@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Eye, EyeOff, GraduationCap, ShieldCheck, Sparkles } from "lucide-react";
+import { Eye, EyeOff, GraduationCap, ShieldCheck, Sparkles, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { voterLoginStep1, candidateLoginStep1, saveOtpSession } from "@/lib/api";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({ component: Login });
 
@@ -11,14 +13,33 @@ function Login() {
   const [tab, setTab] = useState<"voter" | "candidate">("voter");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      if (tab === "voter") {
+        const res = await voterLoginStep1(email, password);
+        saveOtpSession(res.otp_session_token, email);
+        toast.success(res.hint);
+        nav({ to: "/voter/otp-verify" });
+      } else {
+        const mobileNum = mobile.replace(/\s/g, "");
+        const res = await candidateLoginStep1(email, mobileNum, password);
+        saveOtpSession(res.otp_session_token, email, mobileNum);
+        toast.success(res.hint);
+        nav({ to: "/candidate/otp-verify" });
+      }
+    } catch (err: any) {
+      setError(err.message || "Invalid credentials. Please try again.");
+      toast.error(err.message || "Login failed.");
       setLoading(false);
-      nav({ to: tab === "voter" ? "/otp-verify" : "/candidate-otp-verify" });
-    }, 600);
+    }
   }
 
   return (
@@ -74,17 +95,24 @@ function Login() {
             </button>
           </div>
 
+          {error && (
+            <div className="mt-4 flex items-center gap-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground">College Email</label>
-              <Input type="email" required placeholder="yourname@college.edu.in" className="mt-1.5 h-11" />
+              <Input type="email" required placeholder="yourname@college.edu.in" className="mt-1.5 h-11" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             {tab === "candidate" && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Phone Number</label>
                 <div className="mt-1.5 flex">
                   <span className="inline-flex items-center px-3 border border-r-0 border-border bg-muted rounded-l-md text-sm">+91</span>
-                  <Input type="tel" required placeholder="98765 43210" className="rounded-l-none h-11" />
+                  <Input type="tel" required placeholder="98765 43210" className="rounded-l-none h-11" value={mobile} onChange={(e) => setMobile(e.target.value)} />
                 </div>
               </div>
             )}
@@ -94,7 +122,7 @@ function Login() {
                 {tab === "voter" && <button type="button" className="text-xs text-[#6C63FF] font-medium">Forgot Password?</button>}
               </div>
               <div className="mt-1.5 relative">
-                <Input type={show ? "text" : "password"} required placeholder="••••••••" className="pr-10 h-11" />
+                <Input type={show ? "text" : "password"} required placeholder="••••••••" className="pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} />
                 <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                   {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

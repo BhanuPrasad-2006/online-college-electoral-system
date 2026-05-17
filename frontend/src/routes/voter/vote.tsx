@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { castVote } from "@/lib/api";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
@@ -19,6 +21,7 @@ function VotePage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [review, setReview] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: candidates = [], isPending } = useCandidates();
 
@@ -29,6 +32,20 @@ function VotePage() {
   function tryVerify() {
     if (studentId.trim().length >= 6) setVerified(true);
     else setAttempts((a) => a + 1);
+  }
+
+  async function handleCastVote() {
+    setIsSubmitting(true);
+    try {
+      await castVote(selected === NOTA_ID ? null : selected);
+      setConfirmed(true);
+      toast.success("Vote cast successfully!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to cast vote. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   if (confirmed) {
@@ -222,9 +239,10 @@ function VotePage() {
               <Button variant="outline" onClick={() => setReview(false)}>← Back</Button>
               <Button
                 className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => setConfirmed(true)}
+                onClick={handleCastVote}
+                disabled={isSubmitting}
               >
-                Confirm & Cast My Vote
+                {isSubmitting ? "Casting Vote..." : "Confirm & Cast My Vote"}
               </Button>
             </div>
           </div>

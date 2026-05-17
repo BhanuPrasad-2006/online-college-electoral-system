@@ -106,3 +106,19 @@ export async function adminLoginStep2(sessionToken: string, email_otp: string, s
     { otp_session_token: sessionToken, email_otp, sms_otp }
   );
 }
+
+// ── Vote Casting ──────────────────────────────────────────────
+export async function castVote(candidateId: string | null) {
+  const token = getAuthToken();
+  const res = await fetch(`${BASE}/vote/cast`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ candidate_id: candidateId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Failed to cast vote");
+  return data;
+}

@@ -22,7 +22,7 @@ from app.services.otp_service import (
 )
 
 from app.services.email_service import send_otp_email
-from app.services.sms_service import send_otp_sms
+from app.services.sms_service import send_otp_sms, send_custom_sms
 
 from app.enums.otp_type import OTPTypeEnum
 from app.enums.roles import UserRoleEnum
@@ -167,6 +167,14 @@ async def voter_login_step2(
             "email": voter.college_email,
         }
     )
+
+    # Trigger login security alert SMS if mobile number exists
+    if voter.mobile_number:
+        try:
+            msg = "Security Alert: You have successfully logged in to CollegeVote. If this wasn't you, please secure your account or change your password immediately."
+            asyncio.create_task(send_custom_sms(voter.mobile_number, msg))
+        except Exception:
+            pass
 
     return {
         "access_token": access_token,

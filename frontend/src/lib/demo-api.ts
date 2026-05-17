@@ -5,6 +5,7 @@
  * and set DEMO_MODE to false in demo-config.ts.
  */
 import { DEMO_MODE } from "./demo-config";
+import { getAuthToken } from "./api";
 import {
   AI_ALERTS,
   AUDIT_LOGS,
@@ -72,15 +73,47 @@ export async function fetchMediaItems(): Promise<MediaItem[]> {
 }
 
 export async function fetchVoterProfile() {
-  // return apiGet<typeof VOTER>("/voter/me");
-  await delay(90);
-  return clone(VOTER);
+  const token = getAuthToken();
+  if (!token) {
+    await delay(90);
+    return clone(VOTER);
+  }
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/api/v1/auth/voter/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) throw new Error("Voter profile fetch failed");
+    return await res.json();
+  } catch (e) {
+    console.error("Voter profile fetch failed, falling back to mock:", e);
+    return clone(VOTER);
+  }
 }
 
 export async function fetchCandidateProfile() {
-  // return apiGet<typeof CANDIDATE_USER>("/candidate/me");
-  await delay(90);
-  return clone(CANDIDATE_USER);
+  const token = getAuthToken();
+  if (!token) {
+    await delay(90);
+    return clone(CANDIDATE_USER);
+  }
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/api/v1/auth/candidate/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) throw new Error("Candidate profile fetch failed");
+    return await res.json();
+  } catch (e) {
+    console.error("Candidate profile fetch failed, falling back to mock:", e);
+    return clone(CANDIDATE_USER);
+  }
 }
 
 export async function fetchConcernCategories() {
