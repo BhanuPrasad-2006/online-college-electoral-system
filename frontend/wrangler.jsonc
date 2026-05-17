@@ -1,4 +1,3 @@
-// Optional — only for Cloudflare Workers deploy. Vercel uses Nitro (see vite.config.ts).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tanstack-start-app",

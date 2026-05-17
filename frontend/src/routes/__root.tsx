@@ -9,17 +9,11 @@ import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center mesh-bg px-4">
-      <div className="max-w-md text-center animate-fade-in-up">
-        <h1 className="text-7xl font-extrabold gradient-text">404</h1>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-7xl font-bold">404</h1>
         <h2 className="mt-4 text-xl font-semibold">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">The page you're looking for doesn't exist or was moved.</p>
-        <Link
-          to="/"
-          className="mt-6 inline-flex rounded-lg bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:opacity-95 transition-all hover:-translate-y-0.5"
-        >
-          Go home
-        </Link>
+        <Link to="/" className="mt-6 inline-flex rounded-md bg-[#1F3A6E] px-4 py-2 text-sm font-medium text-white">Go home</Link>
       </div>
     </div>
   );
@@ -28,16 +22,11 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
-    <div className="flex min-h-screen items-center justify-center mesh-bg px-4">
-      <div className="max-w-md text-center animate-fade-in-up glass-panel rounded-2xl border border-border/60 p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold">Something went wrong</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
-        <button
-          onClick={() => { router.invalidate(); reset(); }}
-          className="mt-6 rounded-lg bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:opacity-95 transition-all active:scale-[0.98]"
-        >
-          Try again
-        </button>
+        <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 rounded-md bg-[#1F3A6E] px-4 py-2 text-sm font-medium text-white">Try again</button>
       </div>
     </div>
   );

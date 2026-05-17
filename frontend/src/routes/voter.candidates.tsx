@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Search, Check, Minus } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 export const Route = createFileRoute("/voter/candidates")({ component: Page });
 
@@ -14,31 +14,20 @@ const COVERAGE_CATS = ["Infrastructure", "Academics", "Welfare", "Events", "Spor
 
 function Page() {
   const [q, setQ] = useState("");
-  const [pos, setPos] = useState("all");
   const [open, setOpen] = useState<string | null>(null);
-  const filtered = CANDIDATES.filter((c) => (pos === "all" || c.position === pos) && c.name.toLowerCase().includes(q.toLowerCase()));
-  const active = CANDIDATES.find((c) => c.id === open);
+  const presidents = CANDIDATES.filter((c) => c.position === "President");
+  const filtered = presidents.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()));
+  const active = presidents.find((c) => c.id === open);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-[28px] font-bold">Candidates & Manifestos</h1>
-        <p className="text-sm text-muted-foreground mt-1">Browse approved candidates and read their manifestos.</p>
+        <p className="text-sm text-muted-foreground mt-1">Browse approved presidential candidates and read their manifestos.</p>
       </div>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search candidates" className="pl-9" />
-        </div>
-        <Select value={pos} onValueChange={setPos}>
-          <SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Positions</SelectItem>
-            <SelectItem value="President">President</SelectItem>
-            <SelectItem value="Vice President">Vice President</SelectItem>
-            <SelectItem value="General Secretary">General Secretary</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search candidates" className="pl-9" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -48,13 +37,22 @@ function Page() {
           return (
             <button key={c.id} onClick={() => setOpen(c.id)} className="bg-card rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition-shadow">
               <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14"><AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">{initials}</AvatarFallback></Avatar>
+                <Avatar className="h-14 w-14 ring-2 ring-[#6C63FF]/30">
+                  <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">{initials}</AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{c.name}</p>
                   <p className="text-xs text-muted-foreground">{c.department} · {c.semester} Sem</p>
-                  <p className="text-[11px] text-muted-foreground italic mt-0.5 truncate">{c.party}</p>
                 </div>
               </div>
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40">
+                <span className="text-2xl leading-none">{c.symbol ?? "🎓"}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Party</p>
+                  <p className="text-xs font-medium truncate">{c.party}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground line-clamp-3 leading-relaxed">{c.manifesto}</p>
               <div className="flex items-center gap-2 mt-3">
                 <Badge variant="outline">{c.position}</Badge>
                 <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>Match {c.match}%</span>
@@ -69,12 +67,22 @@ function Page() {
           {active && (
             <>
               <SheetHeader>
-                <SheetTitle>{active.name}</SheetTitle>
-                <p className="text-sm text-muted-foreground">{active.position} · {active.department} · {active.party}</p>
+                <SheetTitle className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 ring-2 ring-[#6C63FF]/30">
+                    <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">
+                      {active.name.split(" ").map((n) => n[0]).join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{active.name}</span>
+                </SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-6">
-                <div className="bg-success/10 border border-success/30 rounded-lg p-3 inline-block text-xs font-semibold text-success">
-                  Covers {Math.round(active.coverage / 100 * COVERAGE_CATS.length)}/{COVERAGE_CATS.length} student concerns
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40">
+                  <span className="text-2xl leading-none">{active.symbol ?? "🎓"}</span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Party</p>
+                    <p className="text-sm font-medium truncate">{active.party}</p>
+                  </div>
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold mb-2">Manifesto</h3>

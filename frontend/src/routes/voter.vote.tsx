@@ -4,7 +4,12 @@ import { CANDIDATES } from "@/lib/mock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+
+function initialsOf(name: string) {
+  return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+}
 
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
@@ -97,17 +102,26 @@ function VotePage() {
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-14 w-14 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center text-3xl">
-                        {c.symbol ?? "🎓"}
-                      </div>
+                      <Avatar className="h-16 w-16 ring-2 ring-[#6C63FF]/30">
+                        <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">
+                          {initialsOf(c.name)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold truncate">{c.name}</p>
-                        <p className="text-[11px] text-muted-foreground italic truncate">{c.party}</p>
+                        <p className="text-[11px] text-muted-foreground">President Candidate</p>
                         <p className="text-[11px] text-muted-foreground">{c.semester} Sem · {c.department}</p>
                       </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-border space-y-1.5">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Running mates</p>
+                    <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40">
+                      <span className="text-2xl leading-none">{c.symbol ?? "🎓"}</span>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Party</p>
+                        <p className="text-xs font-medium truncate">{c.party}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-border space-y-1.5">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Running mates (not voted separately)</p>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Vice President</span>
                         <span className="font-medium">{c.runningMates?.vicePresident ?? "—"}</span>
@@ -190,15 +204,25 @@ function VotePage() {
             ) : selectedCandidate ? (
               <div className="p-4 bg-muted/40 rounded-lg space-y-3 mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center text-2xl">
-                    {selectedCandidate.symbol ?? "🎓"}
+                  <Avatar className="h-14 w-14 ring-2 ring-[#6C63FF]/30">
+                    <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">
+                      {initialsOf(selectedCandidate.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{selectedCandidate.name} <span className="text-xs text-muted-foreground">— President</span></p>
+                    <p className="text-xs text-muted-foreground">{selectedCandidate.semester} Sem · {selectedCandidate.department}</p>
                   </div>
-                  <div>
-                    <p className="font-semibold">{selectedCandidate.name} <span className="text-xs text-muted-foreground">— President</span></p>
-                    <p className="text-xs text-muted-foreground italic">{selectedCandidate.party}</p>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background">
+                  <span className="text-2xl leading-none">{selectedCandidate.symbol ?? "🎓"}</span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Party</p>
+                    <p className="text-xs font-medium truncate">{selectedCandidate.party}</p>
                   </div>
                 </div>
                 <div className="text-xs space-y-1 pt-2 border-t border-border">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">Working under this president</p>
                   <div className="flex justify-between"><span className="text-muted-foreground">Vice President</span><span className="font-medium">{selectedCandidate.runningMates?.vicePresident}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Gen. Secretary</span><span className="font-medium">{selectedCandidate.runningMates?.secretary}</span></div>
                 </div>

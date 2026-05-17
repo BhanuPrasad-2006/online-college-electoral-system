@@ -3,11 +3,12 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, QrCode, CheckCircle2 } from "lucide-react";
+import { QrCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/AuthContext";
+import { FileUpload, type FileUploadValue } from "@/components/FileUpload";
 
 export const Route = createFileRoute("/candidate/register")({ component: Register });
 
@@ -30,9 +31,13 @@ function Register() {
   const nav = useNavigate();
   const { setCandidateRegistered, login } = useAuth();
   const [step, setStep] = useState(0);
-  const [data, setData] = useState({
+  const [data, setData] = useState<{
+    name: string; department: string; semester: string; party: string;
+    symbol: FileUploadValue; photo: FileUploadValue; payment: FileUploadValue;
+    confirm: boolean; terms: boolean;
+  }>({
     name: "", department: "", semester: "", party: "",
-    symbol: "", photo: "", payment: "", confirm: false, terms: false,
+    symbol: null, photo: null, payment: null, confirm: false, terms: false,
   });
   const set = (k: string, v: any) => setData((d) => ({ ...d, [k]: v }));
 
@@ -89,8 +94,8 @@ function Register() {
                 </Select>
               </Field>
               <Field label="Party / Group Name (optional)"><Input value={data.party} onChange={(e) => set("party", e.target.value)} /></Field>
-              <UploadBox label="Party Symbol" value={data.symbol} onSet={(v) => set("symbol", v)} />
-              <UploadBox label="Candidate Photo" value={data.photo} onSet={(v) => set("photo", v)} />
+              <FileUpload label="Party Symbol" value={data.symbol} onChange={(v) => set("symbol", v)} />
+              <FileUpload label="Candidate Photo" value={data.photo} onChange={(v) => set("photo", v)} />
             </div>
           )}
 
@@ -105,7 +110,7 @@ function Register() {
                 <p className="text-xs text-muted-foreground mt-1">UPI ID: elections@college.upi</p>
               </div>
               <div className="mt-6 max-w-sm mx-auto">
-                <UploadBox label="Payment Screenshot" value={data.payment} onSet={(v) => set("payment", v)} />
+                <FileUpload label="Payment Screenshot" value={data.payment} onChange={(v) => set("payment", v)} />
               </div>
               <p className="text-xs text-muted-foreground mt-4 italic">
                 Your application will be reviewed after payment verification.
@@ -136,9 +141,9 @@ function Register() {
               <Row k="Department" v={data.department || "—"} />
               <Row k="Semester" v={data.semester || "—"} />
               <Row k="Party" v={data.party || "Independent"} />
-              <Row k="Party Symbol" v={data.symbol || "Not uploaded"} />
-              <Row k="Photo" v={data.photo || "Not uploaded"} />
-              <Row k="Payment Screenshot" v={data.payment || "Not uploaded"} />
+              <Row k="Party Symbol" v={data.symbol?.name || "Not uploaded"} />
+              <Row k="Photo" v={data.photo?.name || "Not uploaded"} />
+              <Row k="Payment Screenshot" v={data.payment?.name || "Not uploaded"} />
               <Row k="Terms Accepted" v={data.terms ? "Yes" : "No"} />
               <label className="flex items-center gap-2 mt-5 cursor-pointer">
                 <Checkbox checked={data.confirm} onCheckedChange={(c) => set("confirm", !!c)} />
@@ -185,19 +190,3 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function UploadBox({ label, value, onSet }: { label: string; value: string; onSet: (v: string) => void }) {
-  return (
-    <div className="border-2 border-dashed border-border rounded-xl p-5 text-center">
-      <p className="text-xs font-medium mb-2">{label}</p>
-      {value ? (
-        <div className="flex items-center justify-center gap-2 text-success text-sm">
-          <CheckCircle2 className="h-4 w-4" /> {value}
-        </div>
-      ) : (
-        <button onClick={() => onSet(`${label.toLowerCase().replace(/\s+/g, "-")}.jpg`)} className="inline-flex items-center gap-2 text-xs text-[#6C63FF] font-medium">
-          <Upload className="h-4 w-4" /> Drag & drop or click
-        </button>
-      )}
-    </div>
-  );
-}
