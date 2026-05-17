@@ -1,38 +1,62 @@
-"""Auth exceptions — custom exceptions for authentication flows."""
+class AuthException(Exception):
 
-from fastapi import HTTPException, status
-
-
-class InvalidCredentialsError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-
-
-class AccountNotVerifiedError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail="Account not verified. Please verify your email.")
+    def __init__(
+        self,
+        message: str = "Authentication error"
+    ):
+        self.message = message
+        super().__init__(self.message)
 
 
-class AccountDeactivatedError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail="Account has been deactivated")
+class InvalidCredentialsError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "Invalid credentials"
+    ):
+        super().__init__(message)
 
 
-class OTPExpiredError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP has expired. Please request a new one.")
+class AccountDisabledError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "Account is disabled"
+    ):
+        super().__init__(message)
 
 
-class OTPInvalidError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP code")
+class AccountNotVerifiedError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "Account is not verified"
+    ):
+        super().__init__(message)
 
 
-class OTPRateLimitError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many OTP attempts. Please try again later.")
+class OTPError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "Invalid OTP"
+    ):
+        super().__init__(message)
 
 
-class TokenExpiredError(HTTPException):
-    def __init__(self):
-        super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+class OTPSessionExpiredError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "OTP session expired"
+    ):
+        super().__init__(message)
+
+
+class MobileEmailMismatchError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "Mobile number does not match"
+    ):
+        super().__init__(message)

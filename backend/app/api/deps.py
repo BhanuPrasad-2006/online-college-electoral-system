@@ -1,43 +1,77 @@
 """API dependencies — shared dependency injection for route handlers."""
 
-from typing import Generator
 from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from app.db.session import SessionLocal
-from app.security.jwt_service import JWTService
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+
+import jwt
+
+from app.db.session import get_db
+from app.security.jwt_service import decode_access_token
+from app.models.voter import Voter
+from app.enums.roles import UserRoleEnum
+
+from sqlalchemy import select
 
 
-def get_db() -> Generator:
-    """Yield a database session per request."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+security_scheme = HTTPBearer()
 
 
-async def get_current_user(db: Session = Depends(get_db)):
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Extract and validate the current user from JWT token."""
-    # TODO: Extract token from Authorization header, decode, and fetch user
-    pass
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+        )
+
+    user_id = payload.get("sub")
+    role = payload.get("role")
+
+    if not user_id or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+
+    return {"user_id": user_id, "role": role, "email": payload.get("email")}
 
 
-async def get_current_active_user(current_user=Depends(get_current_user)):
-    """Ensure the current user is active."""
-    if current_user and not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
-    return current_user
-
-
-async def get_admin_user(current_user=Depends(get_current_active_user)):
+async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
     """Ensure the current user has admin role."""
-    if current_user and current_user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    if current_user["role"] != UserRoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
     return current_user
 
 
-async def get_candidate_user(current_user=Depends(get_current_active_user)):
-    """Ensure the current user has candidate role."""
-    if current_user and current_user.role not in ("candidate", "admin"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Candidate access required")
+async def get_candidate_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Ensure the current user has candidate or admin role."""
+    if current_user["role"] not in (UserRoleEnum.CANDIDATE, UserRoleEnum.ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Candidate access required",
+        )
+    return current_user
+
+
+async def get_voter_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """Ensure the current user has voter role."""
+    if current_user["role"] != UserRoleEnum.VOTER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Voter access required",
+        )
     return current_user
