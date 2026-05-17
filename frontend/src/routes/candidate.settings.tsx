@@ -21,7 +21,7 @@ function Page() {
         <Field label="Department" value={profile.department} />
         <Field label="Year" value={profile.year} />
       </Card>
-      <Card title="Change Password">
+      <Card title="Change Password" id="change-password">
         <Field label="Current Password" type="password" />
         <Field label="New Password" type="password" />
         <Field label="Confirm New Password" type="password" />
@@ -39,9 +39,9 @@ function Page() {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <div className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
+    <div id={id} className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
       <h2 className="text-base font-semibold">{title}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
     </div>

@@ -1,24 +1,36 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Home, Users, Vote, BarChart2, MessageSquare, Bell, Settings, LogOut,
-  LayoutDashboard, FileEdit, Brain, GraduationCap,
-  ListChecks, Megaphone, Shield, ScrollText, Activity, Cog,
-  Film, MessageSquarePlus, ShieldCheck,
+  Home,
+  Users,
+  BarChart2,
+  Bell,
+  Settings,
+  LogOut,
+  LayoutDashboard,
+  FileEdit,
+  Brain,
+  GraduationCap,
+  ListChecks,
+  Megaphone,
+  Shield,
+  ScrollText,
+  Activity,
+  Cog,
+  Film,
+  MessageSquarePlus,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import { useNotifications } from "@/context/NotificationStore";
 
 const VOTER_LINKS = [
   { to: "/voter/dashboard", label: "Dashboard", icon: Home },
   { to: "/voter/candidates", label: "Candidates & Manifestos", icon: Users },
   { to: "/voter/media", label: "Campaign Gallery", icon: Film },
   { to: "/voter/concerns", label: "Send a Concern", icon: MessageSquarePlus },
-  { to: "/voter/vote", label: "Cast My Vote", icon: Vote },
   { to: "/voter/statistics", label: "Statistics", icon: BarChart2 },
-  { to: "/voter/ai-assistant", label: "AI Assistant", icon: MessageSquare },
-  { to: "/voter/notifications", label: "Notifications", icon: Bell, badge: 2 },
-  { to: "/voter/settings", label: "Settings", icon: Settings },
 ];
 
 const CANDIDATE_LINKS = [
@@ -54,6 +66,7 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
   const links = LINKS_FOR[kind];
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const nav = useNavigate();
 
   return (
@@ -71,6 +84,7 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
         {links.map((l) => {
           const active = path === l.to;
           const Icon = l.icon;
+          const badge = l.to.endsWith("/notifications") ? unreadCount : "badge" in l ? l.badge : 0;
           return (
             <Link
               key={l.to}
@@ -85,9 +99,9 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
             >
               <Icon className="h-[18px] w-[18px]" />
               <span className="flex-1">{l.label}</span>
-              {"badge" in l && l.badge ? (
+              {badge ? (
                 <span className="bg-[#6C63FF] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                  {l.badge}
+                  {badge}
                 </span>
               ) : null}
             </Link>
