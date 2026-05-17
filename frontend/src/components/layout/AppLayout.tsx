@@ -11,11 +11,7 @@ import { AIAssistantPanel } from "@/components/AIAssistantPanel";
 
 const AUTH_PATHS = new Set([
   "/",
-  "/otp-verify",
-  "/candidate-otp-verify",
   "/candidate/register",
-  "/adminlogin",
-  "/admin-otp-verify",
   "/voter/otp-verify",
   "/candidate/otp-verify",
   "/admin/otp-verify",

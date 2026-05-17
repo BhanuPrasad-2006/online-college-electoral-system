@@ -49,3 +49,19 @@ class AuthTokenResponse(BaseModel):
     user_id: str
     full_name: str
     expires_in_seconds: int
+
+
+# ─────────────────────────────────────────────
+# ADMIN AUTH SCHEMAS
+# ─────────────────────────────────────────────
+
+class AdminLoginRequest(BaseModel):
+    email: EmailStr
+    mobile_number: str
+    password: str
+
+
+class AdminOTPVerifyRequest(BaseModel):
+    otp_session_token: str
+    email_otp: str
+    sms_otp: str

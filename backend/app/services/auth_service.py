@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.voter import Voter
 from app.models.candidate import Candidate
+from app.models.admin_user import AdminUser
 
 from app.security.password_service import verify_password
 from app.security.jwt_service import (
@@ -84,18 +85,15 @@ async def voter_login_step1(
         otp_type=OTPTypeEnum.EMAIL,
     )
 
-    email_sent = await send_otp_email(
-        to_email=voter.college_email,
-        recipient_name=voter.full_name,
-        otp=email_otp,
-        purpose="login",
-    )
-
-    if not email_sent:
-        logger.error(
-            f"Failed to send voter OTP email: {voter.voter_id}"
+    # Fire SMTP email sending in the background to ensure instant login response
+    asyncio.create_task(
+        send_otp_email(
+            to_email=voter.college_email,
+            recipient_name=voter.full_name,
+            otp=email_otp,
+            purpose="login",
         )
-        raise OTPError("Failed to send OTP email")
+    )
 
     await db.commit()
 
@@ -250,23 +248,21 @@ async def candidate_login_step1(
         otp_type=OTPTypeEnum.SMS,
     )
 
-    email_task = send_otp_email(
-        to_email=voter.college_email,
-        recipient_name=voter.full_name,
-        otp=email_otp,
-        purpose="login",
+    # Fire OTP email and SMS sending in the background to ensure instant candidate login response
+    asyncio.create_task(
+        send_otp_email(
+            to_email=voter.college_email,
+            recipient_name=voter.full_name,
+            otp=email_otp,
+            purpose="login",
+        )
     )
-
-    sms_task = send_otp_sms(
-        mobile_number=candidate.mobile_number,
-        otp=sms_otp,
-        recipient_name=voter.full_name,
-    )
-
-    await asyncio.gather(
-        email_task,
-        sms_task,
-        return_exceptions=True,
+    asyncio.create_task(
+        send_otp_sms(
+            mobile_number=candidate.mobile_number,
+            otp=sms_otp,
+            recipient_name=voter.full_name,
+        )
     )
 
     await db.commit()
@@ -364,5 +360,150 @@ async def candidate_login_step2(
         "role": UserRoleEnum.CANDIDATE.value,
         "user_id": str(candidate.candidate_id),
         "full_name": voter.full_name,
+        "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    }
+
+
+# =========================================================
+# ADMIN AUTH SERVICES
+# =========================================================
+
+async def admin_login_step1(
+    db: AsyncSession,
+    email: str,
+    mobile_number: str,
+    password: str,
+) -> dict:
+    """
+    Step 1: Authenticate Admin User by password, generate/dispatch dual OTPs (Email + SMS).
+    """
+    # 1. Fetch admin user
+    result = await db.execute(
+        select(AdminUser).where(AdminUser.email == email)
+    )
+    admin = result.scalars().first()
+
+    if not admin:
+        raise InvalidCredentialsError("Invalid email or password")
+
+    if not verify_password(password, admin.password_hash):
+        raise InvalidCredentialsError("Invalid email or password")
+
+    # 2. Create and store OTPs
+    email_otp_record, email_otp = await create_and_store_otp(
+        db=db,
+        recipient=admin.email,
+        otp_type=OTPTypeEnum.EMAIL,
+    )
+
+    sms_otp_record, sms_otp = await create_and_store_otp(
+        db=db,
+        recipient=mobile_number,
+        otp_type=OTPTypeEnum.SMS,
+    )
+
+    # 3. Trigger OTP email and SMS in the background
+    asyncio.create_task(
+        send_otp_email(
+            to_email=admin.email,
+            recipient_name=admin.full_name,
+            otp=email_otp,
+            purpose="login",
+        )
+    )
+    asyncio.create_task(
+        send_otp_sms(
+            mobile_number=mobile_number,
+            otp=sms_otp,
+            recipient_name=admin.full_name,
+        )
+    )
+
+    await db.commit()
+
+    # 4. Generate OTP session token
+    from datetime import datetime, timedelta, timezone
+    expire = datetime.now(timezone.utc) + timedelta(minutes=10)
+    payload = {
+        "sub": str(admin.admin_id),
+        "email": admin.email,
+        "mobile": mobile_number,
+        "type": "otp_session",
+        "exp": expire,
+    }
+    session_token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+
+    return {
+        "otp_session_token": session_token,
+        "hint": f"Verification OTPs sent to {email} and +91-{mobile_number[-4:].rjust(10, 'X')}",
+    }
+
+
+async def admin_login_step2(
+    db: AsyncSession,
+    otp_session_token: str,
+    email_otp: str,
+    sms_otp: str,
+) -> dict:
+    """
+    Step 2: Verify both OTP codes for the admin session and issue access JWT.
+    """
+    try:
+        payload = decode_access_token(otp_session_token)
+        if not payload or payload.get("type") != "otp_session":
+            raise InvalidCredentialsError("Invalid session token")
+    except jwt.PyJWTError:
+        raise InvalidCredentialsError("Invalid session token")
+
+    admin_id_str = payload.get("sub")
+    email = payload.get("email")
+    mobile = payload.get("mobile")
+
+    result = await db.execute(
+        select(AdminUser).where(AdminUser.admin_id == admin_id_str)
+    )
+    admin = result.scalars().first()
+
+    if not admin:
+        raise InvalidCredentialsError("Admin user not found")
+
+    # Verify both OTPs
+    email_ok, email_msg = await verify_otp(
+        db=db,
+        recipient=admin.email,
+        plain_otp=email_otp,
+        otp_type=OTPTypeEnum.EMAIL,
+    )
+
+    if not email_ok:
+        raise OTPError(email_msg)
+
+    sms_ok, sms_msg = await verify_otp(
+        db=db,
+        recipient=mobile,
+        plain_otp=sms_otp,
+        otp_type=OTPTypeEnum.SMS,
+    )
+
+    if not sms_ok:
+        raise OTPError(sms_msg)
+
+    await db.commit()
+
+    # Generate Access JWT Token for Admin
+    access_token = create_access_token(
+        data={
+            "sub": str(admin.admin_id),
+            "role": "admin",
+            "email": admin.email,
+        }
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": "admin",
+        "user_id": str(admin.admin_id),
+        "full_name": admin.full_name,
         "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }

@@ -12,6 +12,8 @@ from app.schemas.auth_schema import (
     VoterOTPVerifyRequest,
     CandidateLoginRequest,
     CandidateOTPVerifyRequest,
+    AdminLoginRequest,
+    AdminOTPVerifyRequest,
     OTPSentResponse,
     AuthTokenResponse,
 )
@@ -20,6 +22,8 @@ from app.services.auth_service import (
     voter_login_step2,
     candidate_login_step1,
     candidate_login_step2,
+    admin_login_step1,
+    admin_login_step2,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -108,6 +112,41 @@ async def candidate_verify_otp(
     db: AsyncSession = Depends(get_db),
 ):
     result = await candidate_login_step2(
+        db, body.otp_session_token, body.email_otp, body.sms_otp
+    )
+# ─── Admin Routes ─────────────────────────────────────────────
+
+@router.post(
+    "/admin/login",
+    response_model=OTPSentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Admin Step 1 — Email + Password + Mobile OTP dispatch",
+)
+async def admin_login(
+    body: AdminLoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await admin_login_step1(
+        db, body.email, body.mobile_number, body.password
+    )
+    return OTPSentResponse(
+        message="OTP sent to your registered email and mobile number.",
+        otp_session_token=result["otp_session_token"],
+        hint=result["hint"],
+    )
+
+
+@router.post(
+    "/admin/verify-otp",
+    response_model=AuthTokenResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Admin Step 2 — Verify Email OTP + SMS OTP",
+)
+async def admin_verify_otp(
+    body: AdminOTPVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await admin_login_step2(
         db, body.otp_session_token, body.email_otp, body.sms_otp
     )
     return AuthTokenResponse(**result)
