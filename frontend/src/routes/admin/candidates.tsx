@@ -82,9 +82,15 @@ function Page() {
         <table className="w-full text-sm min-w-[900px]">
           <thead>
             <tr className="text-left text-xs text-muted-foreground border-b">
-              <th className="p-4">Name</th><th className="p-4">Email</th><th className="p-4">Position</th>
-              <th className="p-4">Department</th><th className="p-4">Sem</th><th className="p-4">Party</th>
-              <th className="p-4">Payment</th><th className="p-4">Status</th><th className="p-4">Actions</th>
+              <th className="p-4">Name</th>
+              <th className="p-4">Email</th>
+              <th className="p-4">Mobile</th>
+              <th className="p-4">Position</th>
+              <th className="p-4">Department</th>
+              <th className="p-4">Sem</th>
+              <th className="p-4">Remarks</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -92,11 +98,11 @@ function Page() {
               <tr key={c.candidate_id} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="p-4 font-medium">{c.full_name}</td>
                 <td className="p-4 text-xs text-muted-foreground">{c.college_email}</td>
+                <td className="p-4 text-xs">{c.mobile_number}</td>
                 <td className="p-4">{c.position}</td>
                 <td className="p-4">{c.department}</td>
                 <td className="p-4">{c.semester}</td>
-                <td className="p-4 text-xs">{c.party}</td>
-                <td className="p-4"><Badge variant={c.payment === "Paid" ? "default" : "outline"}>{c.payment}</Badge></td>
+                <td className="p-4 text-xs max-w-[150px] truncate" title={c.admin_remarks || ""}>{c.admin_remarks || "—"}</td>
                 <td className="p-4">
                   <Badge 
                     className={

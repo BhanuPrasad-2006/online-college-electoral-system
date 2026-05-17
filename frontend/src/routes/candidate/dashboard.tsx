@@ -17,17 +17,25 @@ function Page() {
   const candidateName = profile.full_name || profile.name || "Candidate";
   const statusUpper = (profile.status || "PENDING").toUpperCase();
 
+  const isApproved = statusUpper === "APPROVED";
+  const isRejected = statusUpper === "REJECTED";
+  const isUnderReview = statusUpper === "UNDER REVIEW" || statusUpper === "UNDER_REVIEW";
+
   const timelineStages = [
-    { label: "Submitted", date: "Oct 28, 10:14 AM", state: "done" as const },
     { 
-      label: "Under Review", 
-      date: "Oct 29, 2:30 PM", 
-      state: (statusUpper === "APPROVED" || statusUpper === "REJECTED") ? "done" : "active" as const 
+      label: "Submitted", 
+      date: profile.applied_at ? new Date(profile.applied_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Submitted", 
+      state: "done" as const 
     },
     { 
-      label: statusUpper === "REJECTED" ? "Rejected" : "Approved", 
-      date: "Oct 30, 9:00 AM", 
-      state: (statusUpper === "APPROVED" || statusUpper === "REJECTED") ? "done" : "pending" as const 
+      label: "Under Review", 
+      date: (isApproved || isRejected) ? "Completed" : isUnderReview ? "Active" : "Pending", 
+      state: (isApproved || isRejected) ? "done" as const : isUnderReview ? "active" as const : "pending" as const 
+    },
+    { 
+      label: isRejected ? "Rejected" : "Approved", 
+      date: (isApproved || isRejected) ? "Completed" : "Pending", 
+      state: (isApproved || isRejected) ? "done" as const : "pending" as const 
     },
   ];
 

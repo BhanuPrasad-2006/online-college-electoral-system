@@ -78,7 +78,7 @@ async def create_and_store_otp(
         old_otp.is_used = True
 
     # Generate OTP
-    plain_otp = "123456"
+    plain_otp = _generate_otp()
 
     # Hash OTP
     hashed_otp = _otp_hash(plain_otp)
