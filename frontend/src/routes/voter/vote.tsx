@@ -27,7 +27,7 @@ function VotePage() {
 
   if (isPending && !verified && !confirmed) return <PageLoader />;
 
-  const presidents = candidates.filter((c) => c.position === "President");
+  const presidents = candidates.filter((c) => c.position === "President" && (c.status || "").toLowerCase() === "approved");
 
   function tryVerify() {
     if (studentId.trim().length >= 6) setVerified(true);

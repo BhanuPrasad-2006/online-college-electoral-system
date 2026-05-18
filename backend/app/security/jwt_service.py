@@ -45,6 +45,7 @@ def create_otp_session_token(
     voter_id: str,
     email: str,
     otp_id: str,
+    **kwargs,
 ) -> str:
 
     expire = datetime.now(timezone.utc) + timedelta(minutes=10)
@@ -56,6 +57,7 @@ def create_otp_session_token(
         "type": "otp_session",
         "exp": expire,
     }
+    payload.update(kwargs)
 
     token = jwt.encode(
         payload,

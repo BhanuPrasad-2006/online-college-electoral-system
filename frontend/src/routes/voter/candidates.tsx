@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Search, Check, Minus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/voter/candidates")({ component: Page });
 
@@ -23,8 +24,9 @@ function Page() {
 
   const filtered = candidates.filter((c) => {
     const nameStr = c.full_name || c.name || "";
-    const isApproved = (c.status || "").toLowerCase() === "approved";
-    return isApproved && (pos === "all" || c.position === pos) && nameStr.toLowerCase().includes(q.toLowerCase());
+    const status = (c.status || "").toLowerCase();
+    const isVisible = status === "approved" || status === "pending";
+    return isVisible && (pos === "all" || c.position === pos) && nameStr.toLowerCase().includes(q.toLowerCase());
   });
 
   const active = candidates.find((c) => (c.candidate_id || c.id) === open);
@@ -57,8 +59,19 @@ function Page() {
           const candId = c.candidate_id || c.id;
           const initials = nameStr.split(" ").map((n: string) => n[0] || "").join("");
           const tone = (c.match || 75) >= 70 ? "bg-success/15 text-success" : (c.match || 75) >= 40 ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground";
+          const isPendingStatus = (c.status || "").toLowerCase() === "pending";
           return (
-            <button key={candId} onClick={() => setOpen(candId)} className="bg-card rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition-shadow">
+            <button
+              key={candId}
+              onClick={() => !isPendingStatus && setOpen(candId)}
+              disabled={isPendingStatus}
+              className={cn(
+                "bg-card rounded-2xl shadow-sm p-5 text-left transition-all w-full border border-transparent",
+                isPendingStatus
+                  ? "opacity-60 cursor-not-allowed border-dashed border-border"
+                  : "hover:shadow-md hover:border-solid hover:border-border/60"
+              )}
+            >
               <div className="flex items-center gap-4">
                 <Avatar className="h-14 w-14"><AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">{initials}</AvatarFallback></Avatar>
                 <div className="min-w-0">
@@ -69,7 +82,11 @@ function Page() {
               </div>
               <div className="flex items-center gap-2 mt-3">
                 <Badge variant="outline">{c.position}</Badge>
-                <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>Match {c.match || 75}%</span>
+                {isPendingStatus ? (
+                  <Badge variant="secondary" className="bg-warning/15 text-warning-foreground border border-warning/25 font-semibold">Pending Approval</Badge>
+                ) : (
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>Match {c.match || 75}%</span>
+                )}
               </div>
             </button>
           );

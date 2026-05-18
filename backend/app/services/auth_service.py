@@ -36,6 +36,8 @@ from app.exceptions.auth_exceptions import (
     OTPError,
     OTPSessionExpiredError,
     MobileEmailMismatchError,
+    CandidateRejectedError,
+    CandidateEligibilityError,
 )
 
 from app.utils.logger import logger
@@ -204,10 +206,10 @@ async def candidate_login_step1(
     voter = voter_result.scalars().first()
 
     if not voter:
-        raise InvalidCredentialsError()
+        raise InvalidCredentialsError("Voter profile not found. You must be registered as a voter first.")
 
     if not verify_password(password, voter.password_hash):
-        raise InvalidCredentialsError()
+        raise InvalidCredentialsError("Invalid credentials. Please check your email and password.")
 
     if not voter.is_verified:
         raise AccountNotVerifiedError()
@@ -220,66 +222,129 @@ async def candidate_login_step1(
 
     candidate = candidate_result.scalars().first()
 
-    if not candidate:
-        raise InvalidCredentialsError(
-            "No candidate profile found"
+    if candidate:
+        # Case 1: Candidate is already registered!
+        status_str = candidate.status.value if hasattr(candidate.status, "value") else str(candidate.status)
+        if status_str == "REJECTED":
+            # Problem 3: If candidate is rejected by admin -> no otp, no dashboard, tells you are rejected and reason
+            raise CandidateRejectedError(
+                message="Your candidate registration was rejected by the admin.",
+                remarks=candidate.admin_remarks or "No remarks provided by admin."
+            )
+
+        # Validate stored mobile matches entered mobile
+        stored_mobile = candidate.mobile_number.replace("+91", "").replace(" ", "").strip()
+        entered_mobile = mobile_number.replace("+91", "").replace(" ", "").strip()
+        if stored_mobile != entered_mobile:
+            raise MobileEmailMismatchError("Mobile number does not match registered candidate mobile.")
+
+        # Generate and store OTPs
+        email_otp_record, email_otp = await create_and_store_otp(
+            db=db,
+            recipient=voter.college_email,
+            otp_type=OTPTypeEnum.EMAIL,
         )
 
-    stored_mobile = candidate.mobile_number.replace(
-        "+91", ""
-    ).strip()
-
-    entered_mobile = mobile_number.replace(
-        "+91", ""
-    ).strip()
-
-    if stored_mobile != entered_mobile:
-        raise MobileEmailMismatchError()
-
-    email_otp_record, email_otp = await create_and_store_otp(
-        db=db,
-        recipient=voter.college_email,
-        otp_type=OTPTypeEnum.EMAIL,
-    )
-
-    sms_otp_record, sms_otp = await create_and_store_otp(
-        db=db,
-        recipient=candidate.mobile_number,
-        otp_type=OTPTypeEnum.SMS,
-    )
-
-    # Fire OTP email and SMS sending in the background to ensure instant candidate login response
-    asyncio.create_task(
-        send_otp_email(
-            to_email=voter.college_email,
-            recipient_name=voter.full_name,
-            otp=email_otp,
-            purpose="login",
+        sms_otp_record, sms_otp = await create_and_store_otp(
+            db=db,
+            recipient=candidate.mobile_number,
+            otp_type=OTPTypeEnum.SMS,
         )
-    )
-    asyncio.create_task(
-        send_otp_sms(
+
+        # Send OTPs
+        asyncio.create_task(
+            send_otp_email(
+                to_email=voter.college_email,
+                recipient_name=voter.full_name,
+                otp=email_otp,
+                purpose="login",
+            )
+        )
+        asyncio.create_task(
+            send_otp_sms(
+                mobile_number=candidate.mobile_number,
+                otp=sms_otp,
+                recipient_name=voter.full_name,
+            )
+        )
+
+        await db.commit()
+
+        session_token = create_otp_session_token(
+            voter_id=str(voter.voter_id),
+            email=voter.college_email,
+            otp_id=str(email_otp_record.otp_id),
+            is_registered=True,
             mobile_number=candidate.mobile_number,
-            otp=sms_otp,
-            recipient_name=voter.full_name,
         )
-    )
 
-    await db.commit()
+        return {
+            "otp_session_token": session_token,
+            "hint": f"OTP sent to {_mask_email(voter.college_email)} and {_mask_mobile(candidate.mobile_number)}",
+            "is_registered": True,
+        }
 
-    session_token = create_otp_session_token(
-        voter_id=str(candidate.voter_id),
-        email=voter.college_email,
-        otp_id=str(email_otp_record.otp_id),
-    )
+    else:
+        # Case 2: Candidate is NOT registered yet! Verify Voter's year of study eligibility!
+        # Only 3rd and 4th year voters are eligible to register as candidates.
+        if voter.year_of_study in [1, 2]:
+            raise CandidateEligibilityError(
+                "First and second-year students are not eligible to contest elections."
+            )
 
-    return {
-        "otp_session_token": session_token,
-        "hint": (
-            f"OTP sent to {_mask_email(voter.college_email)} "
-            f"and {_mask_mobile(candidate.mobile_number)}"
-        ),
-    }
+        # Proceed to send OTP for candidate registration check!
+        # Validate format of entered mobile
+        entered_mobile = mobile_number.replace("+91", "").replace(" ", "").strip()
+        if len(entered_mobile) != 10 or not entered_mobile.isdigit():
+            raise MobileEmailMismatchError("Invalid mobile number format. Must be 10 digits.")
+
+        full_mobile = f"+91 {entered_mobile}"
+
+        # Generate and store OTPs
+        email_otp_record, email_otp = await create_and_store_otp(
+            db=db,
+            recipient=voter.college_email,
+            otp_type=OTPTypeEnum.EMAIL,
+        )
+
+        sms_otp_record, sms_otp = await create_and_store_otp(
+            db=db,
+            recipient=full_mobile,
+            otp_type=OTPTypeEnum.SMS,
+        )
+
+        # Send OTPs
+        asyncio.create_task(
+            send_otp_email(
+                to_email=voter.college_email,
+                recipient_name=voter.full_name,
+                otp=email_otp,
+                purpose="registration",
+            )
+        )
+        asyncio.create_task(
+            send_otp_sms(
+                mobile_number=full_mobile,
+                otp=sms_otp,
+                recipient_name=voter.full_name,
+            )
+        )
+
+        await db.commit()
+
+        session_token = create_otp_session_token(
+            voter_id=str(voter.voter_id),
+            email=voter.college_email,
+            otp_id=str(email_otp_record.otp_id),
+            is_registered=False,
+            mobile_number=full_mobile,
+        )
+
+        return {
+            "otp_session_token": session_token,
+            "hint": f"Verification OTP sent to {_mask_email(voter.college_email)} and {_mask_mobile(full_mobile)}",
+            "is_registered": False,
+        }
 
 
 # =========================================================
@@ -295,76 +360,108 @@ async def candidate_login_step2(
 
     try:
         payload = decode_access_token(otp_session_token)
-
     except jwt.ExpiredSignatureError:
         raise OTPSessionExpiredError()
-
     except jwt.PyJWTError:
         raise InvalidCredentialsError("Invalid session token")
 
     voter_id_str = payload.get("sub")
+    is_registered = payload.get("is_registered", False)
+    mobile_number = payload.get("mobile_number")
 
     try:
         voter_uuid = uuid.UUID(voter_id_str)
     except ValueError:
-        raise InvalidCredentialsError("Invalid candidate ID")
+        raise InvalidCredentialsError("Invalid voter ID")
 
-    result = await db.execute(
-        select(Candidate)
-        .options(joinedload(Candidate.voter))
-        .where(Candidate.voter_id == voter_uuid)
+    # Fetch Voter details
+    voter_result = await db.execute(
+        select(Voter).where(Voter.voter_id == voter_uuid)
     )
+    voter = voter_result.scalars().first()
+    if not voter:
+        raise InvalidCredentialsError("Voter profile not found")
 
-    candidate = result.scalars().first()
-
-    if not candidate:
-        raise InvalidCredentialsError("Candidate not found")
-
-    voter = candidate.voter
-
+    # 1. Verify Email OTP
     email_ok, email_msg = await verify_otp(
         db=db,
         recipient=voter.college_email,
         plain_otp=email_otp,
         otp_type=OTPTypeEnum.EMAIL,
     )
-
     if not email_ok:
         raise OTPError(email_msg)
 
+    # 2. Verify SMS OTP
     sms_ok, sms_msg = await verify_otp(
         db=db,
-        recipient=candidate.mobile_number,
+        recipient=mobile_number,
         plain_otp=sms_otp,
         otp_type=OTPTypeEnum.SMS,
     )
-
     if not sms_ok:
         raise OTPError(sms_msg)
 
-    candidate.mobile_verified = True
-
     await db.commit()
 
-    access_token = create_access_token(
-        data={
-            "sub": str(candidate.candidate_id),
-            "role": UserRoleEnum.CANDIDATE.value,
-            "email": voter.college_email,
-        }
-    )
+    # If is_registered is True, we have an existing candidate profile
+    if is_registered:
+        candidate_result = await db.execute(
+            select(Candidate).where(Candidate.voter_id == voter_uuid)
+        )
+        candidate = candidate_result.scalars().first()
+        if not candidate:
+            raise InvalidCredentialsError("Candidate profile not found")
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "role": UserRoleEnum.CANDIDATE.value,
-        "user_id": str(candidate.candidate_id),
-        "full_name": voter.full_name,
-        "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        "is_registered": candidate.party_symbol_url is not None,
-        "department": voter.department,
-        "semester": str(voter.year_of_study) if voter.year_of_study is not None else None,
-    }
+        candidate.mobile_verified = True
+        await db.commit()
+
+        # Access token sub is the candidate_id for registered candidates
+        access_token = create_access_token(
+            data={
+                "sub": str(candidate.candidate_id),
+                "role": UserRoleEnum.CANDIDATE.value,
+                "email": voter.college_email,
+            }
+        )
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": UserRoleEnum.CANDIDATE.value,
+            "user_id": str(candidate.candidate_id),
+            "full_name": voter.full_name,
+            "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "is_registered": True,
+            "department": voter.department,
+            "semester": str((voter.year_of_study * 2) - 1) if voter.year_of_study is not None else None,
+        }
+    else:
+        # If not registered yet, we create a temporary registration JWT token!
+        # Its role is still candidate, but is_registered is returned as False!
+        # The frontend will receive this, see is_registered=False, and render the wizard using this JWT token!
+        access_token = create_access_token(
+            data={
+                "sub": str(voter.voter_id),
+                "role": UserRoleEnum.CANDIDATE.value,
+                "email": voter.college_email,
+                "temp_reg": True,
+                "mobile_number": mobile_number,
+            }
+        )
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": UserRoleEnum.CANDIDATE.value,
+            "user_id": str(voter.voter_id),
+            "full_name": voter.full_name,
+            "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "is_registered": False,
+            "department": voter.department,
+            "semester": str((voter.year_of_study * 2) - 1) if voter.year_of_study is not None else None,
+            "mobile_number": mobile_number,
+        }
 
 
 # =========================================================

@@ -1,17 +1,18 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, QrCode, CheckCircle2 } from "lucide-react";
+import { Upload, QrCode, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/AuthContext";
+import { fetchPositions, registerCandidate, getOtpSession, getAuthToken } from "@/lib/api";
 
 export const Route = createFileRoute("/candidate/register")({ component: Register });
 
-const STEPS = ["Basic Details", "Payment", "Terms", "Review"];
+const STEPS = ["Set Password", "Basic Details", "Payment", "Terms", "Review"];
 
 const TERMS = [
   "You must be a currently enrolled student and eligible under college election rules.",
@@ -30,27 +31,111 @@ function Register() {
   const nav = useNavigate();
   const { setCandidateRegistered, login } = useAuth();
   const [step, setStep] = useState(0);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
   const prefillName = sessionStorage.getItem("candidate-prefill-name") || "";
   const prefillDept = sessionStorage.getItem("candidate-prefill-department") || "";
   const prefillSem = sessionStorage.getItem("candidate-prefill-semester") || "";
+  const { mobile: sessionMobile } = getOtpSession();
 
   const [data, setData] = useState({
     name: prefillName,
     department: prefillDept,
     semester: prefillSem,
+    positionId: "",
     party: "",
+    manifesto: "",
+    newPassword: "",
+    confirmPassword: "",
     symbol: "", photo: "", payment: "", confirm: false, terms: false,
   });
   const set = (k: string, v: any) => setData((d) => ({ ...d, [k]: v }));
 
-  function submit() {
+  useEffect(() => {
+    async function loadPositions() {
+      try {
+        const list = await fetchPositions();
+        setPositions(list);
+      } catch (err: any) {
+        toast.error("Failed to load election positions.");
+      }
+    }
+    loadPositions();
+  }, []);
+
+  function handleNext() {
+    if (step === 0) {
+      if (!data.newPassword) {
+        toast.error("Please enter a new password.");
+        return;
+      }
+      if (data.newPassword.length < 6) {
+        toast.error("Password must be at least 6 characters long.");
+        return;
+      }
+      if (data.newPassword !== data.confirmPassword) {
+        toast.error("Passwords do not match.");
+        return;
+      }
+    }
+    if (step === 1) {
+      if (!data.positionId) {
+        toast.error("Please select a target position.");
+        return;
+      }
+      if (!data.manifesto) {
+        toast.error("Please write a campaign manifesto.");
+        return;
+      }
+    }
+    if (step === 2) {
+      if (!data.payment) {
+        toast.error("Please upload payment screenshot.");
+        return;
+      }
+    }
+    setStep((s) => s + 1);
+  }
+
+  async function submit() {
     if (!data.confirm || !data.terms) return;
-    setTimeout(() => {
-      login("candidate");
+    if (!data.positionId) {
+      toast.error("Please select a target position.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const sessionToken = getAuthToken();
+      const mobileNum = sessionMobile || "9999999999";
+
+      await registerCandidate(sessionToken, {
+        position_id: data.positionId,
+        party_name: data.party || "Independent",
+        party_symbol_url: data.symbol || "/placeholder-symbol.jpg",
+        manifesto: data.manifesto,
+        payment_screenshot_url: data.payment || "/payment-screenshot.jpg",
+        mobile_number: mobileNum,
+        new_password: data.newPassword || undefined,
+      });
+
+      // Update auth context state
       setCandidateRegistered(true);
-      toast.success("Payment verified — registration complete");
+      login("candidate");
+
+      toast.success("Application submitted successfully! Waiting for admin review.");
       nav({ to: "/candidate/dashboard" });
-    }, 500);
+    } catch (err: any) {
+      setError(err.message || "Registration failed. Please try again.");
+      toast.error(err.message || "Registration failed.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -77,38 +162,98 @@ function Register() {
 
         <div className="mt-7">
           {step === 0 && (
+            <div className="space-y-4 max-w-md mx-auto py-4">
+              <h2 className="text-base font-semibold text-center">Set Secure Candidate Password</h2>
+              <p className="text-xs text-muted-foreground text-center">Choose a secure password specifically for your candidate profile dashboard.</p>
+              
+              <div className="space-y-4 mt-6">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">New Password</label>
+                  <div className="mt-1.5 relative">
+                    <Input 
+                      type={showPassword ? "text" : "password"}
+                      required 
+                      placeholder="••••••••" 
+                      className="pr-10 h-11" 
+                      value={data.newPassword} 
+                      onChange={(e) => set("newPassword", e.target.value)} 
+                    />
+                    <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Confirm New Password</label>
+                  <Input 
+                    type={showPassword ? "text" : "password"}
+                    required 
+                    placeholder="••••••••" 
+                    className="mt-1.5 h-11" 
+                    value={data.confirmPassword} 
+                    onChange={(e) => set("confirmPassword", e.target.value)} 
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Full Name">
                 <Input 
                   value={data.name} 
                   onChange={(e) => set("name", e.target.value)} 
-                  disabled={!!prefillName}
-                  className={prefillName ? "bg-muted cursor-not-allowed opacity-70" : ""}
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
                 />
               </Field>
               <Field label="Department">
-                <Select value={data.department} onValueChange={(v) => set("department", v)} disabled={!!prefillDept}>
-                  <SelectTrigger className={prefillDept ? "bg-muted cursor-not-allowed opacity-70" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {["CSE", "ECE", "ME", "Civil", "MBA", "MCA"].map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Input 
+                  value={data.department} 
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
+                />
               </Field>
               <Field label="Current Semester">
-                <Select value={data.semester} onValueChange={(v) => set("semester", v)} disabled={!!prefillSem}>
-                  <SelectTrigger className={prefillSem ? "bg-muted cursor-not-allowed opacity-70" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
+                <Input 
+                  value={data.semester} 
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
+                />
+              </Field>
+              <Field label="Target Election Position *">
+                <Select value={data.positionId} onValueChange={(v) => set("positionId", v)}>
+                  <SelectTrigger className="h-11"><SelectValue placeholder="Select Position" /></SelectTrigger>
                   <SelectContent>
-                    {["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"].map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    {positions.map((p) => (
+                      <SelectItem key={p.position_id} value={p.position_id}>
+                        {p.title}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Party / Group Name (optional)"><Input value={data.party} onChange={(e) => set("party", e.target.value)} /></Field>
+              <Field label="Party / Group Name (optional)">
+                <Input value={data.party} onChange={(e) => set("party", e.target.value)} placeholder="e.g. Alliance Group" />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Campaign Manifesto *">
+                  <textarea 
+                    value={data.manifesto} 
+                    onChange={(e) => set("manifesto", e.target.value)} 
+                    placeholder="Describe your vision, goals, and campaign promises..." 
+                    className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[120px]"
+                  />
+                </Field>
+              </div>
               <UploadBox label="Party Symbol" value={data.symbol} onSet={(v) => set("symbol", v)} />
               <UploadBox label="Candidate Photo" value={data.photo} onSet={(v) => set("photo", v)} />
             </div>
           )}
 
-          {step === 1 && (
+          {step === 2 && (
             <div className="text-center">
               <h2 className="text-base font-semibold">Pay Registration Fee</h2>
               <div className="mt-5 inline-flex flex-col items-center bg-muted/40 rounded-xl p-6">
@@ -127,7 +272,7 @@ function Register() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="space-y-3">
               <h2 className="text-base font-semibold">Terms & Conditions</h2>
               <p className="text-xs text-muted-foreground">Please read carefully — you must accept to continue.</p>
@@ -143,13 +288,15 @@ function Register() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-3">
               <h2 className="text-base font-semibold">Review your information</h2>
               <Row k="Name" v={data.name || "—"} />
               <Row k="Department" v={data.department || "—"} />
               <Row k="Semester" v={data.semester || "—"} />
+              <Row k="Target Position" v={positions.find(p => p.position_id === data.positionId)?.title || "—"} />
               <Row k="Party" v={data.party || "Independent"} />
+              <Row k="Manifesto" v={data.manifesto ? `${data.manifesto.substring(0, 100)}...` : "—"} />
               <Row k="Party Symbol" v={data.symbol || "Not uploaded"} />
               <Row k="Photo" v={data.photo || "Not uploaded"} />
               <Row k="Payment Screenshot" v={data.payment || "Not uploaded"} />
@@ -162,17 +309,28 @@ function Register() {
           )}
         </div>
 
+        {error && (
+          <div className="flex items-center gap-2 mt-6 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+            <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
         <div className="flex justify-between gap-3 mt-8">
-          <Button variant="outline" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>← Back</Button>
+          <Button variant="outline" disabled={step === 0 || loading} onClick={() => setStep((s) => s - 1)}>← Back</Button>
           {step < STEPS.length - 1 ? (
             <Button
               className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
-              disabled={step === 2 && !data.terms}
-              onClick={() => setStep((s) => s + 1)}
+              disabled={step === 3 && !data.terms}
+              onClick={handleNext}
             >Next →</Button>
           ) : (
-            <Button className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" disabled={!data.confirm || !data.terms} onClick={submit}>
-              Submit Application
+            <Button 
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" 
+              disabled={!data.confirm || !data.terms || loading} 
+              onClick={submit}
+            >
+              {loading ? "Submitting..." : "Submit Application"}
             </Button>
           )}
         </div>
@@ -194,7 +352,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between p-3 bg-muted/40 rounded-lg text-sm">
       <span className="text-muted-foreground">{k}</span>
-      <span className="font-medium">{v}</span>
+      <span className="font-medium max-w-[70%] text-right overflow-hidden text-ellipsis whitespace-nowrap">{v}</span>
     </div>
   );
 }

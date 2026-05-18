@@ -21,6 +21,7 @@ function Page() {
   const [reject, setReject] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [previewCandidate, setPreviewCandidate] = useState<any | null>(null);
 
   if (isPending) return <PageLoader />;
 
@@ -120,7 +121,14 @@ function Page() {
                 </td>
                 <td className="p-4">
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" disabled={!!actionLoading}>Preview</Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => setPreviewCandidate(c)}
+                      disabled={!!actionLoading}
+                    >
+                      Preview
+                    </Button>
                     <Button 
                       size="sm" 
                       className="bg-success text-white hover:bg-success/90" 
@@ -160,6 +168,61 @@ function Page() {
               {actionLoading === reject ? "Confirming..." : "Confirm Reject"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Candidate Preview Modal */}
+      <Dialog open={!!previewCandidate} onOpenChange={(b) => !b && setPreviewCandidate(null)}>
+        <DialogContent className="max-w-md p-6 rounded-2xl border border-border/80 bg-card">
+          {previewCandidate && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 border-b border-border/40 pb-3">
+                <img 
+                  src={previewCandidate.party_symbol_url || "https://api.dicebear.com/7.x/identicon/svg?seed=symbol"} 
+                  alt="Party Symbol" 
+                  className="h-12 w-12 rounded-xl bg-muted p-1 border border-border" 
+                />
+                <div>
+                  <DialogTitle className="text-lg font-bold">{previewCandidate.full_name}</DialogTitle>
+                  <p className="text-xs text-muted-foreground">{previewCandidate.college_email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40">
+                  <span className="text-muted-foreground block font-medium">Position</span>
+                  <span className="font-bold text-foreground mt-0.5 block">{previewCandidate.position}</span>
+                </div>
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40">
+                  <span className="text-muted-foreground block font-medium">Department</span>
+                  <span className="font-bold text-foreground mt-0.5 block">{previewCandidate.department} (Sem {previewCandidate.semester})</span>
+                </div>
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40">
+                  <span className="text-muted-foreground block font-medium">Mobile Contact</span>
+                  <span className="font-bold text-foreground mt-0.5 block">{previewCandidate.mobile_number}</span>
+                </div>
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40">
+                  <span className="text-muted-foreground block font-medium">Applied On</span>
+                  <span className="font-bold text-foreground mt-0.5 block">
+                    {previewCandidate.applied_at ? new Date(previewCandidate.applied_at).toLocaleDateString() : "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1 bg-muted/20 border border-border/40 p-4 rounded-xl">
+                <span className="text-xs font-semibold text-foreground">Candidate Manifesto</span>
+                <p className="text-xs text-muted-foreground italic leading-relaxed mt-1 whitespace-pre-wrap">
+                  "{previewCandidate.manifesto || "No manifesto submitted."}"
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 text-xs font-semibold px-4" onClick={() => setPreviewCandidate(null)}>
+                  Close Preview
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

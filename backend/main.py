@@ -10,6 +10,8 @@ from app.exceptions.auth_exceptions import (
     OTPError,
     OTPSessionExpiredError,
     MobileEmailMismatchError,
+    CandidateRejectedError,
+    CandidateEligibilityError,
 )
 from app.routes.auth import router as auth_router
 from app.routes.vote import router as vote_router
@@ -36,6 +38,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Rate Limiting ─────────────────────────────────────────────
+from app.middleware.rate_limit import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Custom Security, Logging & JWT Middlewares ──────────────
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.audit_middleware import AuditMiddleware
+from app.middleware.jwt_middleware import JWTMiddleware
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(AuditMiddleware)
+app.add_middleware(JWTMiddleware)
 
 
 # ── Routers ───────────────────────────────────────────────────
@@ -75,6 +94,22 @@ async def mobile_mismatch_handler(request: Request, exc: MobileEmailMismatchErro
 @app.exception_handler(AuthException)
 async def auth_exception_handler(request: Request, exc: AuthException):
     return JSONResponse(status_code=401, content={"detail": exc.message})
+
+
+@app.exception_handler(CandidateRejectedError)
+async def candidate_rejected_handler(request: Request, exc: CandidateRejectedError):
+    return JSONResponse(
+        status_code=403,
+        content={"detail": exc.message, "remarks": exc.remarks}
+    )
+
+
+@app.exception_handler(CandidateEligibilityError)
+async def candidate_eligibility_handler(request: Request, exc: CandidateEligibilityError):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.message}
+    )
 
 
 # ── Global Exception Handler ─────────────────────────────────
@@ -119,6 +154,35 @@ async def startup_validation():
         raise
 
     logger.info(f"{settings.APP_NAME} started successfully.")
+
+
+# ── Dev OTP Retrieval Backdoor ─────────────────────────────────
+@app.get("/dev/latest-otp", tags=["Dev"])
+async def dev_latest_otp():
+    """Retrieve the latest OTPs generated in dev mode for automated testing."""
+    import os
+    otp_dict = {}
+    
+    otp_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_otp.txt"
+    sms_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_sms_otp.txt"
+    
+    if os.path.exists(otp_path):
+        with open(otp_path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if ":" in content:
+                email, otp = content.split(":", 1)
+                otp_dict["email"] = email
+                otp_dict["email_otp"] = otp
+                
+    if os.path.exists(sms_path):
+        with open(sms_path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if ":" in content:
+                phone, otp = content.split(":", 1)
+                otp_dict["phone"] = phone
+                otp_dict["sms_otp"] = otp
+                
+    return otp_dict
 
 
 # ── Health Check ──────────────────────────────────────────────

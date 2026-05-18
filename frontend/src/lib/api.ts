@@ -63,7 +63,11 @@ async function post<T>(path: string, body: object): Promise<T> {
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail ?? "Request failed");
+  if (!res.ok) {
+    const err = new Error(data.detail ?? "Request failed");
+    if (data.remarks) (err as any).remarks = data.remarks;
+    throw err;
+  }
   return data as T;
 }
 
@@ -78,7 +82,11 @@ async function get<T>(path: string): Promise<T> {
     headers,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail ?? "Request failed");
+  if (!res.ok) {
+    const err = new Error(data.detail ?? "Request failed");
+    if (data.remarks) (err as any).remarks = data.remarks;
+    throw err;
+  }
   return data as T;
 }
 
@@ -94,7 +102,11 @@ async function put<T>(path: string, body: object): Promise<T> {
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail ?? "Request failed");
+  if (!res.ok) {
+    const err = new Error(data.detail ?? "Request failed");
+    if (data.remarks) (err as any).remarks = data.remarks;
+    throw err;
+  }
   return data as T;
 }
 
@@ -233,5 +245,43 @@ export async function resendCandidateSmsOtp(sessionToken: string) {
     "/auth/candidate/resend-sms-otp",
     { otp_session_token: sessionToken }
   );
+}
+
+
+// ── Live Candidate Eligibility & Application ──────────────────
+export async function checkCandidateEligibility(email: string, password: string) {
+  return post<{ otp_session_token: string; message: string }>("/candidates/eligibility-check", { email, password });
+}
+
+export async function verifyEligibilityOtp(sessionToken: string, otp: string) {
+  return post<{
+    verified: boolean;
+    full_name: string;
+    department: string;
+    semester: string;
+    mobile_number: string;
+  }>("/candidates/verify-eligibility-otp", { otp_session_token: sessionToken, otp });
+}
+
+export async function fetchPositions() {
+  return get<any[]>("/candidates/positions");
+}
+
+export async function registerCandidate(
+  sessionToken: string,
+  details: {
+    position_id: string;
+    party_name?: string;
+    party_symbol_url?: string;
+    manifesto?: string;
+    payment_screenshot_url?: string;
+    mobile_number: string;
+    new_password?: string;
+  }
+) {
+  return post<{ message: string; candidate_id: string; status: string }>("/candidates/register", {
+    otp_session_token: sessionToken,
+    ...details,
+  });
 }
 

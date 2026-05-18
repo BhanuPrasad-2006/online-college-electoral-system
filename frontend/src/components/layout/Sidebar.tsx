@@ -19,11 +19,14 @@ import {
   Film,
   MessageSquarePlus,
   ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/context/NotificationStore";
+import { useCandidateProfile } from "@/hooks/use-election-data";
+import { toast } from "sonner";
 
 interface SidebarLink {
   to: string;
@@ -76,6 +79,11 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
   const { unreadCount } = useNotifications();
   const nav = useNavigate();
 
+  // Fetch candidate profile status if we are on the candidate portal
+  const { data: profile } = useCandidateProfile();
+  const statusUpper = profile?.status?.toUpperCase() || "PENDING";
+  const isApproved = statusUpper === "APPROVED";
+
   return (
     <aside className="w-[260px] shrink-0 bg-sidebar text-sidebar-foreground h-screen sticky top-0 flex flex-col">
       <div className="px-6 py-5 flex items-center gap-2 border-b border-sidebar-border">
@@ -92,6 +100,31 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
           const active = path === l.to;
           const Icon = l.icon;
           const badge = l.to.endsWith("/notifications") ? unreadCount : "badge" in l ? l.badge : 0;
+
+          // Determine if this candidate link is locked (campaign features lock unless approved)
+          const isCampaignTab = ["/candidate/manifesto", "/candidate/media", "/candidate/ai-report"].includes(l.to);
+          const isLocked = kind === "candidate" && isCampaignTab && !isApproved;
+
+          if (isLocked) {
+            return (
+              <button
+                key={l.to}
+                onClick={() => {
+                  toast.error(`Access Locked. The "${l.label}" will activate once your candidacy is approved by the admin.`, {
+                    description: `Current Status: ${profile?.status || "Pending review"}`,
+                  });
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/30 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground/40 transition-all duration-200 cursor-not-allowed",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px] opacity-40" />
+                <span className="flex-1 text-left opacity-40">{l.label}</span>
+                <Lock className="h-3.5 w-3.5 opacity-40" />
+              </button>
+            );
+          }
+
           return (
             <Link
               key={l.to}

@@ -25,6 +25,7 @@ function Login() {
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [rejectionRemarks, setRejectionRemarks] = useState("");
 
   // Mode: "login" | "forgot_email" | "forgot_otp" | "forgot_reset"
   const [mode, setMode] = useState<"login" | "forgot_email" | "forgot_otp" | "forgot_reset">("login");
@@ -41,6 +42,7 @@ function Login() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setRejectionRemarks("");
     try {
       if (tab === "voter") {
         const res = await voterLoginStep1(email, password);
@@ -56,6 +58,9 @@ function Login() {
       }
     } catch (err: any) {
       setError(err.message || "Invalid credentials. Please try again.");
+      if (err.remarks) {
+        setRejectionRemarks(err.remarks);
+      }
       toast.error(err.message || "Login failed.");
       setLoading(false);
     }
@@ -164,9 +169,17 @@ function Login() {
           </div>
 
           {error && (
-            <div className="mb-4 flex items-center gap-2 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            <div className="mb-4 flex flex-col gap-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-4 animate-shake">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400">{error}</p>
+              </div>
+              {rejectionRemarks && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-500 border-t border-red-200/50 dark:border-red-800/50 pt-2 font-medium">
+                  <span className="font-bold text-red-700 dark:text-red-400">Admin Remarks: </span>
+                  "{rejectionRemarks}"
+                </div>
+              )}
             </div>
           )}
 

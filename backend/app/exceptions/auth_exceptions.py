@@ -60,3 +60,23 @@ class MobileEmailMismatchError(AuthException):
         message: str = "Mobile number does not match"
     ):
         super().__init__(message)
+
+
+class CandidateRejectedError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "Candidate registration was rejected by admin",
+        remarks: str = ""
+    ):
+        self.remarks = remarks
+        super().__init__(message)
+
+
+class CandidateEligibilityError(AuthException):
+
+    def __init__(
+        self,
+        message: str = "First and second-year students are not eligible to contest elections."
+    ):
+        super().__init__(message)

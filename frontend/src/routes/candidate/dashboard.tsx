@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Clock, FileCheck, Brain, Bell } from "lucide-react";
+import { CheckCircle2, Clock, FileCheck, Brain, Bell, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Page() {
@@ -45,6 +45,46 @@ function Page() {
         title={`Welcome back, ${candidateName.split(" ")[0]}`}
         subtitle={`Running for ${profile.position} · ${profile.department}`}
       />
+
+      {/* Application Status Banner Gating */}
+      {(statusUpper === "PENDING" || statusUpper === "UNDER_REVIEW") && (
+        <div className="bg-warning/10 border border-warning/20 text-warning-foreground rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+          <Clock className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold">Application Under Review</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Your candidate profile has been logged and is currently in <span className="font-semibold">{profile.status}</span> status. 
+              The Election Committee is verifying your details. Campaign analytics and AI matching tools will become fully active once approved.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {statusUpper === "REJECTED" && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold">Application Rejected</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Reason from Admin: <span className="font-semibold text-foreground">"{profile.admin_remarks || "No remarks provided"}"</span>. 
+              Please contact the Administrator for assistance.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {statusUpper === "APPROVED" && (
+        <div className="bg-success/10 border border-success/20 text-success rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+          <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold">Application Approved</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Congratulations! Your candidacy for <span className="font-semibold text-foreground">{profile.position}</span> is active and approved. 
+              You are authorized to proceed with your campaign.
+            </p>
+          </div>
+        </div>
+      )}
 
       <SectionCard delay={100}>
         <h2 className="text-base font-semibold mb-5">Application Status</h2>

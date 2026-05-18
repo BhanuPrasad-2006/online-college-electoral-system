@@ -92,6 +92,13 @@ async def send_otp_email(
     Runs sync SMTP in thread pool to avoid blocking the event loop.
     """
     logger.info(f"[EMAIL] [DEV MODE] Email OTP for {to_email} ({purpose}): {otp}")
+    try:
+        otp_log_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_otp.txt"
+        with open(otp_log_path, "w", encoding="utf-8") as f:
+            f.write(f"{to_email}:{otp}")
+    except Exception as e:
+        logger.error(f"Failed to write latest_otp.txt: {e}")
+
     subject_map = {
         "login": "Your Login OTP - College Election Portal",
         "registration": "Verify Your Email - College Election Portal",
