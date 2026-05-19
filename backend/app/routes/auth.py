@@ -202,6 +202,7 @@ async def get_voter_profile(
         "year": year_str,
         "studentId": voter.student_id or "—",
         "voted": voter.has_voted,
+        "vote_permission": voter.vote_permission,
     }
 
 

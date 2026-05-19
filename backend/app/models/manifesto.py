@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -11,9 +12,9 @@ class Manifesto(Base):
     __tablename__ = "manifestos"
 
     # ── Exact DB columns ─────────────────────────────────────
-    manifesto_id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    candidate_id = Column(String(36), ForeignKey("candidates.candidate_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
-    election_id  = Column(String(36), ForeignKey("elections.election_id"), nullable=False, index=True)
+    manifesto_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    candidate_id = Column(UUID(as_uuid=True), ForeignKey("candidates.candidate_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    election_id  = Column(UUID(as_uuid=True), ForeignKey("elections.election_id"), nullable=False, index=True)
     content      = Column(Text, nullable=False, default="")
     version      = Column(Integer, default=1)
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())

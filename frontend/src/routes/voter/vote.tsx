@@ -1,13 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageLoader } from "@/components/PageLoader";
-import { useCandidates } from "@/hooks/use-election-data";
+import { useCandidates, useVoterProfile } from "@/hooks/use-election-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban } from "lucide-react";
+import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { castVote } from "@/lib/api";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
@@ -15,6 +16,7 @@ const NOTA_ID = "nota";
 
 function VotePage() {
   const nav = useNavigate();
+  const { logout } = useAuth();
   const [verified, setVerified] = useState(false);
   const [studentId, setStudentId] = useState("");
   const [attempts, setAttempts] = useState(0);
@@ -22,10 +24,82 @@ function VotePage() {
   const [review, setReview] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<string>("");
 
   const { data: candidates = [], isPending } = useCandidates();
+  const { data: voter, isPending: isVoterPending } = useVoterProfile();
 
-  if (isPending && !verified && !confirmed) return <PageLoader />;
+  useEffect(() => {
+    // JWT Session Timer
+    const token = sessionStorage.getItem("collegevote-token");
+    if (!token) return;
+
+    function updateTimer() {
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(window.atob(base64));
+        const exp = payload.exp;
+        if (!exp) return;
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        const diff = exp - nowSec;
+
+        if (diff <= 0) {
+          setTimeLeft("Expired");
+          logout();
+          nav({ to: "/" });
+          toast.error("Session expired. Please login again.");
+        } else {
+          const minutes = Math.floor(diff / 60);
+          const seconds = diff % 60;
+          setTimeLeft(`${minutes}m ${seconds}s`);
+        }
+      } catch (e) {
+        console.error("Failed to decode token for timer", e);
+      }
+    }
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [logout, nav]);
+
+  if ((isPending || isVoterPending) && !verified && !confirmed) return <PageLoader />;
+
+  // Block screen if voter doesn't exist or is not permitted to vote
+  if (voter && !voter.vote_permission) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md text-center bg-card rounded-2xl shadow-sm border border-border p-10 space-y-5">
+          <div className="mx-auto h-20 w-20 rounded-full bg-warning/15 flex items-center justify-center animate-in zoom-in duration-500">
+            <Lock className="h-10 w-10 text-warning" />
+          </div>
+          <h1 className="text-2xl font-bold mt-5 text-foreground">Access Denied</h1>
+          <p className="text-sm text-muted-foreground">
+            The election coordinator has not authorized your student profile to vote yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Please wait for admin approval on the dashboard or contact the election coordinator.
+          </p>
+          {timeLeft && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-destructive/10 text-destructive text-xs font-mono font-semibold rounded-full">
+              <Clock className="h-3 w-3" />
+              Session Expiration: {timeLeft}
+            </div>
+          )}
+          <div className="pt-4">
+            <Button
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-3 font-semibold"
+              onClick={() => nav({ to: "/voter/dashboard" })}
+            >
+              Return to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const presidents = candidates.filter((c) => c.position === "President" && (c.status || "").toLowerCase() === "approved");
 
@@ -70,7 +144,7 @@ function VotePage() {
   if (!verified) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md w-full bg-card rounded-2xl shadow-sm p-8 text-center">
+        <div className="max-w-md w-full bg-card rounded-2xl shadow-sm p-8 text-center border border-border">
           <div className="mx-auto h-14 w-14 rounded-full bg-[#6C63FF]/10 flex items-center justify-center">
             <ShieldCheck className="h-7 w-7 text-[#6C63FF]" />
           </div>
@@ -91,14 +165,22 @@ function VotePage() {
   const selectedCandidate =
     selected === NOTA_ID
       ? null
-      : presidents.find((c) => c.id === selected);
+      : presidents.find((c) => c.candidate_id === selected);
 
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b border-border sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <h1 className="text-lg font-semibold">Cast Your Vote — President</h1>
-          <button onClick={() => nav({ to: "/voter/dashboard" })} className="p-2 hover:bg-muted rounded-md"><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-4">
+            {timeLeft && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-muted rounded-full text-xs font-mono font-semibold text-destructive">
+                <Clock className="h-3 w-3" />
+                Session: {timeLeft}
+              </div>
+            )}
+            <button onClick={() => nav({ to: "/voter/dashboard" })} className="p-2 hover:bg-muted rounded-md"><X className="h-4 w-4" /></button>
+          </div>
         </div>
       </header>
 
@@ -112,11 +194,11 @@ function VotePage() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {presidents.map((c) => {
-                const isSel = selected === c.id;
+                const isSel = selected === c.candidate_id;
                 return (
                   <button
-                    key={c.id}
-                    onClick={() => setSelected(c.id)}
+                    key={c.candidate_id}
+                    onClick={() => setSelected(c.candidate_id)}
                     className={cn(
                       "text-left bg-card rounded-2xl shadow-sm p-5 transition-all border-2",
                       isSel ? "border-[#6C63FF] ring-2 ring-[#6C63FF]/30" : "border-transparent hover:shadow-md"

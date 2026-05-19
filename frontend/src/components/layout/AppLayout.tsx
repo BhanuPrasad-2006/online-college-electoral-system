@@ -8,6 +8,7 @@ import { ElectionIsland } from "@/components/ElectionIsland";
 import { useAuth } from "@/context/AuthContext";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { AIAssistantPanel } from "@/components/AIAssistantPanel";
+import { PageLoader } from "@/components/PageLoader";
 
 const AUTH_PATHS = new Set([
   "/",
@@ -22,13 +23,16 @@ export function AppLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
-  const { role, isAuthed } = useAuth();
+  const { role, isAuthed, authReady } = useAuth();
 
   // Pure auth shell — no sidebar/header/island
   if (AUTH_PATHS.has(path)) return <Outlet />;
 
   // Full-screen voting page (no floating timer here)
   if (path === "/voter/vote") return <Outlet />;
+
+  // Wait for auth context to hydrate from storage
+  if (!authReady) return <PageLoader />;
 
   // Determine which sidebar to show based on URL prefix
   let kind: SidebarKind | null = null;

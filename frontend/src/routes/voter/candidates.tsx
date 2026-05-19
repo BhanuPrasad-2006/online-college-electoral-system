@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageLoader } from "@/components/PageLoader";
 import { useCandidates } from "@/hooks/use-election-data";
 import { Input } from "@/components/ui/input";
@@ -9,23 +9,38 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Search, Check, Minus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { z } from "zod";
 
-export const Route = createFileRoute("/voter/candidates")({ component: Page });
+const searchSchema = z.object({
+  open: z.string().optional(),
+});
+
+export const Route = createFileRoute("/voter/candidates")({
+  validateSearch: searchSchema,
+  component: Page,
+});
 
 const COVERAGE_CATS = ["Infrastructure", "Academics", "Welfare", "Events", "Sports", "Hostel"];
 
 function Page() {
+  const { open: searchOpen } = Route.useSearch();
   const { data: candidates = [], isPending } = useCandidates();
   const [q, setQ] = useState("");
   const [pos, setPos] = useState("all");
   const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchOpen) {
+      setOpen(searchOpen);
+    }
+  }, [searchOpen]);
 
   if (isPending) return <PageLoader />;
 
   const filtered = candidates.filter((c) => {
     const nameStr = c.full_name || c.name || "";
     const status = (c.status || "").toLowerCase();
-    const isVisible = status === "approved" || status === "pending";
+    const isVisible = status === "approved";
     return isVisible && (pos === "all" || c.position === pos) && nameStr.toLowerCase().includes(q.toLowerCase());
   });
 

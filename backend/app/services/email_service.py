@@ -140,3 +140,19 @@ async def send_otp_email(
         None,
         partial(_send_email_sync, to_email, subject, html_body),
     )
+
+
+async def send_election_email(
+    to_email: str,
+    recipient_name: str,
+    subject: str,
+    html_body: str,
+) -> bool:
+    """
+    Send general election notification email via Gmail SMTP.
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        partial(_send_email_sync, to_email, subject, html_body),
+    )

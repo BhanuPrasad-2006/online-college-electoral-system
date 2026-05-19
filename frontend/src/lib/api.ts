@@ -1,4 +1,6 @@
-const BASE = "http://127.0.0.1:8000/api/v1";
+import { API_BASE_URL } from "./demo-config";
+
+const BASE = API_BASE_URL ? `${API_BASE_URL}/api/v1` : "http://127.0.0.1:9001/api/v1";
 
 // ── Storage helpers ──────────────────────────────────────────
 const KEYS = {
@@ -284,4 +286,34 @@ export async function registerCandidate(
     ...details,
   });
 }
+
+// ── Admin Voter Permission Control ─────────────────────────────
+export async function fetchVotersForAdmin() {
+  return get<any[]>("/vote/admin/voters");
+}
+
+export async function updateVoterPermission(voterId: string, permission: boolean) {
+  return put<{ message: string; voter_id: string; vote_permission: boolean }>(
+    `/vote/admin/voters/${voterId}/permission`,
+    { vote_permission: permission }
+  );
+}
+
+// ── Admin Election Control ──────────────────────────────────────
+export async function fetchCurrentElection() {
+  return get<any>("/election/current");
+}
+
+export async function openVoting(electionId: string) {
+  return post<any>(`/election/${electionId}/open-voting`, {});
+}
+
+export async function closeVoting(electionId: string) {
+  return post<any>(`/election/${electionId}/close-voting`, {});
+}
+
+export async function publishResults(electionId: string) {
+  return post<any>(`/election/${electionId}/publish-results`, {});
+}
+
 

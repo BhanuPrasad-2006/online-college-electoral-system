@@ -17,6 +17,7 @@ from app.routes.auth import router as auth_router
 from app.routes.vote import router as vote_router
 from app.routes.candidates import router as candidates_router
 from app.routes.ai import router as ai_router
+from app.routes.election import router as election_router
 from app.utils.logger import logger
 
 
@@ -62,6 +63,7 @@ app.include_router(auth_router,       prefix=settings.API_V1_PREFIX)
 app.include_router(vote_router,       prefix=f"{settings.API_V1_PREFIX}/vote",       tags=["Vote"])
 app.include_router(candidates_router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["Candidates"])
 app.include_router(ai_router,         prefix=f"{settings.API_V1_PREFIX}/ai",         tags=["AI"])
+app.include_router(election_router,   prefix=f"{settings.API_V1_PREFIX}/election",   tags=["Election"])
 
 
 # ── Auth Exception Handlers ──────────────────────────────────

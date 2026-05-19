@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, GraduationCap, ShieldCheck, Sparkles, AlertCircle, ArrowLeft, Mail, Key } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 import { 
   voterLoginStep1, 
   candidateLoginStep1, 
@@ -16,6 +17,19 @@ export const Route = createFileRoute("/")({ component: Login });
 
 function Login() {
   const nav = useNavigate();
+  const { role, isAuthed, authReady } = useAuth();
+  
+  useEffect(() => {
+    if (authReady && isAuthed && role) {
+      const roleDashboard =
+        role === "voter"
+          ? "/voter/dashboard"
+          : role === "candidate"
+            ? "/candidate/dashboard"
+            : "/admin/dashboard";
+      nav({ to: roleDashboard });
+    }
+  }, [authReady, isAuthed, role, nav]);
   
   // Login States
   const [tab, setTab] = useState<"voter" | "candidate">("voter");

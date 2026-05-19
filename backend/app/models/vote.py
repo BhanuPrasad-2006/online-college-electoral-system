@@ -21,7 +21,7 @@ class Vote(Base):
     # ── Exact DB columns ─────────────────────────────────────
     vote_id          = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     voter_token_hash = Column(CHAR(64), unique=True, nullable=False, index=True)
-    candidate_id     = Column(String(36), ForeignKey("candidates.candidate_id"), nullable=False, index=True)
+    candidate_id     = Column(String(36), ForeignKey("candidates.candidate_id"), nullable=True, index=True)
     election_id      = Column(String(36), ForeignKey("elections.election_id"), nullable=False, index=True)
     position_id      = Column(String(36), ForeignKey("positions.position_id"), nullable=False, index=True)
     voted_at         = Column(DateTime(timezone=True), server_default=func.now())

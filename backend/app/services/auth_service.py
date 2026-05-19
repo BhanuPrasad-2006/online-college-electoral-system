@@ -978,6 +978,8 @@ async def resend_candidate_otp(
         voter_id=str(candidate.voter_id),
         email=voter.college_email,
         otp_id=str(email_otp_record.otp_id),
+        is_registered=True,
+        mobile_number=candidate.mobile_number,
     )
 
     return {
@@ -1034,11 +1036,17 @@ async def resend_candidate_email_otp(
 
     await db.commit()
 
+    # Get values from old payload to preserve registration wizard context
+    is_registered = payload.get("is_registered", False)
+    mobile_number = payload.get("mobile_number")
+
     # Generate new token
     new_session_token = create_otp_session_token(
         voter_id=str(voter.voter_id),
         email=voter.college_email,
         otp_id=str(email_otp_record.otp_id),
+        is_registered=is_registered,
+        mobile_number=mobile_number,
     )
 
     return {
@@ -1099,11 +1107,17 @@ async def resend_candidate_sms_otp(
 
     await db.commit()
 
+    # Get values from old payload to preserve registration wizard context
+    is_registered = payload.get("is_registered", False)
+    mobile_number = payload.get("mobile_number")
+
     # Generate new token
     new_session_token = create_otp_session_token(
         voter_id=str(candidate.voter_id),
         email=voter.college_email,
         otp_id=str(sms_otp_record.otp_id),
+        is_registered=is_registered,
+        mobile_number=mobile_number,
     )
 
     return {

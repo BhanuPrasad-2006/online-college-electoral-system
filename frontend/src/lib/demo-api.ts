@@ -5,7 +5,7 @@
  * and set DEMO_MODE to false in demo-config.ts.
  */
 import { DEMO_MODE } from "./demo-config";
-import { getAuthToken } from "./api";
+import { getAuthToken, fetchCurrentElection } from "./api";
 import {
   AI_ALERTS,
   AUDIT_LOGS,
@@ -42,10 +42,20 @@ function clone<T>(data: T): T {
 // }
 
 export async function fetchElection() {
-  // return apiGet<typeof ELECTION>("/election/current");
-  await delay();
-  if (!DEMO_MODE) throw new Error("Backend not configured");
-  return clone(ELECTION);
+  try {
+    const data = await fetchCurrentElection();
+    return {
+      election_id: data.election_id,
+      name: data.title,
+      status: data.status,
+      votingStart: data.voting_start ? new Date(data.voting_start) : null,
+      votingEnd: data.voting_end ? new Date(data.voting_end) : null,
+      registrationEnd: data.registration_end ? new Date(data.registration_end) : null,
+    };
+  } catch (e) {
+    console.warn("Failed to fetch current election, using mock:", e);
+    return clone(ELECTION);
+  }
 }
 
 export async function fetchCandidates(): Promise<Candidate[]> {
@@ -80,7 +90,7 @@ export async function fetchVoterProfile() {
   }
 
   try {
-    const res = await fetch("http://127.0.0.1:8000/api/v1/auth/voter/me", {
+    const res = await fetch("http://127.0.0.1:9001/api/v1/auth/voter/me", {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
@@ -102,7 +112,7 @@ export async function fetchCandidateProfile() {
   }
 
   try {
-    const res = await fetch("http://127.0.0.1:8000/api/v1/auth/candidate/me", {
+    const res = await fetch("http://127.0.0.1:9001/api/v1/auth/candidate/me", {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",

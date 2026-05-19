@@ -1,45 +1,100 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CANDIDATES, KPI as KPI_DATA, NOTIFICATIONS } from "@/lib/mock";
-import { useVoterProfile } from "@/hooks/use-election-data";
+import { useState, useEffect } from "react";
+import { KPI as KPI_DATA, NOTIFICATIONS } from "@/lib/mock";
+import { useCandidates, useVoterProfile } from "@/hooks/use-election-data";
 import { PageLoader } from "@/components/PageLoader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Users, TrendingUp, AlertCircle, Bell, ChevronRight } from "lucide-react";
+import { CheckCircle2, Users, TrendingUp, AlertCircle, Bell, ChevronRight, Lock, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 
-// Status check removed from module scope
 export const Route = createFileRoute("/voter/dashboard")({ component: VoterDash });
 
 function VoterDash() {
   const nav = useNavigate();
+  const { logout } = useAuth();
   const { data: voter, isPending } = useVoterProfile();
+  const { data: candidates = [], isPending: isCandidatesPending } = useCandidates();
+  const [timeLeft, setTimeLeft] = useState<string>("");
+
+  useEffect(() => {
+    // Decode JWT from sessionStorage and start the countdown timer
+    const token = sessionStorage.getItem("collegevote-token");
+    if (!token) return;
+
+    function updateTimer() {
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(window.atob(base64));
+        const exp = payload.exp;
+        if (!exp) return;
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        const diff = exp - nowSec;
+
+        if (diff <= 0) {
+          setTimeLeft("Expired");
+          logout();
+          nav({ to: "/" });
+          toast.error("Session expired. Please login again.");
+        } else {
+          const minutes = Math.floor(diff / 60);
+          const seconds = diff % 60;
+          setTimeLeft(`${minutes}m ${seconds}s`);
+        }
+      } catch (e) {
+        console.error("Failed to decode token for timer", e);
+      }
+    }
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [logout, nav]);
+
+  if (isPending || isCandidatesPending || !voter) return <PageLoader />;
   
-  if (isPending || !voter) return <PageLoader />;
-  
-  const matched = [...CANDIDATES].sort((a, b) => b.match - a.match);
+  // Show only approved candidates
+  const approvedCandidates = candidates.filter(
+    (c) => (c.status || "").toLowerCase() === "approved"
+  );
+  const matched = [...approvedCandidates].sort((a, b) => (b.match || 75) - (a.match || 75));
   const firstName = voter.name.split(" ")[0];
 
   const hasVoted = voter.voted || (typeof localStorage !== "undefined" && localStorage.getItem("collegevote-has-voted") === "true");
+  const votePermission = voter.vote_permission;
 
   function handleVoteNowClick() {
-    if (!hasVoted) nav({ to: "/voter/vote" });
+    if (!hasVoted && votePermission) nav({ to: "/voter/vote" });
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`Welcome back, ${firstName}`}
-        subtitle="Here's what's happening with the election."
-      />
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <PageHeader
+          title={`Welcome back, ${firstName}`}
+          subtitle="Here's what's happening with the election."
+        />
+        {timeLeft && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border/60 rounded-2xl shadow-sm text-sm">
+            <Clock className="h-4 w-4 text-[#6C63FF]" />
+            <span className="text-muted-foreground">Session Ends:</span>
+            <span className="font-mono font-semibold text-destructive">{timeLeft}</span>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Clickable Total Candidates card */}
-        <button onClick={() => nav({ to: "/voter/candidates" })} className="text-left group">
+        <button onClick={() => nav({ to: "/voter/candidates" })} className="text-left group w-full">
           <StatCard
             icon={Users}
             label="Total Candidates"
-            value={CANDIDATES.length}
+            value={approvedCandidates.length}
             tone="bg-[#6C63FF]/10 text-[#6C63FF]"
             delay={50}
           />
@@ -52,10 +107,10 @@ function VoterDash() {
           delay={100}
         />
         <StatCard
-          icon={hasVoted ? CheckCircle2 : AlertCircle}
+          icon={hasVoted ? CheckCircle2 : (votePermission ? AlertCircle : Lock)}
           label="Your Status"
-          value={hasVoted ? "Voted ✓" : "Not Voted"}
-          tone={hasVoted ? "bg-success/15 text-success" : "bg-warning/20 text-warning-foreground"}
+          value={hasVoted ? "Voted ✓" : (votePermission ? "Authorized to Vote" : "Pending Admin Permission")}
+          tone={hasVoted ? "bg-success/15 text-success" : (votePermission ? "bg-[#6C63FF]/10 text-[#6C63FF]" : "bg-warning/20 text-warning-foreground")}
           delay={150}
         />
       </div>
@@ -63,11 +118,29 @@ function VoterDash() {
       <div className="flex justify-center items-center w-full py-8 my-4 bg-transparent z-10">
         {hasVoted ? (
           <div
-            className="flex items-center gap-3 px-16 py-5 bg-success/15 border-2 border-success/40 text-success font-bold text-xl rounded-2xl shadow-md cursor-not-allowed select-none"
+            className="flex items-center gap-3 px-16 py-5 bg-success/15 border-2 border-success/40 text-success font-bold text-xl rounded-2xl shadow-md cursor-not-allowed select-none animate-in fade-in duration-300"
             style={{ minWidth: "280px", justifyContent: "center" }}
           >
             <CheckCircle2 className="h-6 w-6 text-success" />
             Already Voted
+          </div>
+        ) : !votePermission ? (
+          <div className="w-full max-w-lg bg-warning/10 border border-warning/30 rounded-2xl p-6 text-center space-y-3 animate-in zoom-in duration-300">
+            <div className="mx-auto h-12 w-12 rounded-full bg-warning/20 flex items-center justify-center">
+              <Lock className="h-6 w-6 text-warning" />
+            </div>
+            <div>
+              <p className="font-bold text-warning-foreground text-lg">Voting Blocked</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                The election admin has not authorized your student profile to vote yet. Please wait for approval or contact the election coordinator.
+              </p>
+            </div>
+            {timeLeft && (
+              <p className="text-xs text-destructive font-semibold flex items-center justify-center gap-1">
+                <Clock className="h-3 w-3" />
+                Remaining login time: {timeLeft}
+              </p>
+            )}
           </div>
         ) : (
           <button
@@ -96,14 +169,16 @@ function VoterDash() {
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x scrollbar-thin">
           {matched.map((c, i) => {
-            const initials = c.name
+            const dispName = c.full_name || c.name || "Candidate";
+            const initials = dispName
               .split(" ")
-              .map((n) => n[0])
+              .map((n) => n[0] || "")
               .join("");
+            const partyName = c.party || c.party_symbol_url || "Independent";
             return (
               <button
-                key={c.id}
-                onClick={() => nav({ to: "/voter/candidates" })}
+                key={c.candidate_id}
+                onClick={() => nav({ to: "/voter/candidates", search: { open: c.candidate_id } })}
                 className={cn(
                   "interactive-card min-w-[280px] snap-start bg-card rounded-2xl border border-border/60 p-5 text-left",
                   "animate-fade-in-up opacity-0 [animation-fill-mode:forwards]",
@@ -117,8 +192,8 @@ function VoterDash() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="font-semibold truncate">{c.name}</p>
-                    <p className="text-xs text-muted-foreground italic truncate">{c.party}</p>
+                    <p className="font-semibold truncate">{dispName}</p>
+                    <p className="text-xs text-muted-foreground italic truncate">{partyName}</p>
                   </div>
                 </div>
                 <p className="text-sm text-foreground/80 mt-3 line-clamp-3">{c.manifesto}</p>
