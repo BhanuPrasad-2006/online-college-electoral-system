@@ -4,7 +4,7 @@
  * When the API is ready, replace each function body with the commented fetch pattern
  * and set DEMO_MODE to false in demo-config.ts.
  */
-import { DEMO_MODE } from "./demo-config";
+import { API_BASE_URL, DEMO_MODE } from "./demo-config";
 import { getAuthToken, fetchCurrentElection } from "./api";
 import {
   AI_ALERTS,
@@ -27,6 +27,14 @@ import {
 } from "./mock";
 
 const delay = (ms = 140) => new Promise<void>((r) => setTimeout(r, ms));
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
+
+function buildApiBaseUrl(baseUrl: string) {
+  const normalized = baseUrl.replace(/\/+$/, "");
+  return normalized.endsWith("/api/v1") ? normalized : `${normalized}/api/v1`;
+}
+
+const LIVE_API_BASE = buildApiBaseUrl(API_BASE_URL || DEFAULT_API_BASE_URL);
 
 function clone<T>(data: T): T {
   return structuredClone(data);
@@ -90,7 +98,7 @@ export async function fetchVoterProfile() {
   }
 
   try {
-    const res = await fetch("http://127.0.0.1:9001/api/v1/auth/voter/me", {
+    const res = await fetch(`${LIVE_API_BASE}/auth/voter/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
@@ -112,7 +120,7 @@ export async function fetchCandidateProfile() {
   }
 
   try {
-    const res = await fetch("http://127.0.0.1:9001/api/v1/auth/candidate/me", {
+    const res = await fetch(`${LIVE_API_BASE}/auth/candidate/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",

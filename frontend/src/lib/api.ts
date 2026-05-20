@@ -1,6 +1,13 @@
 import { API_BASE_URL } from "./demo-config";
 
-const BASE = API_BASE_URL ? `${API_BASE_URL}/api/v1` : "http://127.0.0.1:9001/api/v1";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
+
+function buildApiBaseUrl(baseUrl: string) {
+  const normalized = baseUrl.replace(/\/+$/, "");
+  return normalized.endsWith("/api/v1") ? normalized : `${normalized}/api/v1`;
+}
+
+const BASE = buildApiBaseUrl(API_BASE_URL || DEFAULT_API_BASE_URL);
 
 // ── Storage helpers ──────────────────────────────────────────
 const KEYS = {
