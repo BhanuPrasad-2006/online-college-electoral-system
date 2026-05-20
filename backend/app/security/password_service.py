@@ -1,13 +1,19 @@
-"""Password service — hashing and verification."""
-
-from app.core.security import get_password_hash, verify_password
+import bcrypt
 
 
-class PasswordService:
-    @staticmethod
-    def hash(password: str) -> str:
-        return get_password_hash(password)
+def hash_password(plain_password: str) -> str:
+    """Hash a plain password using bcrypt."""
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(plain_password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
-    @staticmethod
-    def verify(plain: str, hashed: str) -> bool:
-        return verify_password(plain, hashed)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against its bcrypt hash."""
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except Exception:
+        return False

@@ -1,27 +1,49 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Home, Users, Vote, BarChart2, MessageSquare, Bell, Settings, LogOut,
-  LayoutDashboard, FileEdit, Brain, GraduationCap,
-  ListChecks, Megaphone, Shield, ScrollText, Activity, Cog,
-  Film, MessageSquarePlus, ShieldCheck,
+  Home,
+  Users,
+  BarChart2,
+  Bell,
+  Settings,
+  LogOut,
+  LayoutDashboard,
+  FileEdit,
+  Brain,
+  GraduationCap,
+  ListChecks,
+  Megaphone,
+  Shield,
+  ScrollText,
+  Activity,
+  Cog,
+  Film,
+  MessageSquarePlus,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import { useNotifications } from "@/context/NotificationStore";
+import { useCandidateProfile } from "@/hooks/use-election-data";
+import { toast } from "sonner";
 
-const VOTER_LINKS = [
+interface SidebarLink {
+  to: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  badge?: number;
+}
+
+const VOTER_LINKS: SidebarLink[] = [
   { to: "/voter/dashboard", label: "Dashboard", icon: Home },
   { to: "/voter/candidates", label: "Candidates & Manifestos", icon: Users },
   { to: "/voter/media", label: "Campaign Gallery", icon: Film },
   { to: "/voter/concerns", label: "Send a Concern", icon: MessageSquarePlus },
-  { to: "/voter/vote", label: "Cast My Vote", icon: Vote },
   { to: "/voter/statistics", label: "Statistics", icon: BarChart2 },
-  { to: "/voter/ai-assistant", label: "AI Assistant", icon: MessageSquare },
-  { to: "/voter/notifications", label: "Notifications", icon: Bell, badge: 2 },
-  { to: "/voter/settings", label: "Settings", icon: Settings },
 ];
 
-const CANDIDATE_LINKS = [
+const CANDIDATE_LINKS: SidebarLink[] = [
   { to: "/candidate/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/candidate/manifesto", label: "Manifesto Editor", icon: FileEdit },
   { to: "/candidate/media", label: "Campaign Media", icon: Film },
@@ -31,7 +53,7 @@ const CANDIDATE_LINKS = [
   { to: "/candidate/settings", label: "Settings", icon: Settings },
 ];
 
-const ADMIN_LINKS = [
+const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: Shield },
   { to: "/admin/candidates", label: "Manage Candidates", icon: Users },
   { to: "/admin/media", label: "Content Approval", icon: ShieldCheck },
@@ -44,7 +66,7 @@ const ADMIN_LINKS = [
 
 export type SidebarKind = "voter" | "candidate" | "admin";
 
-const LINKS_FOR: Record<SidebarKind, typeof VOTER_LINKS> = {
+const LINKS_FOR: Record<SidebarKind, SidebarLink[]> = {
   voter: VOTER_LINKS,
   candidate: CANDIDATE_LINKS,
   admin: ADMIN_LINKS,
@@ -54,7 +76,13 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
   const links = LINKS_FOR[kind];
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const nav = useNavigate();
+
+  // Fetch candidate profile status if we are on the candidate portal
+  const { data: profile } = useCandidateProfile();
+  const statusUpper = profile?.status?.toUpperCase() || "PENDING";
+  const isApproved = statusUpper === "APPROVED";
 
   return (
     <aside className="w-[260px] shrink-0 bg-sidebar text-sidebar-foreground h-screen sticky top-0 flex flex-col">
@@ -71,6 +99,32 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
         {links.map((l) => {
           const active = path === l.to;
           const Icon = l.icon;
+          const badge = l.to.endsWith("/notifications") ? unreadCount : "badge" in l ? l.badge : 0;
+
+          // Determine if this candidate link is locked (campaign features lock unless approved)
+          const isCampaignTab = ["/candidate/manifesto", "/candidate/media", "/candidate/ai-report"].includes(l.to);
+          const isLocked = kind === "candidate" && isCampaignTab && !isApproved;
+
+          if (isLocked) {
+            return (
+              <button
+                key={l.to}
+                onClick={() => {
+                  toast.error(`Access Locked. The "${l.label}" will activate once your candidacy is approved by the admin.`, {
+                    description: `Current Status: ${profile?.status || "Pending review"}`,
+                  });
+                }}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/30 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground/40 transition-all duration-200 cursor-not-allowed",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px] opacity-40" />
+                <span className="flex-1 text-left opacity-40">{l.label}</span>
+                <Lock className="h-3.5 w-3.5 opacity-40" />
+              </button>
+            );
+          }
+
           return (
             <Link
               key={l.to}
@@ -85,9 +139,9 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
             >
               <Icon className="h-[18px] w-[18px]" />
               <span className="flex-1">{l.label}</span>
-              {"badge" in l && l.badge ? (
+              {badge ? (
                 <span className="bg-[#6C63FF] text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                  {l.badge}
+                  {badge}
                 </span>
               ) : null}
             </Link>

@@ -1,20 +1,28 @@
-from sqlalchemy import Column, Text, SmallInteger, TIMESTAMP, ForeignKey
+import uuid
+
+from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
+from sqlalchemy.sql import func
+
 from app.db.base import Base
 
 
 class Manifesto(Base):
     __tablename__ = "manifestos"
 
+    # ── Exact DB columns ─────────────────────────────────────
     manifesto_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    candidate_id = Column(UUID(as_uuid=True), ForeignKey("candidates.candidate_id", ondelete="CASCADE"), nullable=False)
-    election_id  = Column(UUID(as_uuid=True), ForeignKey("elections.election_id"), nullable=False)
-    content      = Column(Text, nullable=False)   # sanitized via bleach in backend before storage
-    version      = Column(SmallInteger, default=1)
-    submitted_at = Column(TIMESTAMP(timezone=True))
-    updated_at   = Column(TIMESTAMP(timezone=True))
+    candidate_id = Column(UUID(as_uuid=True), ForeignKey("candidates.candidate_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    election_id  = Column(UUID(as_uuid=True), ForeignKey("elections.election_id"), nullable=False, index=True)
+    content      = Column(Text, nullable=False, default="")
+    version      = Column(Integer, default=1)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # relationships
-    candidate = relationship("Candidate", back_populates="manifesto")
+    # ── Relationships ─────────────────────────────────────────
+    candidate = relationship("Candidate")
+    election  = relationship("Election",  back_populates="manifestos")
+
+    def __repr__(self):
+        return f"<Manifesto candidate={self.candidate_id} v{self.version}>"

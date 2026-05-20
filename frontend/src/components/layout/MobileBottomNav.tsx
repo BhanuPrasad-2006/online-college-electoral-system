@@ -1,7 +1,22 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, Users, Vote, MessageSquare, Bell, LayoutDashboard, FileEdit, Brain, ClipboardList, Shield, BarChart2, Cog, Activity } from "lucide-react";
+import {
+  Home,
+  Users,
+  Vote,
+  MessageSquare,
+  Bell,
+  LayoutDashboard,
+  FileEdit,
+  Brain,
+  ClipboardList,
+  Shield,
+  BarChart2,
+  Cog,
+  Activity,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SidebarKind } from "./Sidebar";
+import { useNotifications } from "@/context/NotificationStore";
 
 const MAP = {
   voter: [
@@ -30,6 +45,7 @@ const MAP = {
 export function MobileBottomNav({ kind }: { kind: SidebarKind }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const links = MAP[kind];
+  const { unreadCount } = useNotifications();
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 glass-panel border-t border-border/60 z-30 pb-safe shadow-[0_-4px_24px_oklch(0_0_0/0.06)]">
       <div className="grid grid-cols-5">
@@ -50,6 +66,11 @@ export function MobileBottomNav({ kind }: { kind: SidebarKind }) {
               )}
               <span className={cn("p-1.5 rounded-xl transition-all", active && "bg-[#6C63FF]/10")}>
                 <Icon className={cn("h-5 w-5", active && "scale-110")} />
+                {l.to.endsWith("/notifications") && unreadCount > 0 && (
+                  <span className="absolute top-1 right-6 h-4 min-w-4 px-0.5 text-[10px] font-semibold rounded-full bg-destructive text-destructive-foreground flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
               </span>
               {l.label}
             </Link>

@@ -1,23 +1,30 @@
-from sqlalchemy import Column, String, Text, Integer, TIMESTAMP, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 import uuid
+
+from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.db.base import Base
+from app.db.types import PgEnum
+from app.enums.concern_enums import ConcernCategoryEnum, SentimentEnum
 
 
 class Concern(Base):
     __tablename__ = "concerns"
 
-    concern_id   = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id   = Column(UUID(as_uuid=True), ForeignKey("voters.voter_id"))
-    election_id  = Column(UUID(as_uuid=True), ForeignKey("elections.election_id"))
+    # ── Exact DB columns ─────────────────────────────────────
+    concern_id   = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    student_id   = Column(String(50), nullable=True, index=True)
+    election_id  = Column(String(36), ForeignKey("elections.election_id"), nullable=False, index=True)
     content      = Column(Text, nullable=False)
-    category     = Column(String(60))     # AI-assigned: Wi-Fi, Placements, Cafeteria etc.
-    priority     = Column(String(20))     # student-selected: low / medium / high
-    sentiment    = Column(String(20))     # AI-assigned: positive / neutral / negative
-    cluster_id   = Column(Integer)        # AI duplicate grouping id
-    submitted_at = Column(TIMESTAMP(timezone=True))
+    category     = Column(PgEnum(ConcernCategoryEnum, pg_type_name="concern_category"), nullable=True)
+    priority     = Column(Integer, default=2)
+    sentiment    = Column(PgEnum(SentimentEnum, pg_type_name="sentiment_label"), nullable=True)
+    cluster_id   = Column(String(36), nullable=True)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # relationships
-    student  = relationship("Voter",    back_populates="concerns")
+    # ── Relationships ─────────────────────────────────────────
     election = relationship("Election", back_populates="concerns")
+
+    def __repr__(self):
+        return f"<Concern [{self.category}] sentiment={self.sentiment}>"

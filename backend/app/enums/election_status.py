@@ -1,5 +1,4 @@
 import enum
-from sqlalchemy import Enum as SAEnum
 
 
 class ElectionStatusEnum(str, enum.Enum):
@@ -8,6 +7,3 @@ class ElectionStatusEnum(str, enum.Enum):
     VOTING_OPEN       = "VOTING_OPEN"
     CLOSED            = "CLOSED"
     RESULTS_PUBLISHED = "RESULTS_PUBLISHED"
-
-
-ElectionStatus = SAEnum(ElectionStatusEnum, name="election_status", create_type=False)
