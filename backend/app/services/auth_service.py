@@ -2,7 +2,7 @@ import asyncio
 import jwt
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +56,14 @@ def _mask_mobile(mobile: str) -> str:
     return f"{'*' * 6}{mobile[-4:]}"
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _email_equals(column, email: str):
+    return func.lower(column) == _normalize_email(email)
+
+
 # =========================================================
 # VOTER LOGIN STEP 1
 # =========================================================
@@ -67,7 +75,7 @@ async def voter_login_step1(
 ) -> dict:
 
     result = await db.execute(
-        select(Voter).where(Voter.college_email == email)
+        select(Voter).where(_email_equals(Voter.college_email, email))
     )
 
     voter = result.scalars().first()
@@ -199,7 +207,7 @@ async def candidate_login_step1(
 
     voter_result = await db.execute(
         select(Voter).where(
-            Voter.college_email == email
+            _email_equals(Voter.college_email, email)
         )
     )
 
@@ -479,7 +487,7 @@ async def admin_login_step1(
     """
     # 1. Fetch admin user
     result = await db.execute(
-        select(AdminUser).where(AdminUser.email == email)
+        select(AdminUser).where(_email_equals(AdminUser.email, email))
     )
     admin = result.scalars().first()
 
@@ -755,7 +763,7 @@ async def request_forgot_password_otp(
     Step 1: Check email exists, then generate and send Email OTP for password reset.
     """
     # 1. Fetch voter by email
-    query = select(Voter).where(Voter.college_email == email)
+    query = select(Voter).where(_email_equals(Voter.college_email, email))
     result = await db.execute(query)
     voter = result.scalar_one_or_none()
 
@@ -830,7 +838,7 @@ async def confirm_forgot_password(
         raise OTPError(email_msg)
 
     # Fetch and update voter password
-    query = select(Voter).where(Voter.college_email == email)
+    query = select(Voter).where(_email_equals(Voter.college_email, email))
     result = await db.execute(query)
     voter = result.scalar_one_or_none()
 
