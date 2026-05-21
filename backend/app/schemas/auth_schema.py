@@ -100,3 +100,14 @@ class ForgotPasswordConfirmRequest(BaseModel):
     otp_session_token: str
     otp: str
     new_password: str
+
+
+class CandidateCheckRequest(BaseModel):
+    email: EmailStr
+    mobile_number: str
+
+
+class CandidateInitiateRequest(BaseModel):
+    email: EmailStr
+    mobile_number: str
+    year_of_study: int

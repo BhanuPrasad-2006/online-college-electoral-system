@@ -56,6 +56,10 @@ class CandidateRegisterRequest(BaseModel):
     payment_screenshot_url: Optional[str] = None
     mobile_number: str
     new_password: Optional[str] = None
+    full_name: Optional[str] = None
+    department: Optional[str] = None
+    student_id: Optional[str] = None
+
 
 
 def map_db_status_to_frontend(db_status) -> str:
@@ -96,9 +100,9 @@ async def list_candidates(db: AsyncSession = Depends(get_db)):
             sem_str = f"{voter.year_of_study * 2}th"
 
         # Fetch manifesto content if exists
-        man_query = select(Manifesto).where(Manifesto.candidate_id == str(c.candidate_id))
+        man_query = select(Manifesto).where(Manifesto.candidate_id == c.candidate_id)
         man_res = await db.execute(man_query)
-        manifesto = man_res.scalar_one_or_none()
+        manifesto = man_res.scalars().first()
 
         results.append({
             "candidate_id": str(c.candidate_id),
@@ -260,6 +264,28 @@ async def list_positions(db: AsyncSession = Depends(get_db)):
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = Depends(get_db)):
     """Create a new candidate application in PENDING status."""
+    import re
+    def validate_strong_password(password: str) -> bool:
+        if len(password) < 8:
+            return False
+        if not re.search(r"[A-Z]", password):
+            return False
+        if not re.search(r"[a-z]", password):
+            return False
+        if not re.search(r"[0-9]", password):
+            return False
+        if not re.search(r"[@$!%*?&#_]", password):
+            return False
+        return True
+
+    # 1. Enforce password validation if provided
+    if body.new_password:
+        if not validate_strong_password(body.new_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password is too weak. It must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters."
+            )
+
     try:
         payload = jwt.decode(body.otp_session_token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
         voter_id_str = payload.get("sub")
@@ -273,7 +299,49 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
 
     voter_uuid = uuid.UUID(voter_id_str)
 
-    # Check if candidate already exists
+    # 2. Check if voter exists
+    voter_res = await db.execute(select(Voter).where(Voter.voter_id == voter_uuid))
+    voter = voter_res.scalar_one_or_none()
+
+    if not voter:
+        # Auto-create voter record
+        email = payload.get("email")
+        year_of_study = payload.get("year_of_study")
+        
+        if not body.new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password is required to create a new voter/candidate profile."
+            )
+            
+        voter = Voter(
+            voter_id=voter_uuid,
+            college_email=email,
+            mobile_number=body.mobile_number,
+            full_name=body.full_name or "New Candidate",
+            department=body.department,
+            student_id=body.student_id,
+            year_of_study=year_of_study,
+            password_hash=get_password_hash(body.new_password),
+            is_verified=True,
+            vote_permission=True
+        )
+        db.add(voter)
+        await db.flush()
+    else:
+        # Update voter details if they were empty and now provided
+        if body.full_name:
+            voter.full_name = body.full_name
+        if body.department:
+            voter.department = body.department
+        if body.student_id:
+            voter.student_id = body.student_id
+        if body.new_password:
+            voter.password_hash = get_password_hash(body.new_password)
+        db.add(voter)
+        await db.flush()
+
+    # 3. Check if candidate already exists
     cand_res = await db.execute(select(Candidate).where(Candidate.voter_id == voter_uuid))
     existing_candidate = cand_res.scalar_one_or_none()
     if existing_candidate:
@@ -286,7 +354,7 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
     if not position:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found.")
 
-    # Create candidate
+    # Create candidate in PENDING status
     candidate = Candidate(
         voter_id=voter_uuid,
         election_id=position.election_id,
@@ -297,25 +365,27 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
         status=CandidateStatusEnum.PENDING.value,
         admin_remarks=None
     )
-    
-    # Update voter password if provided
-    if body.new_password:
-        voter_res = await db.execute(select(Voter).where(Voter.voter_id == voter_uuid))
-        voter = voter_res.scalar_one_or_none()
-        if voter:
-            voter.password_hash = get_password_hash(body.new_password)
-
     db.add(candidate)
     await db.flush()
 
     # Save manifesto if content is provided
     if body.manifesto:
         manifesto_record = Manifesto(
-            candidate_id=str(candidate.candidate_id),
-            election_id=str(position.election_id),
+            candidate_id=candidate.candidate_id,
+            election_id=position.election_id,
             content=body.manifesto
         )
         db.add(manifesto_record)
+
+    # 4. Create Audit Log
+    from app.models.audit_log import AuditLog
+    audit_entry = AuditLog(
+        event_type="CANDIDATE_APPLIED",
+        actor_id=voter_uuid,
+        description=f"Candidate {voter.full_name} registered for position {position.title} ({body.party_name or 'Independent'})",
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(audit_entry)
 
     await db.commit()
     await db.refresh(candidate)
@@ -381,9 +451,9 @@ async def get_candidate_me(
     position = candidate.position
     
     # Fetch manifesto content
-    man_query = select(Manifesto).where(Manifesto.candidate_id == str(candidate.candidate_id))
+    man_query = select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id)
     man_res = await db.execute(man_query)
-    manifesto = man_res.scalar_one_or_none()
+    manifesto = man_res.scalars().first()
 
     return {
         "candidate_id": str(candidate.candidate_id),

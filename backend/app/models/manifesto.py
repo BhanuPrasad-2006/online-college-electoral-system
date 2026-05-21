@@ -16,6 +16,7 @@ class Manifesto(Base):
     candidate_id = Column(UUID(as_uuid=True), ForeignKey("candidates.candidate_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     election_id  = Column(UUID(as_uuid=True), ForeignKey("elections.election_id"), nullable=False, index=True)
     content      = Column(Text, nullable=False, default="")
+    image_url    = Column(String(500), nullable=True)
     version      = Column(Integer, default=1)
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), onupdate=func.now())

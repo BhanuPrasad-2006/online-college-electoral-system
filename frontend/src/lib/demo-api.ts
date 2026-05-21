@@ -4,7 +4,7 @@
  * When the API is ready, replace each function body with the commented fetch pattern
  * and set DEMO_MODE to false in demo-config.ts.
  */
-import { API_BASE_URL, DEMO_MODE } from "./demo-config";
+import { DEMO_MODE } from "./demo-config";
 import { getAuthToken, fetchCurrentElection } from "./api";
 import {
   AI_ALERTS,
@@ -27,22 +27,52 @@ import {
 } from "./mock";
 
 const delay = (ms = 140) => new Promise<void>((r) => setTimeout(r, ms));
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
-
-function buildApiBaseUrl(baseUrl: string) {
-  const normalized = baseUrl.replace(/\/+$/, "");
-  return normalized.endsWith("/api/v1") ? normalized : `${normalized}/api/v1`;
-}
-
-const LIVE_API_BASE = buildApiBaseUrl(API_BASE_URL || DEFAULT_API_BASE_URL);
+const CLIENT_HOST =
+  typeof window !== "undefined" && window.location.hostname
+    ? window.location.hostname
+    : "127.0.0.1";
+const LIVE_API_HOST =
+  CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
+    ? "localhost"
+    : CLIENT_HOST;
+const LIVE_API_BASE = `http://${LIVE_API_HOST}:9001/api/v1`;
+const LIVE_PROFILE_RETRY_DELAY_MS = 350;
 
 function clone<T>(data: T): T {
   return structuredClone(data);
 }
 
+async function fetchLiveProfile<T>(path: string, token: string): Promise<T> {
+  const request = () =>
+    fetch(`${LIVE_API_BASE}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+
+  let res: Response;
+  try {
+    res = await request();
+  } catch (error) {
+    if (!(error instanceof TypeError)) {
+      throw error;
+    }
+
+    await delay(LIVE_PROFILE_RETRY_DELAY_MS);
+    res = await request();
+  }
+
+  if (!res.ok) {
+    throw new Error(`API ${path} failed: ${res.status}`);
+  }
+
+  return (await res.json()) as T;
+}
+
 // --- Live API stubs (disabled for Vercel demo) ---
 // async function apiGet<T>(path: string): Promise<T> {
-//   const res = await fetch(`${API_BASE_URL}${path}`, {
+//   const res = await fetch(`${LIVE_API_BASE}${path}`, {
 //     headers: { Accept: "application/json" },
 //   });
 //   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
@@ -98,14 +128,7 @@ export async function fetchVoterProfile() {
   }
 
   try {
-    const res = await fetch(`${LIVE_API_BASE}/auth/voter/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) throw new Error("Voter profile fetch failed");
-    return await res.json();
+    return await fetchLiveProfile("/auth/voter/me", token);
   } catch (e) {
     console.error("Voter profile fetch failed, falling back to mock:", e);
     return clone(VOTER);
@@ -120,14 +143,7 @@ export async function fetchCandidateProfile() {
   }
 
   try {
-    const res = await fetch(`${LIVE_API_BASE}/auth/candidate/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-    if (!res.ok) throw new Error("Candidate profile fetch failed");
-    return await res.json();
+    return await fetchLiveProfile("/auth/candidate/me", token);
   } catch (e) {
     console.error("Candidate profile fetch failed, falling back to mock:", e);
     return clone(CANDIDATE_USER);

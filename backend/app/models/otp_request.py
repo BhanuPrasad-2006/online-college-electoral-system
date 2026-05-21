@@ -1,22 +1,17 @@
 import uuid
-import enum
 
 from sqlalchemy import (
     Column,
     String,
     Boolean,
     DateTime,
-    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.db.base import Base
-
-
-class OTPTypeEnum(str, enum.Enum):
-    EMAIL = "EMAIL"
-    SMS = "SMS"
+from app.db.types import PgEnum
+from app.enums.otp_type import OTPTypeEnum
 
 
 class OTPRequest(Base):
@@ -31,7 +26,7 @@ class OTPRequest(Base):
     recipient = Column(String(255), nullable=False)
 
     otp_type = Column(
-        SAEnum(OTPTypeEnum, name="otp_type"),
+        PgEnum(OTPTypeEnum, pg_type_name="otp_type"),
         nullable=False
     )
 
