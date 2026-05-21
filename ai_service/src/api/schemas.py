@@ -47,3 +47,12 @@ class AnomalyAlert(BaseModel):
 
 class AnomalyResponse(BaseModel):
     anomalies: List[AnomalyAlert]
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+class ChatResponse(BaseModel):
+    response: str
+    flagged_for_neutrality: bool

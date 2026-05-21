@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 from pydantic import BaseModel
 import jwt
@@ -22,6 +22,14 @@ from app.services.email_service import send_otp_email
 from app.core.security import get_password_hash
 
 router = APIRouter()
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _email_equals(column, email: str):
+    return func.lower(column) == _normalize_email(email)
 
 
 class CandidateStatusUpdateRequest(BaseModel):
@@ -118,7 +126,7 @@ async def list_candidates(db: AsyncSession = Depends(get_db)):
 async def eligibility_check(body: EligibilityCheckRequest, db: AsyncSession = Depends(get_db)):
     """Verify voter credentials, year of study (>=3), existing candidate profile, and send OTP."""
     # 1. Fetch voter by college email
-    res = await db.execute(select(Voter).where(Voter.college_email == body.email))
+    res = await db.execute(select(Voter).where(_email_equals(Voter.college_email, body.email)))
     voter = res.scalar_one_or_none()
     if not voter:
         raise HTTPException(

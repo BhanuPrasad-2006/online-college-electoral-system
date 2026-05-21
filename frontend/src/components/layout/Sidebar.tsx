@@ -85,7 +85,7 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
   const isApproved = statusUpper === "APPROVED";
 
   return (
-    <aside className="w-[260px] shrink-0 bg-sidebar text-sidebar-foreground h-screen sticky top-0 flex flex-col">
+    <aside className="w-[260px] bg-sidebar text-sidebar-foreground h-screen fixed left-0 top-0 z-20 flex flex-col">
       <div className="px-6 py-5 flex items-center gap-2 border-b border-sidebar-border">
         <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] flex items-center justify-center shadow-md shadow-[#6C63FF]/30">
           <GraduationCap className="h-5 w-5 text-white" />

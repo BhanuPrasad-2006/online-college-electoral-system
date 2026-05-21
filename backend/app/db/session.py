@@ -1,4 +1,7 @@
+import uuid
+
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -26,12 +29,11 @@ ssl_context.verify_mode = ssl.CERT_NONE
 # ── Async Engine (runtime) ────────────────────────────────────
 engine = create_async_engine(
     _make_async_url(settings.DATABASE_POOLER_URL),
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=300,
+    poolclass=NullPool,
     echo=(settings.APP_ENV == "development"),
     connect_args={
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4().hex}__",
         "statement_cache_size": 0,
         "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
         "ssl": ssl_context

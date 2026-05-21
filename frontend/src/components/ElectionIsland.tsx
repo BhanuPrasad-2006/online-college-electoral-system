@@ -20,7 +20,13 @@ function fmt(ms: number) {
   return { d, h, m, s };
 }
 
-export function ElectionIsland() {
+export function ElectionIsland({
+  floating = true,
+  className,
+}: {
+  floating?: boolean;
+  className?: string;
+}) {
   const [{ phase, target, label }, setState] = useState(phaseOf);
   const [expanded, setExpanded] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -56,7 +62,10 @@ export function ElectionIsland() {
   return (
     <div
       className={cn(
-        "fixed left-1/2 -translate-x-1/2 top-4 z-[9999] select-none",
+        floating
+          ? "fixed left-1/2 -translate-x-1/2 top-4 z-40 select-none"
+          : "relative select-none",
+        className,
         urgent && "animate-pulse"
       )}
       style={{ transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
@@ -71,9 +80,9 @@ export function ElectionIsland() {
         )}
         style={{
           borderRadius: 999,
-          padding: expanded ? "12px 28px" : "10px 24px",
-          minWidth: expanded ? 380 : 280,
-          maxWidth: 480,
+          padding: expanded ? "10px 24px" : "9px 20px",
+          minWidth: expanded ? 340 : 260,
+          maxWidth: 420,
           transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >

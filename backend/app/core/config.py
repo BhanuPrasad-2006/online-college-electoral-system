@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 
 
 class Settings(BaseSettings):
@@ -11,9 +11,21 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "prod", "production", "false", "0", "no", "off"}:
+                return False
+            if normalized in {"dev", "development", "debug", "true", "1", "yes", "on"}:
+                return True
+        return value
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/election_db"
-    DATABASE_POOLER_URL: str
+    DATABASE_POOLER_URL: str = ""
+
     # JWT
     JWT_SECRET_KEY: str = "your-super-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
@@ -34,6 +46,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
     USE_REDIS: bool = False
+
+    # AI Chatbot (Gemini 2.5 Flash)
+    # Get your free API key at: https://aistudio.google.com/app/apikey
+    # Then paste it in backend/.env as: GEMINI_API_KEY=your_key_here
+    GEMINI_API_KEY: str = ""
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
