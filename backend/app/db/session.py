@@ -17,6 +17,7 @@ def _make_async_url(url: str) -> str:
 
 
 import ssl
+import uuid
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -32,6 +33,7 @@ engine = create_async_engine(
     echo=(settings.APP_ENV == "development"),
     connect_args={
         "statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
         "ssl": ssl_context
     },   # required for Supabase pgBouncer + permissive SSL
 )

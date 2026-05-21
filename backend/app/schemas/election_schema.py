@@ -29,3 +29,12 @@ class ElectionUpdateRequest(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: Optional[str] = None
+
+
+class ElectionSaveRequest(BaseModel):
+    title: str
+    registration_start: Optional[datetime] = None
+    registration_end: Optional[datetime] = None
+    voting_start: Optional[datetime] = None
+    voting_end: Optional[datetime] = None
+

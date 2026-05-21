@@ -3,6 +3,18 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 export type Role = "voter" | "candidate" | "admin" | null;
 
 const AUTH_STORAGE_KEY = "collegevote-demo-auth";
+const TOKEN_STORAGE_KEY = "collegevote-token";
+const SESSION_KEYS_TO_CLEAR = [
+  AUTH_STORAGE_KEY,
+  TOKEN_STORAGE_KEY,
+  "collegevote-otp-session",
+  "collegevote-otp-email",
+  "collegevote-otp-mobile",
+  "collegevote-user-id",
+  "collegevote-full-name",
+  "collegevote-department",
+  "collegevote-semester",
+];
 
 type Ctx = {
   role: Role;
@@ -20,7 +32,17 @@ const AuthContext = createContext<Ctx | null>(null);
 function readStoredRole(): Role {
   if (typeof window === "undefined") return null;
   try {
+    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
     const raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!token) return null;
+
+    const [, payloadPart] = token.split(".");
+    if (!payloadPart) return null;
+
+    const payload = JSON.parse(window.atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/")));
+    if (typeof payload?.exp !== "number") return null;
+    if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
+
     if (raw === "voter" || raw === "candidate" || raw === "admin") return raw;
   } catch {
     /* private mode / blocked storage */
@@ -57,7 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout: () => {
           setRole(null);
           try {
-            sessionStorage.removeItem(AUTH_STORAGE_KEY);
+            for (const key of SESSION_KEYS_TO_CLEAR) {
+              sessionStorage.removeItem(key);
+            }
           } catch {
             /* ignore */
           }

@@ -3,9 +3,10 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Users, Lock, Unlock, CheckCircle2, ShieldAlert, RefreshCw, Search } from "lucide-react";
+import { Plus, X, Users, Lock, Unlock, CheckCircle2, ShieldAlert, RefreshCw, Search, Edit2, Check, Key } from "lucide-react";
 import { toast } from "sonner";
-import { fetchVotersForAdmin, updateVoterPermission, fetchCurrentElection, openVoting, closeVoting, publishResults } from "@/lib/api";
+import { fetchVotersForAdmin, updateVoterPermission, fetchCurrentElection, openVoting, closeVoting, publishResults, setVoterVerificationCode, updateElectionDates } from "@/lib/api";
+
 
 function Page() {
   const [positions, setPositions] = useState(["President", "Vice President", "General Secretary"]);
@@ -17,21 +18,136 @@ function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingVoterId, setUpdatingVoterId] = useState<string | null>(null);
 
+  // Verification ID states
+  const [editingVoterId, setEditingVoterId] = useState<string | null>(null);
+  const [editingIdVal, setEditingIdVal] = useState("");
+  const [savingVoterId, setSavingVoterId] = useState<string | null>(null);
+
   const [election, setElection] = useState<any>(null);
   const [loadingElection, setLoadingElection] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Form states
+  const [title, setTitle] = useState("Student Council Election 2025");
+  const [registrationStart, setRegistrationStart] = useState("");
+  const [registrationEnd, setRegistrationEnd] = useState("");
+  const [votingStart, setVotingStart] = useState("");
+  const [votingEnd, setVotingEnd] = useState("");
+  const [savingElection, setSavingElection] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  function formatDateTimeForInput(dateStr?: string) {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "";
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const min = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+    } catch {
+      return "";
+    }
+  }
+
+  const runValidation = (regStart: string, regEnd: string, votStart: string, votEnd: string) => {
+    const errs: Record<string, string> = {};
+    const dRegStart = regStart ? new Date(regStart) : null;
+    const dRegEnd = regEnd ? new Date(regEnd) : null;
+    const dVotStart = votStart ? new Date(votStart) : null;
+    const dVotEnd = votEnd ? new Date(votEnd) : null;
+
+    if (dRegStart && dRegEnd && dRegEnd <= dRegStart) {
+      errs.registrationEnd = "Registration closes must be after registration opens.";
+    }
+    if (dRegEnd && dVotStart && dVotStart <= dRegEnd) {
+      errs.votingStart = "Voting opens must be after registration closes.";
+    } else if (dRegStart && dVotStart && dVotStart <= dRegStart) {
+      errs.votingStart = "Voting opens must be after registration opens.";
+    }
+    if (dVotStart && dVotEnd && dVotEnd <= dVotStart) {
+      errs.votingEnd = "Voting closes must be after voting opens.";
+    }
+    setValidationErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleRegStartChange = (val: string) => {
+    setRegistrationStart(val);
+    runValidation(val, registrationEnd, votingStart, votingEnd);
+  };
+  const handleRegEndChange = (val: string) => {
+    setRegistrationEnd(val);
+    runValidation(registrationStart, val, votingStart, votingEnd);
+  };
+  const handleVotStartChange = (val: string) => {
+    setVotingStart(val);
+    runValidation(registrationStart, registrationEnd, val, votingEnd);
+  };
+  const handleVotEndChange = (val: string) => {
+    setVotingEnd(val);
+    runValidation(registrationStart, registrationEnd, votingStart, val);
+  };
 
   async function loadElection() {
     setLoadingElection(true);
     try {
       const data = await fetchCurrentElection();
       setElection(data);
+      if (data) {
+        setTitle(data.title || "Student Council Election 2025");
+        setRegistrationStart(formatDateTimeForInput(data.registration_start));
+        setRegistrationEnd(formatDateTimeForInput(data.registration_end));
+        setVotingStart(formatDateTimeForInput(data.voting_start));
+        setVotingEnd(formatDateTimeForInput(data.voting_end));
+        // clear errors on fresh load
+        setValidationErrors({});
+      }
     } catch (e) {
       console.warn("Failed to fetch current election status from backend:", e);
     } finally {
       setLoadingElection(false);
     }
   }
+
+  async function handleSaveElection() {
+    if (!election) {
+      toast.error("No active election to save.");
+      return;
+    }
+    if (!title.trim()) {
+      toast.error("Election title cannot be empty.");
+      return;
+    }
+
+    const isValid = runValidation(registrationStart, registrationEnd, votingStart, votingEnd);
+    if (!isValid) {
+      toast.error("Please resolve the validation errors before saving.");
+      return;
+    }
+
+    setSavingElection(true);
+    try {
+      await updateElectionDates(election.election_id, {
+        title,
+        registration_start: registrationStart ? new Date(registrationStart).toISOString() : null,
+        registration_end: registrationEnd ? new Date(registrationEnd).toISOString() : null,
+        voting_start: votingStart ? new Date(votingStart).toISOString() : null,
+        voting_end: votingEnd ? new Date(votingEnd).toISOString() : null,
+      });
+      toast.success("Election details saved successfully!");
+      await loadElection();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to save election details.");
+    } finally {
+      setSavingElection(false);
+    }
+  }
+
 
   async function handleOpenVoting() {
     if (!election) return;
@@ -95,6 +211,29 @@ function Page() {
     loadVoters();
     loadElection();
   }, []);
+
+  async function handleSaveVerificationId(voterId: string) {
+    const code = editingIdVal.trim().toUpperCase();
+    if (!/^[A-Z0-9]{8}$/.test(code)) {
+      toast.error("Verification ID must be exactly 8 uppercase alphanumeric characters.");
+      return;
+    }
+
+    setSavingVoterId(voterId);
+    try {
+      await setVoterVerificationCode(voterId, code);
+      toast.success("Verification ID successfully set!");
+      // Update local state
+      setVoters(voters.map(v => v.voter_id === voterId ? { ...v, verification_id_set: true } : v));
+      setEditingVoterId(null);
+      setEditingIdVal("");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to set Verification ID");
+    } finally {
+      setSavingVoterId(null);
+    }
+  }
 
   async function handleTogglePermission(voterId: string, currentPermission: boolean) {
     setUpdatingVoterId(voterId);
@@ -172,6 +311,7 @@ function Page() {
                     <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground border-b border-border/60">
                       <th className="p-3">Student Details</th>
                       <th className="p-3">Department</th>
+                      <th className="p-3 text-center">Verification ID Status</th>
                       <th className="p-3 text-center">Tally Status</th>
                       <th className="p-3 text-center">Voting Permission</th>
                       <th className="p-3 text-right">Action</th>
@@ -186,6 +326,62 @@ function Page() {
                         </td>
                         <td className="p-3 text-muted-foreground">
                           {v.department} <span className="text-xs">({v.year_of_study} Year)</span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {editingVoterId === v.voter_id ? (
+                            <div className="flex items-center justify-center gap-1.5 max-w-[150px] mx-auto">
+                              <Input 
+                                value={editingIdVal} 
+                                onChange={(e) => setEditingIdVal(e.target.value.toUpperCase())}
+                                placeholder="8 chars"
+                                maxLength={8}
+                                className="h-8 text-xs font-mono text-center uppercase tracking-wider w-20"
+                              />
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 bg-success hover:bg-success/90 text-white"
+                                disabled={savingVoterId === v.voter_id || editingIdVal.length !== 8}
+                                onClick={() => handleSaveVerificationId(v.voter_id)}
+                              >
+                                {savingVoterId === v.voter_id ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8 text-muted-foreground border-border hover:bg-muted"
+                                disabled={savingVoterId === v.voter_id}
+                                onClick={() => {
+                                  setEditingVoterId(null);
+                                  setEditingIdVal("");
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-2">
+                              {v.verification_id_set ? (
+                                <Badge className="bg-success/15 text-success border-0 font-medium">Set ✓</Badge>
+                              ) : (
+                                <Badge variant="destructive" className="bg-destructive/15 text-destructive border-0 font-medium">Not Set ✗</Badge>
+                              )}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  setEditingVoterId(v.voter_id);
+                                  setEditingIdVal("");
+                                }}
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </td>
                         <td className="p-3 text-center">
                           {v.has_voted ? (
@@ -234,7 +430,13 @@ function Page() {
 
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             <h2 className="text-base font-semibold">Create / Edit Election</h2>
-            <Field label="Election Title"><Input defaultValue="Student Council Election 2025" /></Field>
+            <Field label="Election Title">
+              <Input 
+                value={title} 
+                onChange={(e) => setTitle(e.target.value)} 
+                placeholder="Enter election title"
+              />
+            </Field>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Positions</label>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -253,13 +455,67 @@ function Page() {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Registration Opens"><Input type="datetime-local" /></Field>
-              <Field label="Registration Closes"><Input type="datetime-local" /></Field>
-              <Field label="Voting Opens"><Input type="datetime-local" /></Field>
-              <Field label="Voting Closes"><Input type="datetime-local" /></Field>
+              <Field label="Registration Opens">
+                <Input 
+                  type="datetime-local" 
+                  value={registrationStart}
+                  onChange={(e) => handleRegStartChange(e.target.value)}
+                  className={validationErrors.registrationStart ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {validationErrors.registrationStart && (
+                  <p className="text-xs text-destructive mt-1">{validationErrors.registrationStart}</p>
+                )}
+              </Field>
+              <Field label="Registration Closes">
+                <Input 
+                  type="datetime-local" 
+                  value={registrationEnd}
+                  onChange={(e) => handleRegEndChange(e.target.value)}
+                  className={validationErrors.registrationEnd ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {validationErrors.registrationEnd && (
+                  <p className="text-xs text-destructive mt-1">{validationErrors.registrationEnd}</p>
+                )}
+              </Field>
+              <Field label="Voting Opens">
+                <Input 
+                  type="datetime-local" 
+                  value={votingStart}
+                  onChange={(e) => handleVotStartChange(e.target.value)}
+                  className={validationErrors.votingStart ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {validationErrors.votingStart && (
+                  <p className="text-xs text-destructive mt-1">{validationErrors.votingStart}</p>
+                )}
+              </Field>
+              <Field label="Voting Closes">
+                <Input 
+                  type="datetime-local" 
+                  value={votingEnd}
+                  onChange={(e) => handleVotEndChange(e.target.value)}
+                  className={validationErrors.votingEnd ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {validationErrors.votingEnd && (
+                  <p className="text-xs text-destructive mt-1">{validationErrors.votingEnd}</p>
+                )}
+              </Field>
             </div>
-            <Button className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={() => toast.success("Election saved")}>Create Election</Button>
+            <Button 
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 gap-2" 
+              onClick={handleSaveElection}
+              disabled={savingElection || Object.keys(validationErrors).length > 0}
+            >
+              {savingElection ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Election"
+              )}
+            </Button>
           </div>
+
         </div>
 
         <div className="space-y-6">

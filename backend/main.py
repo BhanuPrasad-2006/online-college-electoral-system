@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.exceptions.auth_exceptions import (
@@ -30,12 +31,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 # ── CORS ──────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=(
+        r"(^https://.*\.vercel\.app$)"
+        r"|(^http://localhost(:\d+)?$)"
+        r"|(^http://127\.0\.0\.1(:\d+)?$)"
+        r"|(^http://192\.168\.\d+\.\d+(:\d+)?$)"
+        r"|(^http://10\.\d+\.\d+\.\d+(:\d+)?$)"
+        r"|(^http://172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$)"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
