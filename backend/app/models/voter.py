@@ -1,25 +1,57 @@
-from sqlalchemy import Column, String, Text, Boolean, SmallInteger, TIMESTAMP
+import uuid
+
+from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
+from sqlalchemy.sql import func
+
 from app.db.base import Base
 
 
 class Voter(Base):
     __tablename__ = "voters"
 
-    voter_id      = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id    = Column(String(20), unique=True, nullable=False)
-    full_name     = Column(String(100), nullable=False)
-    college_email = Column(String(150), unique=True, nullable=False)
-    password_hash = Column(Text, nullable=False)
-    department    = Column(String(80))
-    year_of_study = Column(SmallInteger)
-    is_verified   = Column(Boolean, default=False)   # email OTP verified
-    has_voted     = Column(Boolean, default=False)   # one-vote enforcement
-    created_at    = Column(TIMESTAMP(timezone=True))
-    mobile_number = Column(String(15))
+    voter_id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
-    # relationships
-    candidate_profile = relationship("Candidate", back_populates="voter", uselist=False)
-    concerns          = relationship("Concern", back_populates="student")
+    student_id = Column(String(50), unique=True, nullable=True, index=True)
+
+    full_name = Column(String(255), nullable=False)
+
+    college_email = Column(
+        String(255),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    password_hash = Column(String(255), nullable=False)
+
+    department = Column(String(100), nullable=True)
+
+    year_of_study = Column(Integer, nullable=True)
+
+    is_verified = Column(Boolean, default=False)
+
+    has_voted = Column(Boolean, default=False)
+
+    vote_permission = Column(Boolean, default=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    mobile_number = Column(String(15), nullable=True)
+
+    candidate_profile = relationship(
+        "Candidate",
+        back_populates="voter",
+        uselist=False,
+    )
+
+    def __repr__(self):
+        return f"<Voter {self.college_email}>"

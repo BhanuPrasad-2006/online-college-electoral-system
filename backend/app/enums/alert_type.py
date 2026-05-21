@@ -1,5 +1,4 @@
 import enum
-from sqlalchemy import Enum as SAEnum
 
 
 class AlertTypeEnum(str, enum.Enum):
@@ -7,6 +6,3 @@ class AlertTypeEnum(str, enum.Enum):
     IP_CLUSTERING    = "IP_CLUSTERING"
     BEHAVIORAL       = "BEHAVIORAL"
     PREDICTION       = "PREDICTION"
-
-
-AlertType = SAEnum(AlertTypeEnum, name="alert_type", create_type=False)

@@ -4,12 +4,14 @@ from src.api.schemas import (
     ManifestoAnalysisRequest, ManifestoAnalysisResponse,
     RecommendationRequest, RecommendationResponse,
     AnomalyRequest, AnomalyResponse,
+    ChatRequest, ChatResponse,
 )
 from src.modules.classifier import ConcernClassifier
 from src.modules.sentiment import SentimentAnalyzer
 from src.modules.manifesto import ManifestoAnalyzer
 from src.modules.anomaly_detection import AnomalyDetector
 from src.modules.recommendation import RecommendationEngine
+from src.modules.chatbot import ChatbotHelper
 
 router = APIRouter()
 
@@ -18,6 +20,7 @@ sentiment = SentimentAnalyzer()
 manifesto_analyzer = ManifestoAnalyzer()
 anomaly_detector = AnomalyDetector()
 recommender = RecommendationEngine()
+chatbot_helper = ChatbotHelper()
 
 
 @router.post("/classify", response_model=ClassifyResponse)
@@ -47,3 +50,11 @@ async def detect_anomalies(request: AnomalyRequest):
     """Detect voting anomalies."""
     anomalies = anomaly_detector.detect(request.voting_data)
     return AnomalyResponse(anomalies=anomalies)
+
+
+@router.post("/chatbot", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """Ask the politically neutral chatbot a question."""
+    result = chatbot_helper.ask(request.message)
+    return ChatResponse(**result)
+

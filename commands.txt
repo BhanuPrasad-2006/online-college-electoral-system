@@ -1,0 +1,67 @@
+================================================================================
+          ONLINE COLLEGE ELECTORAL SYSTEM - TERMINAL COMMAND REFERENCE
+================================================================================
+
+This file contains all the exact commands required to execute, seed, and test
+the frontend and backend systems of the project.
+
+--------------------------------------------------------------------------------
+1. BACKEND DEVELOPMENT SERVER (FastAPI)
+--------------------------------------------------------------------------------
+Navigate to the backend directory first:
+  cd backend
+
+Option A: Run directly using the virtual environment interpreter (Recommended)
+  .\venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
+
+Option B: Activate the virtual environment first, then run
+  Powershell:
+    .\venv\Scripts\Activate.ps1
+    uvicorn main:app --reload --port 8000
+  CMD:
+    .\venv\Scripts\activate.bat
+    uvicorn main:app --reload --port 8000
+
+--------------------------------------------------------------------------------
+2. FRONTEND DEVELOPMENT SERVER (Vite + React + TS)
+--------------------------------------------------------------------------------
+Navigate to the frontend directory first:
+  cd frontend
+
+Install dependencies (if running for the first time):
+  npm install
+
+Run the development server:
+  npm run dev
+
+--------------------------------------------------------------------------------
+3. RUNNING TESTING & DIAGNOSTIC SCRIPTS (Backend Root)
+--------------------------------------------------------------------------------
+Navigate to the backend directory first:
+  cd backend
+
+Run Database Connectivity & Admin Query Test:
+  .\venv\Scripts\python.exe test_db_and_auth.py
+
+Run Password Hashing & Bcrypt Matching Check:
+  .\venv\Scripts\python.exe test_password_check.py
+
+Run Developer OTP & SMS Retrieval Test:
+  .\venv\Scripts\python.exe scratch_get_latest_otp.py
+
+--------------------------------------------------------------------------------
+4. SEEDING THE DATABASE (Backend Root)
+--------------------------------------------------------------------------------
+Navigate to the backend directory first:
+  cd backend
+
+Seed Admin Users (e.g., Bhanu Prasad):
+  .\venv\Scripts\python.exe seed_admin.py
+
+Seed Candidate Nominees (for testing pending & approved lists):
+  .\venv\Scripts\python.exe seed_candidate.py
+
+Seed Voter Accounts (for stress testing logins):
+  .\venv\Scripts\python.exe seed_user.py
+
+================================================================================

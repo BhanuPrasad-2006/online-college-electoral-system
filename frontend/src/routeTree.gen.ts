@@ -9,58 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OtpVerifyRouteImport } from './routes/otp-verify'
-import { Route as CandidateOtpVerifyRouteImport } from './routes/candidate-otp-verify'
-import { Route as AdminloginRouteImport } from './routes/adminlogin'
-import { Route as AdminOtpVerifyRouteImport } from './routes/admin-otp-verify'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as VoterVoteRouteImport } from './routes/voter.vote'
-import { Route as VoterStatisticsRouteImport } from './routes/voter.statistics'
-import { Route as VoterSettingsRouteImport } from './routes/voter.settings'
-import { Route as VoterNotificationsRouteImport } from './routes/voter.notifications'
-import { Route as VoterMediaRouteImport } from './routes/voter.media'
-import { Route as VoterDashboardRouteImport } from './routes/voter.dashboard'
-import { Route as VoterConcernsRouteImport } from './routes/voter.concerns'
-import { Route as VoterCandidatesRouteImport } from './routes/voter.candidates'
-import { Route as VoterAiAssistantRouteImport } from './routes/voter.ai-assistant'
-import { Route as CandidateStatusRouteImport } from './routes/candidate.status'
-import { Route as CandidateSettingsRouteImport } from './routes/candidate.settings'
-import { Route as CandidateRegisterRouteImport } from './routes/candidate.register'
-import { Route as CandidateNotificationsRouteImport } from './routes/candidate.notifications'
-import { Route as CandidateMediaRouteImport } from './routes/candidate.media'
-import { Route as CandidateManifestoRouteImport } from './routes/candidate.manifesto'
-import { Route as CandidateDashboardRouteImport } from './routes/candidate.dashboard'
-import { Route as CandidateApplyRouteImport } from './routes/candidate.apply'
-import { Route as CandidateAiReportRouteImport } from './routes/candidate.ai-report'
-import { Route as AdminResultsRouteImport } from './routes/admin.results'
-import { Route as AdminMediaRouteImport } from './routes/admin.media'
-import { Route as AdminElectionRouteImport } from './routes/admin.election'
-import { Route as AdminDashboardRouteImport } from './routes/admin.dashboard'
-import { Route as AdminCandidatesRouteImport } from './routes/admin.candidates'
-import { Route as AdminAuditLogsRouteImport } from './routes/admin.audit-logs'
-import { Route as AdminAnnouncementsRouteImport } from './routes/admin.announcements'
-import { Route as AdminAiMonitoringRouteImport } from './routes/admin.ai-monitoring'
+import { Route as VoterVoteRouteImport } from './routes/voter/vote'
+import { Route as VoterStatisticsRouteImport } from './routes/voter/statistics'
+import { Route as VoterSettingsRouteImport } from './routes/voter/settings'
+import { Route as VoterOtpVerifyRouteImport } from './routes/voter/otp-verify'
+import { Route as VoterNotificationsRouteImport } from './routes/voter/notifications'
+import { Route as VoterMediaRouteImport } from './routes/voter/media'
+import { Route as VoterDashboardRouteImport } from './routes/voter/dashboard'
+import { Route as VoterConcernsRouteImport } from './routes/voter/concerns'
+import { Route as VoterCandidatesRouteImport } from './routes/voter/candidates'
+import { Route as VoterAiAssistantRouteImport } from './routes/voter/ai-assistant'
+import { Route as CandidateStatusRouteImport } from './routes/candidate/status'
+import { Route as CandidateSettingsRouteImport } from './routes/candidate/settings'
+import { Route as CandidateRegisterRouteImport } from './routes/candidate/register'
+import { Route as CandidateOtpVerifyRouteImport } from './routes/candidate/otp-verify'
+import { Route as CandidateNotificationsRouteImport } from './routes/candidate/notifications'
+import { Route as CandidateMediaRouteImport } from './routes/candidate/media'
+import { Route as CandidateManifestoRouteImport } from './routes/candidate/manifesto'
+import { Route as CandidateDashboardRouteImport } from './routes/candidate/dashboard'
+import { Route as CandidateApplyRouteImport } from './routes/candidate/apply'
+import { Route as CandidateAiReportRouteImport } from './routes/candidate/ai-report'
+import { Route as AdminResultsRouteImport } from './routes/admin/results'
+import { Route as AdminOtpVerifyRouteImport } from './routes/admin/otp-verify'
+import { Route as AdminMediaRouteImport } from './routes/admin/media'
+import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminElectionRouteImport } from './routes/admin/election'
+import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminCandidatesRouteImport } from './routes/admin/candidates'
+import { Route as AdminAuditLogsRouteImport } from './routes/admin/audit-logs'
+import { Route as AdminAnnouncementsRouteImport } from './routes/admin/announcements'
+import { Route as AdminAiMonitoringRouteImport } from './routes/admin/ai-monitoring'
 
-const OtpVerifyRoute = OtpVerifyRouteImport.update({
-  id: '/otp-verify',
-  path: '/otp-verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CandidateOtpVerifyRoute = CandidateOtpVerifyRouteImport.update({
-  id: '/candidate-otp-verify',
-  path: '/candidate-otp-verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminloginRoute = AdminloginRouteImport.update({
-  id: '/adminlogin',
-  path: '/adminlogin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminOtpVerifyRoute = AdminOtpVerifyRouteImport.update({
-  id: '/admin-otp-verify',
-  path: '/admin-otp-verify',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -79,6 +59,11 @@ const VoterStatisticsRoute = VoterStatisticsRouteImport.update({
 const VoterSettingsRoute = VoterSettingsRouteImport.update({
   id: '/voter/settings',
   path: '/voter/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VoterOtpVerifyRoute = VoterOtpVerifyRouteImport.update({
+  id: '/voter/otp-verify',
+  path: '/voter/otp-verify',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VoterNotificationsRoute = VoterNotificationsRouteImport.update({
@@ -126,6 +111,11 @@ const CandidateRegisterRoute = CandidateRegisterRouteImport.update({
   path: '/candidate/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CandidateOtpVerifyRoute = CandidateOtpVerifyRouteImport.update({
+  id: '/candidate/otp-verify',
+  path: '/candidate/otp-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CandidateNotificationsRoute = CandidateNotificationsRouteImport.update({
   id: '/candidate/notifications',
   path: '/candidate/notifications',
@@ -161,9 +151,19 @@ const AdminResultsRoute = AdminResultsRouteImport.update({
   path: '/admin/results',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminOtpVerifyRoute = AdminOtpVerifyRouteImport.update({
+  id: '/admin/otp-verify',
+  path: '/admin/otp-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
   id: '/admin/media',
   path: '/admin/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminElectionRoute = AdminElectionRouteImport.update({
@@ -199,17 +199,15 @@ const AdminAiMonitoringRoute = AdminAiMonitoringRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/admin-otp-verify': typeof AdminOtpVerifyRoute
-  '/adminlogin': typeof AdminloginRoute
-  '/candidate-otp-verify': typeof CandidateOtpVerifyRoute
-  '/otp-verify': typeof OtpVerifyRoute
   '/admin/ai-monitoring': typeof AdminAiMonitoringRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/candidates': typeof AdminCandidatesRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/election': typeof AdminElectionRoute
+  '/admin/login': typeof AdminLoginRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
   '/candidate/ai-report': typeof CandidateAiReportRoute
   '/candidate/apply': typeof CandidateApplyRoute
@@ -217,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/candidate/manifesto': typeof CandidateManifestoRoute
   '/candidate/media': typeof CandidateMediaRoute
   '/candidate/notifications': typeof CandidateNotificationsRoute
+  '/candidate/otp-verify': typeof CandidateOtpVerifyRoute
   '/candidate/register': typeof CandidateRegisterRoute
   '/candidate/settings': typeof CandidateSettingsRoute
   '/candidate/status': typeof CandidateStatusRoute
@@ -226,23 +225,22 @@ export interface FileRoutesByFullPath {
   '/voter/dashboard': typeof VoterDashboardRoute
   '/voter/media': typeof VoterMediaRoute
   '/voter/notifications': typeof VoterNotificationsRoute
+  '/voter/otp-verify': typeof VoterOtpVerifyRoute
   '/voter/settings': typeof VoterSettingsRoute
   '/voter/statistics': typeof VoterStatisticsRoute
   '/voter/vote': typeof VoterVoteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin-otp-verify': typeof AdminOtpVerifyRoute
-  '/adminlogin': typeof AdminloginRoute
-  '/candidate-otp-verify': typeof CandidateOtpVerifyRoute
-  '/otp-verify': typeof OtpVerifyRoute
   '/admin/ai-monitoring': typeof AdminAiMonitoringRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/candidates': typeof AdminCandidatesRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/election': typeof AdminElectionRoute
+  '/admin/login': typeof AdminLoginRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
   '/candidate/ai-report': typeof CandidateAiReportRoute
   '/candidate/apply': typeof CandidateApplyRoute
@@ -250,6 +248,7 @@ export interface FileRoutesByTo {
   '/candidate/manifesto': typeof CandidateManifestoRoute
   '/candidate/media': typeof CandidateMediaRoute
   '/candidate/notifications': typeof CandidateNotificationsRoute
+  '/candidate/otp-verify': typeof CandidateOtpVerifyRoute
   '/candidate/register': typeof CandidateRegisterRoute
   '/candidate/settings': typeof CandidateSettingsRoute
   '/candidate/status': typeof CandidateStatusRoute
@@ -259,6 +258,7 @@ export interface FileRoutesByTo {
   '/voter/dashboard': typeof VoterDashboardRoute
   '/voter/media': typeof VoterMediaRoute
   '/voter/notifications': typeof VoterNotificationsRoute
+  '/voter/otp-verify': typeof VoterOtpVerifyRoute
   '/voter/settings': typeof VoterSettingsRoute
   '/voter/statistics': typeof VoterStatisticsRoute
   '/voter/vote': typeof VoterVoteRoute
@@ -266,17 +266,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/admin-otp-verify': typeof AdminOtpVerifyRoute
-  '/adminlogin': typeof AdminloginRoute
-  '/candidate-otp-verify': typeof CandidateOtpVerifyRoute
-  '/otp-verify': typeof OtpVerifyRoute
   '/admin/ai-monitoring': typeof AdminAiMonitoringRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
   '/admin/candidates': typeof AdminCandidatesRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/election': typeof AdminElectionRoute
+  '/admin/login': typeof AdminLoginRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
   '/candidate/ai-report': typeof CandidateAiReportRoute
   '/candidate/apply': typeof CandidateApplyRoute
@@ -284,6 +282,7 @@ export interface FileRoutesById {
   '/candidate/manifesto': typeof CandidateManifestoRoute
   '/candidate/media': typeof CandidateMediaRoute
   '/candidate/notifications': typeof CandidateNotificationsRoute
+  '/candidate/otp-verify': typeof CandidateOtpVerifyRoute
   '/candidate/register': typeof CandidateRegisterRoute
   '/candidate/settings': typeof CandidateSettingsRoute
   '/candidate/status': typeof CandidateStatusRoute
@@ -293,6 +292,7 @@ export interface FileRoutesById {
   '/voter/dashboard': typeof VoterDashboardRoute
   '/voter/media': typeof VoterMediaRoute
   '/voter/notifications': typeof VoterNotificationsRoute
+  '/voter/otp-verify': typeof VoterOtpVerifyRoute
   '/voter/settings': typeof VoterSettingsRoute
   '/voter/statistics': typeof VoterStatisticsRoute
   '/voter/vote': typeof VoterVoteRoute
@@ -301,17 +301,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/admin-otp-verify'
-    | '/adminlogin'
-    | '/candidate-otp-verify'
-    | '/otp-verify'
     | '/admin/ai-monitoring'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/candidates'
     | '/admin/dashboard'
     | '/admin/election'
+    | '/admin/login'
     | '/admin/media'
+    | '/admin/otp-verify'
     | '/admin/results'
     | '/candidate/ai-report'
     | '/candidate/apply'
@@ -319,6 +317,7 @@ export interface FileRouteTypes {
     | '/candidate/manifesto'
     | '/candidate/media'
     | '/candidate/notifications'
+    | '/candidate/otp-verify'
     | '/candidate/register'
     | '/candidate/settings'
     | '/candidate/status'
@@ -328,23 +327,22 @@ export interface FileRouteTypes {
     | '/voter/dashboard'
     | '/voter/media'
     | '/voter/notifications'
+    | '/voter/otp-verify'
     | '/voter/settings'
     | '/voter/statistics'
     | '/voter/vote'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin-otp-verify'
-    | '/adminlogin'
-    | '/candidate-otp-verify'
-    | '/otp-verify'
     | '/admin/ai-monitoring'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/candidates'
     | '/admin/dashboard'
     | '/admin/election'
+    | '/admin/login'
     | '/admin/media'
+    | '/admin/otp-verify'
     | '/admin/results'
     | '/candidate/ai-report'
     | '/candidate/apply'
@@ -352,6 +350,7 @@ export interface FileRouteTypes {
     | '/candidate/manifesto'
     | '/candidate/media'
     | '/candidate/notifications'
+    | '/candidate/otp-verify'
     | '/candidate/register'
     | '/candidate/settings'
     | '/candidate/status'
@@ -361,23 +360,22 @@ export interface FileRouteTypes {
     | '/voter/dashboard'
     | '/voter/media'
     | '/voter/notifications'
+    | '/voter/otp-verify'
     | '/voter/settings'
     | '/voter/statistics'
     | '/voter/vote'
   id:
     | '__root__'
     | '/'
-    | '/admin-otp-verify'
-    | '/adminlogin'
-    | '/candidate-otp-verify'
-    | '/otp-verify'
     | '/admin/ai-monitoring'
     | '/admin/announcements'
     | '/admin/audit-logs'
     | '/admin/candidates'
     | '/admin/dashboard'
     | '/admin/election'
+    | '/admin/login'
     | '/admin/media'
+    | '/admin/otp-verify'
     | '/admin/results'
     | '/candidate/ai-report'
     | '/candidate/apply'
@@ -385,6 +383,7 @@ export interface FileRouteTypes {
     | '/candidate/manifesto'
     | '/candidate/media'
     | '/candidate/notifications'
+    | '/candidate/otp-verify'
     | '/candidate/register'
     | '/candidate/settings'
     | '/candidate/status'
@@ -394,6 +393,7 @@ export interface FileRouteTypes {
     | '/voter/dashboard'
     | '/voter/media'
     | '/voter/notifications'
+    | '/voter/otp-verify'
     | '/voter/settings'
     | '/voter/statistics'
     | '/voter/vote'
@@ -401,17 +401,15 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AdminOtpVerifyRoute: typeof AdminOtpVerifyRoute
-  AdminloginRoute: typeof AdminloginRoute
-  CandidateOtpVerifyRoute: typeof CandidateOtpVerifyRoute
-  OtpVerifyRoute: typeof OtpVerifyRoute
   AdminAiMonitoringRoute: typeof AdminAiMonitoringRoute
   AdminAnnouncementsRoute: typeof AdminAnnouncementsRoute
   AdminAuditLogsRoute: typeof AdminAuditLogsRoute
   AdminCandidatesRoute: typeof AdminCandidatesRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
   AdminElectionRoute: typeof AdminElectionRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminOtpVerifyRoute: typeof AdminOtpVerifyRoute
   AdminResultsRoute: typeof AdminResultsRoute
   CandidateAiReportRoute: typeof CandidateAiReportRoute
   CandidateApplyRoute: typeof CandidateApplyRoute
@@ -419,6 +417,7 @@ export interface RootRouteChildren {
   CandidateManifestoRoute: typeof CandidateManifestoRoute
   CandidateMediaRoute: typeof CandidateMediaRoute
   CandidateNotificationsRoute: typeof CandidateNotificationsRoute
+  CandidateOtpVerifyRoute: typeof CandidateOtpVerifyRoute
   CandidateRegisterRoute: typeof CandidateRegisterRoute
   CandidateSettingsRoute: typeof CandidateSettingsRoute
   CandidateStatusRoute: typeof CandidateStatusRoute
@@ -428,6 +427,7 @@ export interface RootRouteChildren {
   VoterDashboardRoute: typeof VoterDashboardRoute
   VoterMediaRoute: typeof VoterMediaRoute
   VoterNotificationsRoute: typeof VoterNotificationsRoute
+  VoterOtpVerifyRoute: typeof VoterOtpVerifyRoute
   VoterSettingsRoute: typeof VoterSettingsRoute
   VoterStatisticsRoute: typeof VoterStatisticsRoute
   VoterVoteRoute: typeof VoterVoteRoute
@@ -435,34 +435,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/otp-verify': {
-      id: '/otp-verify'
-      path: '/otp-verify'
-      fullPath: '/otp-verify'
-      preLoaderRoute: typeof OtpVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/candidate-otp-verify': {
-      id: '/candidate-otp-verify'
-      path: '/candidate-otp-verify'
-      fullPath: '/candidate-otp-verify'
-      preLoaderRoute: typeof CandidateOtpVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/adminlogin': {
-      id: '/adminlogin'
-      path: '/adminlogin'
-      fullPath: '/adminlogin'
-      preLoaderRoute: typeof AdminloginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin-otp-verify': {
-      id: '/admin-otp-verify'
-      path: '/admin-otp-verify'
-      fullPath: '/admin-otp-verify'
-      preLoaderRoute: typeof AdminOtpVerifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -489,6 +461,13 @@ declare module '@tanstack/react-router' {
       path: '/voter/settings'
       fullPath: '/voter/settings'
       preLoaderRoute: typeof VoterSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/voter/otp-verify': {
+      id: '/voter/otp-verify'
+      path: '/voter/otp-verify'
+      fullPath: '/voter/otp-verify'
+      preLoaderRoute: typeof VoterOtpVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/voter/notifications': {
@@ -554,6 +533,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CandidateRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/candidate/otp-verify': {
+      id: '/candidate/otp-verify'
+      path: '/candidate/otp-verify'
+      fullPath: '/candidate/otp-verify'
+      preLoaderRoute: typeof CandidateOtpVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/candidate/notifications': {
       id: '/candidate/notifications'
       path: '/candidate/notifications'
@@ -603,11 +589,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/otp-verify': {
+      id: '/admin/otp-verify'
+      path: '/admin/otp-verify'
+      fullPath: '/admin/otp-verify'
+      preLoaderRoute: typeof AdminOtpVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/media': {
       id: '/admin/media'
       path: '/admin/media'
       fullPath: '/admin/media'
       preLoaderRoute: typeof AdminMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/election': {
@@ -657,17 +657,15 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AdminOtpVerifyRoute: AdminOtpVerifyRoute,
-  AdminloginRoute: AdminloginRoute,
-  CandidateOtpVerifyRoute: CandidateOtpVerifyRoute,
-  OtpVerifyRoute: OtpVerifyRoute,
   AdminAiMonitoringRoute: AdminAiMonitoringRoute,
   AdminAnnouncementsRoute: AdminAnnouncementsRoute,
   AdminAuditLogsRoute: AdminAuditLogsRoute,
   AdminCandidatesRoute: AdminCandidatesRoute,
   AdminDashboardRoute: AdminDashboardRoute,
   AdminElectionRoute: AdminElectionRoute,
+  AdminLoginRoute: AdminLoginRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminOtpVerifyRoute: AdminOtpVerifyRoute,
   AdminResultsRoute: AdminResultsRoute,
   CandidateAiReportRoute: CandidateAiReportRoute,
   CandidateApplyRoute: CandidateApplyRoute,
@@ -675,6 +673,7 @@ const rootRouteChildren: RootRouteChildren = {
   CandidateManifestoRoute: CandidateManifestoRoute,
   CandidateMediaRoute: CandidateMediaRoute,
   CandidateNotificationsRoute: CandidateNotificationsRoute,
+  CandidateOtpVerifyRoute: CandidateOtpVerifyRoute,
   CandidateRegisterRoute: CandidateRegisterRoute,
   CandidateSettingsRoute: CandidateSettingsRoute,
   CandidateStatusRoute: CandidateStatusRoute,
@@ -684,6 +683,7 @@ const rootRouteChildren: RootRouteChildren = {
   VoterDashboardRoute: VoterDashboardRoute,
   VoterMediaRoute: VoterMediaRoute,
   VoterNotificationsRoute: VoterNotificationsRoute,
+  VoterOtpVerifyRoute: VoterOtpVerifyRoute,
   VoterSettingsRoute: VoterSettingsRoute,
   VoterStatisticsRoute: VoterStatisticsRoute,
   VoterVoteRoute: VoterVoteRoute,

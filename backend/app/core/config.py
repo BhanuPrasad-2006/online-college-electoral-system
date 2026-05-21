@@ -1,69 +1,77 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from pydantic import ConfigDict, field_validator
 
 
 class Settings(BaseSettings):
-    SUPABASE_URL: str
-    SUPABASE_SERVICE_KEY: str
-    SUPABASE_ANON_KEY: str
-    JWT_SECRET: str
 
-    
+    # App
+    APP_NAME: str = "College Election API"
+    APP_ENV: str = "development"
+    DEBUG: bool = False
+    API_V1_PREFIX: str = "/api/v1"
 
-    # ── App ───────────────────────────────────────────────────
-    APP_ENV:       str = "development"
-    APP_NAME:      str = "College Election System"
-    FRONTEND_URL:  str = "http://localhost:3000"
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "prod", "production", "false", "0", "no", "off"}:
+                return False
+            if normalized in {"dev", "development", "debug", "true", "1", "yes", "on"}:
+                return True
+        return value
 
-    # ── Supabase / PostgreSQL ─────────────────────────────────
-    # Direct connection  → use for Alembic migrations only
-    DATABASE_URL: str
+    # Database
+    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/election_db"
+    DATABASE_POOLER_URL: str = ""
 
-    # Session pooler   → use for FastAPI runtime (port 6543)
-    DATABASE_POOLER_URL: str
+    # JWT
+    JWT_SECRET_KEY: str = "your-super-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 5
 
-    # ── JWT ───────────────────────────────────────────────────
-    JWT_SECRET_KEY:               str
-    JWT_ALGORITHM:                str = "HS256"
-    ACCESS_TOKEN_EXPIRE_HOURS:    int = 8
-    REFRESH_TOKEN_EXPIRE_DAYS:    int = 7
+    # OTP
+    OTP_EXPIRE_MINUTES: int = 10
+    OTP_LENGTH: int = 6
 
-    # ── OTP ───────────────────────────────────────────────────
-    OTP_EXPIRE_MINUTES:           int = 10   # email OTP TTL
-    OTP_MOBILE_EXPIRE_MINUTES:    int = 5    # mobile OTP TTL
-    OTP_MAX_ATTEMPTS:             int = 3    # lock after 3 wrong attempts
+    # Gmail SMTP
+    GMAIL_SENDER_EMAIL: str = "your-email@gmail.com"
+    GMAIL_APP_PASSWORD: str = "your-gmail-app-password"
 
-    # ── Email (SendGrid / SMTP) ───────────────────────────────
-    SMTP_HOST:     str = "smtp.sendgrid.net"
-    SMTP_PORT:     int = 587
-    SMTP_USER:     str = "apikey"
-    SMTP_PASSWORD: str
-    FROM_EMAIL:    str
+    # Fast2SMS
+    FAST2SMS_API_KEY: str = "your-fast2sms-api-key"
+    FAST2SMS_SENDER_ID: str = "ELCVOT"
 
-    # ── SMS Gateway (Twilio / Fast2SMS) ──────────────────────
-    SMS_PROVIDER:      str = "fast2sms"       # or "twilio"
-    SMS_API_KEY:       str = ""
-    SMS_SENDER_ID:     str = "CLGELC"
-
-    # ── College Database API ──────────────────────────────────
-    # Your college's student validation endpoint
-    COLLEGE_DB_API_URL: str = ""
-    COLLEGE_DB_API_KEY: str = ""
-
-    # ── Rate Limiting ─────────────────────────────────────────
-    RATE_LIMIT_LOGIN:    str = "5/15minutes"
-    RATE_LIMIT_OTP:      str = "3/hour"
-    RATE_LIMIT_VOTE:     str = "1/session"
-
-    # ── Redis (for rate limiting + session cache) ─────────────
+    # Redis
     REDIS_URL: str = "redis://localhost:6379"
+    USE_REDIS: bool = False
 
-    class Config:
-        env_file     = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        env_file = ".env"
-        extra = "ignore"
+    # AI Chatbot (Gemini 2.5 Flash)
+    # Get your free API key at: https://aistudio.google.com/app/apikey
+    # Then paste it in backend/.env as: GEMINI_API_KEY=your_key_here
+    GEMINI_API_KEY: str = ""
+
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+        "http://localhost:8082",
+        "http://127.0.0.1:8082",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 
 @lru_cache()

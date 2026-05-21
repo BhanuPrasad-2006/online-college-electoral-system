@@ -1,6 +1,9 @@
 from sqlalchemy import inspect
+
 from app.db.session import engine
-from app.db.base import Base   # imports all models
+from app.db.base import Base                    # the actual declarative base
+import app.db.base  # noqa: F401 — registers all models with Base.metadata
+
 from app.utils.logger import logger
 
 
@@ -21,15 +24,19 @@ EXPECTED_TABLES = [
 ]
 
 
-def verify_tables() -> None:
+async def verify_tables() -> None:
     """
     Checks all expected tables exist in Supabase.
     Does NOT create tables — schema is managed via SQL editor / Alembic.
     Raises on missing tables so the app fails fast at startup.
     """
-    inspector    = inspect(engine)
-    existing     = set(inspector.get_table_names())
-    missing      = [t for t in EXPECTED_TABLES if t not in existing]
+    async with engine.connect() as conn:
+        # Run sync inspect in the async greenlet
+        existing = await conn.run_sync(
+            lambda sync_conn: set(inspect(sync_conn).get_table_names())
+        )
+
+    missing = [t for t in EXPECTED_TABLES if t not in existing]
 
     if missing:
         raise RuntimeError(
@@ -37,11 +44,9 @@ def verify_tables() -> None:
             f"Run 01_schema.sql in Supabase SQL editor first."
         )
 
-    logger.info(f"✅ All {len(EXPECTED_TABLES)} tables verified in Supabase.")
+    logger.info(f"All {len(EXPECTED_TABLES)} tables verified in Supabase.")
 
 
-def init_db() -> None:
-    """
-    Entry point called from main.py on startup.
-    """
-    verify_tables()
+async def init_db() -> None:
+    """Entry point called from main.py on startup."""
+    await verify_tables()
