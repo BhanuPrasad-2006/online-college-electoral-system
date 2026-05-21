@@ -35,7 +35,7 @@ const LIVE_API_HOST =
   CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
     ? "localhost"
     : CLIENT_HOST;
-const LIVE_API_BASE = `http://${LIVE_API_HOST}:9001/api/v1`;
+const LIVE_API_BASE = `http://${LIVE_API_HOST}:8000/api/v1`;
 const LIVE_PROFILE_RETRY_DELAY_MS = 350;
 
 function clone<T>(data: T): T {

@@ -6,7 +6,7 @@ const API_HOST =
   CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
     ? "localhost"
     : CLIENT_HOST;
-const BASE = `http://${API_HOST}:9001/api/v1`;
+const BASE = `http://${API_HOST}:8000/api/v1`;
 const RETRY_DELAY_MS = 350;
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
