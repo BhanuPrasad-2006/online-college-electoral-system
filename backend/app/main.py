@@ -1,7 +1,7 @@
-"""
-Re-export for deployment compatibility
-(Vercel/Docker/Gunicorn: app.main:app)
-"""
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 import app.models
 

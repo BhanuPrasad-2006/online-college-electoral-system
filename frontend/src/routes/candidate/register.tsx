@@ -36,15 +36,25 @@ function Register() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const prefillName = sessionStorage.getItem("candidate-prefill-name") || "";
-  const prefillDept = sessionStorage.getItem("candidate-prefill-department") || "";
-  const prefillSem = sessionStorage.getItem("candidate-prefill-semester") || "";
-  const { mobile: sessionMobile } = getOtpSession();
+  const prefillName = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("candidate-prefill-name") || "" : "";
+  const prefillDept = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("candidate-prefill-department") || "" : "";
+  const prefillSem = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("candidate-prefill-semester") || "" : "";
+  const isAutoCreated = !prefillName;
+  const { mobile: sessionMobile, sessionToken } = getOtpSession();
+
+  // Redirect to eligibility check if no OTP session token
+  useEffect(() => {
+    if (!sessionToken) {
+      toast.error("Please complete eligibility check first.");
+      nav({ to: "/candidate/apply" });
+    }
+  }, [sessionToken, nav]);
 
   const [data, setData] = useState({
     name: prefillName,
     department: prefillDept,
     semester: prefillSem,
+    usn: "",
     positionId: "",
     party: "",
     manifesto: "",
@@ -72,8 +82,13 @@ function Register() {
         toast.error("Please enter a new password.");
         return;
       }
-      if (data.newPassword.length < 6) {
-        toast.error("Password must be at least 6 characters long.");
+      const hasMinLength = data.newPassword.length >= 8;
+      const hasUpper = /[A-Z]/.test(data.newPassword);
+      const hasLower = /[a-z]/.test(data.newPassword);
+      const hasNumber = /[0-9]/.test(data.newPassword);
+      const hasSpecial = /[@$!%*?&#_]/.test(data.newPassword);
+      if (!hasMinLength || !hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+        toast.error("Password does not meet all strength requirements.");
         return;
       }
       if (data.newPassword !== data.confirmPassword) {
@@ -82,6 +97,20 @@ function Register() {
       }
     }
     if (step === 1) {
+      if (isAutoCreated) {
+        if (!data.name.trim()) {
+          toast.error("Please enter your full name.");
+          return;
+        }
+        if (!data.department.trim()) {
+          toast.error("Please enter your department.");
+          return;
+        }
+        if (!data.usn.trim()) {
+          toast.error("Please enter your USN / Student ID.");
+          return;
+        }
+      }
       if (!data.positionId) {
         toast.error("Please select a target position.");
         return;
@@ -111,7 +140,7 @@ function Register() {
     setError("");
 
     try {
-      const sessionToken = getAuthToken();
+      const { sessionToken } = getOtpSession();
       const mobileNum = sessionMobile || "9999999999";
 
       await registerCandidate(sessionToken, {
@@ -122,6 +151,9 @@ function Register() {
         payment_screenshot_url: data.payment || "/payment-screenshot.jpg",
         mobile_number: mobileNum,
         new_password: data.newPassword || undefined,
+        full_name: isAutoCreated ? data.name : undefined,
+        department: isAutoCreated ? data.department : undefined,
+        student_id: isAutoCreated ? data.usn : undefined,
       });
 
       // Update auth context state
@@ -184,6 +216,33 @@ function Register() {
                   </div>
                 </div>
 
+                {/* Live Password Strength Checklist */}
+                <div className="mt-2 space-y-1.5 p-3.5 bg-muted/40 rounded-xl border border-border/60 text-xs">
+                  <p className="font-semibold text-muted-foreground mb-1">Password Strength Checklist:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className={cn("flex items-center gap-1.5", data.newPassword.length >= 8 ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                      <span>{data.newPassword.length >= 8 ? "✓" : "○"}</span>
+                      <span>At least 8 characters</span>
+                    </div>
+                    <div className={cn("flex items-center gap-1.5", /[A-Z]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                      <span>{/[A-Z]/.test(data.newPassword) ? "✓" : "○"}</span>
+                      <span>At least 1 uppercase letter</span>
+                    </div>
+                    <div className={cn("flex items-center gap-1.5", /[a-z]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                      <span>{/[a-z]/.test(data.newPassword) ? "✓" : "○"}</span>
+                      <span>At least 1 lowercase letter</span>
+                    </div>
+                    <div className={cn("flex items-center gap-1.5", /[0-9]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                      <span>{/[0-9]/.test(data.newPassword) ? "✓" : "○"}</span>
+                      <span>At least 1 number</span>
+                    </div>
+                    <div className={cn("flex items-center gap-1.5", /[@$!%*?&#_]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                      <span>{/[@$!%*?&#_]/.test(data.newPassword) ? "✓" : "○"}</span>
+                      <span>At least 1 special character</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Confirm New Password</label>
                   <Input 
@@ -201,28 +260,42 @@ function Register() {
 
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Full Name">
+              <Field label="Full Name *">
                 <Input 
                   value={data.name} 
                   onChange={(e) => set("name", e.target.value)} 
-                  disabled={true}
-                  className="bg-muted cursor-not-allowed opacity-70"
+                  disabled={!isAutoCreated}
+                  className={cn(!isAutoCreated && "bg-muted cursor-not-allowed opacity-70")}
+                  placeholder="e.g. John Doe"
                 />
               </Field>
-              <Field label="Department">
+              <Field label="Department *">
                 <Input 
                   value={data.department} 
-                  disabled={true}
-                  className="bg-muted cursor-not-allowed opacity-70"
+                  onChange={(e) => set("department", e.target.value)}
+                  disabled={!isAutoCreated}
+                  className={cn(!isAutoCreated && "bg-muted cursor-not-allowed opacity-70")}
+                  placeholder="e.g. Computer Science"
                 />
               </Field>
-              <Field label="Current Semester">
+              <Field label="Current Semester *">
                 <Input 
                   value={data.semester} 
-                  disabled={true}
-                  className="bg-muted cursor-not-allowed opacity-70"
+                  onChange={(e) => set("semester", e.target.value)}
+                  disabled={!isAutoCreated}
+                  className={cn(!isAutoCreated && "bg-muted cursor-not-allowed opacity-70")}
+                  placeholder="e.g. 6th"
                 />
               </Field>
+              {isAutoCreated && (
+                <Field label="USN / Student ID *">
+                  <Input 
+                    value={data.usn} 
+                    onChange={(e) => set("usn", e.target.value)}
+                    placeholder="e.g. 1RV21CS001"
+                  />
+                </Field>
+              )}
               <Field label="Target Election Position *">
                 <Select value={data.positionId} onValueChange={(v) => set("positionId", v)}>
                   <SelectTrigger className="h-11"><SelectValue placeholder="Select Position" /></SelectTrigger>

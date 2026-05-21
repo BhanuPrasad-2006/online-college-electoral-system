@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import asyncio
 import uuid
 import hashlib
-from datetime import datetime, timezone
+import re
+from datetime import timezone
 
 from app.db.session import get_db
 from app.api.deps import get_current_user, get_admin_user
@@ -19,15 +20,19 @@ from app.services.email_service import send_election_email
 from app.utils.logger import logger
 from pydantic import BaseModel
 from typing import Optional, List
+from app.middleware.rate_limit import limiter
 
 router = APIRouter()
 
 class VoteCastRequest(BaseModel):
     candidate_id: Optional[str] = None
+    verification_id: str  # Must match voter.verification_id hash in DB
 
 
 @router.post("/cast")
+@limiter.limit("5/minute")
 async def cast_vote(
+    request: Request,
     body: VoteCastRequest,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -54,7 +59,30 @@ async def cast_vote(
     if voter.has_voted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You have already cast your vote in this election."
+            detail="You have already cast your vote."
+        )
+
+    # ── Verification ID Check (bcrypt hashed) ────────────────
+    if not voter.verification_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your Verification ID has not been configured. Contact election admin."
+        )
+
+    v_id = body.verification_id.strip()
+    if not re.match(r"^[A-Z0-9]{8}$", v_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Verification ID"
+        )
+
+    from app.security.password_service import verify_password
+    if not verify_password(v_id, voter.verification_id):
+        # Audit failed verification attempts
+        logger.warning(f"Failed vote cast verification attempt for voter {voter.voter_id} (email: {voter.college_email})")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Verification ID"
         )
 
     # Fetch the active election
@@ -224,6 +252,7 @@ async def list_voters_for_admin(
     return [
         {
             "voter_id": str(v.voter_id),
+            "verification_code": v.verification_code or "—",
             "student_id": v.student_id or "—",
             "full_name": v.full_name,
             "college_email": v.college_email,
@@ -231,7 +260,8 @@ async def list_voters_for_admin(
             "year_of_study": v.year_of_study or 1,
             "is_verified": v.is_verified,
             "has_voted": v.has_voted,
-            "vote_permission": v.vote_permission
+            "vote_permission": v.vote_permission,
+            "verification_id_set": v.verification_id is not None
         }
         for v in voters
     ]
@@ -270,3 +300,107 @@ async def update_voter_permission(
         "vote_permission": voter.vote_permission
     }
 
+
+# ── Set / Update Verification Code (Admin only) ────────────────
+class VoterVerificationCodeRequest(BaseModel):
+    verification_code: str
+
+
+@router.put("/admin/voters/{voter_id}/verification-code")
+async def set_voter_verification_code(
+    voter_id: str,
+    body: VoterVerificationCodeRequest,
+    current_user: dict = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: Set or update the private verification ID for a voter.
+    This ID is given to the voter privately (e.g. printed on their ID card)
+    and must be entered before they can cast a vote.
+    """
+    try:
+        voter_uuid = uuid.UUID(voter_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid voter UUID format")
+
+    query = select(Voter).where(Voter.voter_id == voter_uuid)
+    result = await db.execute(query)
+    voter = result.scalar_one_or_none()
+
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    code = body.verification_code.strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Verification ID cannot be empty.")
+    
+    if not re.match(r"^[A-Z0-9]{8}$", code):
+        raise HTTPException(
+            status_code=400,
+            detail="Verification ID must be exactly 8 uppercase alphanumeric characters."
+        )
+
+    from app.security.password_service import hash_password
+    voter.verification_id = hash_password(code)
+    await db.commit()
+
+    return {
+        "message": f"Verification ID set successfully for {voter.full_name}",
+        "voter_id": str(voter.voter_id),
+        "verification_id_set": True
+    }
+
+
+# ── Verify Verification ID (Voter only) ────────────────
+class VerifyIdRequest(BaseModel):
+    verification_id: str
+
+
+@router.post("/verify-id")
+@limiter.limit("5/minute")
+async def verify_voter_id(
+    request: Request,
+    body: VerifyIdRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify the voter's 8-character verification ID against the bcrypt hash in the DB."""
+    voter_id = current_user.get("user_id")
+    if not voter_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    query = select(Voter).where(Voter.voter_id == voter_id)
+    result = await db.execute(query)
+    voter = result.scalar_one_or_none()
+
+    if not voter:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter profile not found")
+
+    if voter.has_voted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already cast your vote."
+        )
+
+    if not voter.verification_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your Verification ID has not been configured. Contact election admin."
+        )
+
+    code = body.verification_id.strip()
+    if not re.match(r"^[A-Z0-9]{8}$", code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Verification ID"
+        )
+
+    from app.security.password_service import verify_password
+    if not verify_password(code, voter.verification_id):
+        # Audit failed verification attempts
+        logger.warning(f"Failed verification attempt for voter {voter.voter_id} (email: {voter.college_email})")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Verification ID"
+        )
+
+    return {"success": True}

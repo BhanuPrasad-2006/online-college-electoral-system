@@ -13,6 +13,8 @@ from app.models.voter import Voter
 from app.enums.election_status import ElectionStatusEnum
 from app.services.email_service import send_election_email
 from app.utils.logger import logger
+from app.schemas.election_schema import ElectionSaveRequest
+
 
 router = APIRouter()
 
@@ -234,3 +236,56 @@ async def publish_results(
     asyncio.create_task(notify_results_published(election.title))
     
     return {"message": "Results successfully published", "status": election.status}
+
+
+@router.put("/{election_id}")
+async def update_election_dates(
+    election_id: str,
+    payload: ElectionSaveRequest,
+    admin: dict = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update election title and dates with strict validation."""
+    try:
+        election_uuid = uuid.UUID(election_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid election ID format")
+        
+    result = await db.execute(select(Election).where(Election.election_id == election_uuid))
+    election = result.scalar_one_or_none()
+    if not election:
+        raise HTTPException(status_code=404, detail="Election not found")
+        
+    # Validation checks
+    if payload.registration_start and payload.registration_end:
+        if payload.registration_end <= payload.registration_start:
+            raise HTTPException(
+                status_code=400,
+                detail="Registration closes must be after registration opens."
+            )
+            
+    if payload.registration_end and payload.voting_start:
+        if payload.voting_start <= payload.registration_end:
+            raise HTTPException(
+                status_code=400,
+                detail="Voting opens must be after registration closes."
+            )
+            
+    if payload.voting_start and payload.voting_end:
+        if payload.voting_end <= payload.voting_start:
+            raise HTTPException(
+                status_code=400,
+                detail="Voting closes must be after voting opens."
+            )
+            
+    election.title = payload.title
+    election.registration_start = payload.registration_start
+    election.registration_end = payload.registration_end
+    election.voting_start = payload.voting_start
+    election.voting_end = payload.voting_end
+    
+    await db.commit()
+    await db.refresh(election)
+    
+    return {"message": "Election details saved successfully.", "election": election}
+

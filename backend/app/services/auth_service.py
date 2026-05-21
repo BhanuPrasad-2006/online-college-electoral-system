@@ -1,14 +1,17 @@
 import asyncio
+from datetime import timedelta, datetime, timezone
 import jwt
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.voter import Voter
 from app.models.candidate import Candidate
 from app.models.admin_user import AdminUser
+from app.models.election import Election
+from app.enums.election_status import ElectionStatusEnum
 
 from app.security.password_service import verify_password, hash_password
 from app.security.jwt_service import (
@@ -56,12 +59,22 @@ def _mask_mobile(mobile: str) -> str:
     return f"{'*' * 6}{mobile[-4:]}"
 
 
-def _normalize_email(email: str) -> str:
-    return email.strip().lower()
-
-
-def _email_equals(column, email: str):
-    return func.lower(column) == _normalize_email(email)
+async def _get_token_expiry_minutes(db: AsyncSession) -> int:
+    """
+    Get token expiration minutes: 5 minutes if any election is in VOTING_OPEN status,
+    15 minutes otherwise.
+    """
+    try:
+        result = await db.execute(
+            select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN)
+        )
+        voting_open_election = result.scalars().first()
+        if voting_open_election:
+            return 5
+        return 15
+    except Exception as e:
+        logger.error(f"Error checking voting_open election status: {e}")
+        return 15
 
 
 # =========================================================
@@ -73,9 +86,10 @@ async def voter_login_step1(
     email: str,
     password: str,
 ) -> dict:
+    email = email.strip().lower()
 
     result = await db.execute(
-        select(Voter).where(_email_equals(Voter.college_email, email))
+        select(Voter).where(Voter.college_email == email)
     )
 
     voter = result.scalars().first()
@@ -105,17 +119,21 @@ async def voter_login_step1(
         )
     )
 
+    voter_id_str = str(voter.voter_id)
+    college_email = voter.college_email
+    otp_id_str = str(otp_record.otp_id)
+
     await db.commit()
 
     session_token = create_otp_session_token(
-        voter_id=str(voter.voter_id),
-        email=voter.college_email,
-        otp_id=str(otp_record.otp_id),
+        voter_id=voter_id_str,
+        email=college_email,
+        otp_id=otp_id_str,
     )
 
     return {
         "otp_session_token": session_token,
-        "hint": f"OTP sent to {_mask_email(voter.college_email)}",
+        "hint": f"OTP sent to {_mask_email(college_email)}",
     }
 
 
@@ -166,21 +184,29 @@ async def voter_login_step2(
     if not ok:
         raise OTPError(msg)
 
+    voter_id_str = str(voter.voter_id)
+    college_email = voter.college_email
+    mobile_number = voter.mobile_number
+    full_name = voter.full_name
+
+    expiry_minutes = await _get_token_expiry_minutes(db)
+
     await db.commit()
 
     access_token = create_access_token(
         data={
-            "sub": str(voter.voter_id),
+            "sub": voter_id_str,
             "role": UserRoleEnum.VOTER.value,
-            "email": voter.college_email,
-        }
+            "email": college_email,
+        },
+        expires_delta=timedelta(minutes=expiry_minutes),
     )
 
     # Trigger login security alert SMS if mobile number exists
-    if voter.mobile_number:
+    if mobile_number:
         try:
             msg = "Security Alert: You have successfully logged in to CollegeVote. If this wasn't you, please secure your account or change your password immediately."
-            asyncio.create_task(send_custom_sms(voter.mobile_number, msg))
+            asyncio.create_task(send_custom_sms(mobile_number, msg))
         except Exception:
             pass
 
@@ -188,9 +214,9 @@ async def voter_login_step2(
         "access_token": access_token,
         "token_type": "bearer",
         "role": UserRoleEnum.VOTER.value,
-        "user_id": str(voter.voter_id),
-        "full_name": voter.full_name,
-        "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "user_id": voter_id_str,
+        "full_name": full_name,
+        "expires_in_seconds": expiry_minutes * 60,
     }
 
 
@@ -204,10 +230,14 @@ async def candidate_login_step1(
     mobile_number: str,
     password: str,
 ) -> dict:
+    email = email.strip().lower()
+    mobile_number = mobile_number.strip().replace(" ", "").replace("-", "")
+    if mobile_number.startswith("+91"):
+        mobile_number = mobile_number[3:]
 
     voter_result = await db.execute(
         select(Voter).where(
-            _email_equals(Voter.college_email, email)
+            Voter.college_email == email
         )
     )
 
@@ -276,19 +306,24 @@ async def candidate_login_step1(
             )
         )
 
+        voter_id_str = str(voter.voter_id)
+        college_email = voter.college_email
+        otp_id_str = str(email_otp_record.otp_id)
+        cand_mobile = candidate.mobile_number
+
         await db.commit()
 
         session_token = create_otp_session_token(
-            voter_id=str(voter.voter_id),
-            email=voter.college_email,
-            otp_id=str(email_otp_record.otp_id),
+            voter_id=voter_id_str,
+            email=college_email,
+            otp_id=otp_id_str,
             is_registered=True,
-            mobile_number=candidate.mobile_number,
+            mobile_number=cand_mobile,
         )
 
         return {
             "otp_session_token": session_token,
-            "hint": f"OTP sent to {_mask_email(voter.college_email)} and {_mask_mobile(candidate.mobile_number)}",
+            "hint": f"OTP sent to {_mask_email(college_email)} and {_mask_mobile(cand_mobile)}",
             "is_registered": True,
         }
 
@@ -338,19 +373,23 @@ async def candidate_login_step1(
             )
         )
 
+        voter_id_str = str(voter.voter_id)
+        college_email = voter.college_email
+        otp_id_str = str(email_otp_record.otp_id)
+
         await db.commit()
 
         session_token = create_otp_session_token(
-            voter_id=str(voter.voter_id),
-            email=voter.college_email,
-            otp_id=str(email_otp_record.otp_id),
+            voter_id=voter_id_str,
+            email=college_email,
+            otp_id=otp_id_str,
             is_registered=False,
             mobile_number=full_mobile,
         )
 
         return {
             "otp_session_token": session_token,
-            "hint": f"Verification OTP sent to {_mask_email(voter.college_email)} and {_mask_mobile(full_mobile)}",
+            "hint": f"Verification OTP sent to {_mask_email(college_email)} and {_mask_mobile(full_mobile)}",
             "is_registered": False,
         }
 
@@ -410,9 +449,14 @@ async def candidate_login_step2(
     if not sms_ok:
         raise OTPError(sms_msg)
 
-    await db.commit()
+    college_email = voter.college_email
+    voter_id_str = str(voter.voter_id)
+    full_name = voter.full_name
+    department = voter.department
+    year_of_study = voter.year_of_study
 
-    # If is_registered is True, we have an existing candidate profile
+    candidate = None
+    candidate_id_str = None
     if is_registered:
         candidate_result = await db.execute(
             select(Candidate).where(Candidate.voter_id == voter_uuid)
@@ -421,28 +465,35 @@ async def candidate_login_step2(
         if not candidate:
             raise InvalidCredentialsError("Candidate profile not found")
 
+        candidate_id_str = str(candidate.candidate_id)
         candidate.mobile_verified = True
-        await db.commit()
 
+    expiry_minutes = await _get_token_expiry_minutes(db)
+
+    await db.commit()
+
+    # If is_registered is True, we have an existing candidate profile
+    if is_registered:
         # Access token sub is the candidate_id for registered candidates
         access_token = create_access_token(
             data={
-                "sub": str(candidate.candidate_id),
+                "sub": candidate_id_str,
                 "role": UserRoleEnum.CANDIDATE.value,
-                "email": voter.college_email,
-            }
+                "email": college_email,
+            },
+            expires_delta=timedelta(minutes=expiry_minutes),
         )
 
         return {
             "access_token": access_token,
             "token_type": "bearer",
             "role": UserRoleEnum.CANDIDATE.value,
-            "user_id": str(candidate.candidate_id),
-            "full_name": voter.full_name,
-            "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user_id": candidate_id_str,
+            "full_name": full_name,
+            "expires_in_seconds": expiry_minutes * 60,
             "is_registered": True,
-            "department": voter.department,
-            "semester": str((voter.year_of_study * 2) - 1) if voter.year_of_study is not None else None,
+            "department": department,
+            "semester": str((year_of_study * 2) - 1) if year_of_study is not None else None,
         }
     else:
         # If not registered yet, we create a temporary registration JWT token!
@@ -450,24 +501,25 @@ async def candidate_login_step2(
         # The frontend will receive this, see is_registered=False, and render the wizard using this JWT token!
         access_token = create_access_token(
             data={
-                "sub": str(voter.voter_id),
+                "sub": voter_id_str,
                 "role": UserRoleEnum.CANDIDATE.value,
-                "email": voter.college_email,
+                "email": college_email,
                 "temp_reg": True,
                 "mobile_number": mobile_number,
-            }
+            },
+            expires_delta=timedelta(minutes=expiry_minutes),
         )
 
         return {
             "access_token": access_token,
             "token_type": "bearer",
             "role": UserRoleEnum.CANDIDATE.value,
-            "user_id": str(voter.voter_id),
-            "full_name": voter.full_name,
-            "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user_id": voter_id_str,
+            "full_name": full_name,
+            "expires_in_seconds": expiry_minutes * 60,
             "is_registered": False,
-            "department": voter.department,
-            "semester": str((voter.year_of_study * 2) - 1) if voter.year_of_study is not None else None,
+            "department": department,
+            "semester": str((year_of_study * 2) - 1) if year_of_study is not None else None,
             "mobile_number": mobile_number,
         }
 
@@ -485,9 +537,14 @@ async def admin_login_step1(
     """
     Step 1: Authenticate Admin User by password, generate/dispatch dual OTPs (Email + SMS).
     """
+    email = email.strip().lower()
+    mobile_number = mobile_number.strip().replace(" ", "").replace("-", "")
+    if mobile_number.startswith("+91"):
+        mobile_number = mobile_number[3:]
+
     # 1. Fetch admin user
     result = await db.execute(
-        select(AdminUser).where(_email_equals(AdminUser.email, email))
+        select(AdminUser).where(AdminUser.email == email)
     )
     admin = result.scalars().first()
 
@@ -527,14 +584,17 @@ async def admin_login_step1(
         )
     )
 
+    admin_id_str = str(admin.admin_id)
+    admin_email = admin.email
+
     await db.commit()
 
     # 4. Generate OTP session token
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timezone
     expire = datetime.now(timezone.utc) + timedelta(minutes=10)
     payload = {
-        "sub": str(admin.admin_id),
-        "email": admin.email,
+        "sub": admin_id_str,
+        "email": admin_email,
         "mobile": mobile_number,
         "type": "otp_session",
         "exp": expire,
@@ -596,24 +656,31 @@ async def admin_login_step2(
     if not sms_ok:
         raise OTPError(sms_msg)
 
+    admin_id_str = str(admin.admin_id)
+    admin_email = admin.email
+    full_name = admin.full_name
+
+    expiry_minutes = await _get_token_expiry_minutes(db)
+
     await db.commit()
 
     # Generate Access JWT Token for Admin
     access_token = create_access_token(
         data={
-            "sub": str(admin.admin_id),
+            "sub": admin_id_str,
             "role": "admin",
-            "email": admin.email,
-        }
+            "email": admin_email,
+        },
+        expires_delta=timedelta(minutes=expiry_minutes),
     )
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "role": "admin",
-        "user_id": str(admin.admin_id),
-        "full_name": admin.full_name,
-        "expires_in_seconds": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "user_id": admin_id_str,
+        "full_name": full_name,
+        "expires_in_seconds": expiry_minutes * 60,
     }
 
 
@@ -668,15 +735,17 @@ async def request_password_change_otp(
         )
     )
 
+    college_email = voter.college_email
+
     await db.commit()
 
     # 5. Generate OTP session token containing hashed new password!
     new_hash = hash_password(new_password)
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timezone
     expire = datetime.now(timezone.utc) + timedelta(minutes=10)
     payload = {
         "sub": voter_id,
-        "email": voter.college_email,
+        "email": college_email,
         "new_password_hash": new_hash,
         "type": "password_change_session",
         "exp": expire,
@@ -762,8 +831,9 @@ async def request_forgot_password_otp(
     """
     Step 1: Check email exists, then generate and send Email OTP for password reset.
     """
+    email = email.strip().lower()
     # 1. Fetch voter by email
-    query = select(Voter).where(_email_equals(Voter.college_email, email))
+    query = select(Voter).where(Voter.college_email == email)
     result = await db.execute(query)
     voter = result.scalar_one_or_none()
 
@@ -838,7 +908,7 @@ async def confirm_forgot_password(
         raise OTPError(email_msg)
 
     # Fetch and update voter password
-    query = select(Voter).where(_email_equals(Voter.college_email, email))
+    query = select(Voter).where(Voter.college_email == email)
     result = await db.execute(query)
     voter = result.scalar_one_or_none()
 
@@ -900,19 +970,23 @@ async def resend_voter_otp(
         )
     )
 
+    voter_id_str = str(voter.voter_id)
+    college_email = voter.college_email
+    otp_id_str = str(otp_record.otp_id)
+
     await db.commit()
 
     # Generate a fresh session token
     new_session_token = create_otp_session_token(
-        voter_id=str(voter.voter_id),
-        email=voter.college_email,
-        otp_id=str(otp_record.otp_id),
+        voter_id=voter_id_str,
+        email=college_email,
+        otp_id=otp_id_str,
     )
 
     return {
         "message": "OTP has been successfully resent to your registered email address.",
         "otp_session_token": new_session_token,
-        "hint": f"OTP resent to {_mask_email(voter.college_email)}",
+        "hint": f"OTP resent to {_mask_email(college_email)}",
     }
 
 
@@ -979,23 +1053,28 @@ async def resend_candidate_otp(
         )
     )
 
+    voter_id_str = str(candidate.voter_id)
+    college_email = voter.college_email
+    otp_id_str = str(email_otp_record.otp_id)
+    mobile_num = candidate.mobile_number
+
     await db.commit()
 
     # Generate new token
     new_session_token = create_otp_session_token(
-        voter_id=str(candidate.voter_id),
-        email=voter.college_email,
-        otp_id=str(email_otp_record.otp_id),
+        voter_id=voter_id_str,
+        email=college_email,
+        otp_id=otp_id_str,
         is_registered=True,
-        mobile_number=candidate.mobile_number,
+        mobile_number=mobile_num,
     )
 
     return {
         "message": "OTP has been successfully resent to your registered email and mobile number.",
         "otp_session_token": new_session_token,
         "hint": (
-            f"OTP sent to {_mask_email(voter.college_email)} "
-            f"and {_mask_mobile(candidate.mobile_number)}"
+            f"OTP sent to {_mask_email(college_email)} "
+            f"and {_mask_mobile(mobile_num)}"
         ),
     }
 
@@ -1042,6 +1121,10 @@ async def resend_candidate_email_otp(
         )
     )
 
+    voter_id_str = str(voter.voter_id)
+    college_email = voter.college_email
+    otp_id_str = str(email_otp_record.otp_id)
+
     await db.commit()
 
     # Get values from old payload to preserve registration wizard context
@@ -1050,9 +1133,9 @@ async def resend_candidate_email_otp(
 
     # Generate new token
     new_session_token = create_otp_session_token(
-        voter_id=str(voter.voter_id),
-        email=voter.college_email,
-        otp_id=str(email_otp_record.otp_id),
+        voter_id=voter_id_str,
+        email=college_email,
+        otp_id=otp_id_str,
         is_registered=is_registered,
         mobile_number=mobile_number,
     )
@@ -1060,7 +1143,7 @@ async def resend_candidate_email_otp(
     return {
         "message": "OTP has been successfully resent to your registered email.",
         "otp_session_token": new_session_token,
-        "hint": f"OTP sent to {_mask_email(voter.college_email)}",
+        "hint": f"OTP sent to {_mask_email(college_email)}",
     }
 
 
@@ -1113,6 +1196,11 @@ async def resend_candidate_sms_otp(
         )
     )
 
+    voter_id_str = str(candidate.voter_id)
+    college_email = voter.college_email
+    otp_id_str = str(sms_otp_record.otp_id)
+    cand_mobile = candidate.mobile_number
+
     await db.commit()
 
     # Get values from old payload to preserve registration wizard context
@@ -1121,9 +1209,9 @@ async def resend_candidate_sms_otp(
 
     # Generate new token
     new_session_token = create_otp_session_token(
-        voter_id=str(candidate.voter_id),
-        email=voter.college_email,
-        otp_id=str(sms_otp_record.otp_id),
+        voter_id=voter_id_str,
+        email=college_email,
+        otp_id=otp_id_str,
         is_registered=is_registered,
         mobile_number=mobile_number,
     )
@@ -1131,5 +1219,5 @@ async def resend_candidate_sms_otp(
     return {
         "message": "OTP has been successfully resent to your registered mobile number.",
         "otp_session_token": new_session_token,
-        "hint": f"OTP sent to {_mask_mobile(candidate.mobile_number)}",
+        "hint": f"OTP sent to {_mask_mobile(cand_mobile)}",
     }

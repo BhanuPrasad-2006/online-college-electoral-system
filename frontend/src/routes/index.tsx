@@ -9,7 +9,10 @@ import {
   candidateLoginStep1, 
   saveOtpSession, 
   requestForgotPassword, 
-  confirmForgotPassword 
+  confirmForgotPassword,
+  candidateCheckStatus,
+  candidateInitiateNew,
+  saveAuth
 } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -41,6 +44,18 @@ function Login() {
   const [error, setError] = useState("");
   const [rejectionRemarks, setRejectionRemarks] = useState("");
 
+  // Candidate Sub-Steps
+  const [candidateStep, setCandidateStep] = useState<"email_mobile" | "password" | "select_year">("email_mobile");
+  const [candidateYear, setCandidateYear] = useState<string>("");
+
+  useEffect(() => {
+    setCandidateStep("email_mobile");
+    setError("");
+    setRejectionRemarks("");
+    setCandidateYear("");
+    setPassword("");
+  }, [tab]);
+
   // Mode: "login" | "forgot_email" | "forgot_otp" | "forgot_reset"
   const [mode, setMode] = useState<"login" | "forgot_email" | "forgot_otp" | "forgot_reset">("login");
   
@@ -65,17 +80,68 @@ function Login() {
         nav({ to: "/voter/otp-verify" });
       } else {
         const mobileNum = mobile.replace(/\s/g, "");
-        const res = await candidateLoginStep1(email, mobileNum, password);
-        saveOtpSession(res.otp_session_token, email, mobileNum);
-        toast.success(res.hint);
-        nav({ to: "/candidate/otp-verify" });
+        
+        if (candidateStep === "email_mobile") {
+          const res = await candidateCheckStatus(email, mobileNum);
+          if (res.status === "exists") {
+            setCandidateStep("password");
+            setLoading(false);
+          } else if (res.status === "eligible") {
+            if (res.token) {
+              saveAuth(res.token, "candidate", "", res.voter_details?.full_name || "", res.voter_details?.department || "", res.voter_details?.semester || "");
+              sessionStorage.setItem("candidate-prefill-name", res.voter_details?.full_name || "");
+              sessionStorage.setItem("candidate-prefill-department", res.voter_details?.department || "");
+              sessionStorage.setItem("candidate-prefill-semester", res.voter_details?.semester || "");
+              saveOtpSession(res.token, email, mobileNum);
+            }
+            toast.success("Eligible voter profile found. Complete candidate registration.");
+            nav({ to: "/candidate/register" });
+          } else if (res.status === "need_year") {
+            setCandidateStep("select_year");
+            setLoading(false);
+          } else if (res.status === "ineligible") {
+            setError(res.reason || "You are not eligible for candidate registration.");
+            toast.error(res.reason || "Eligibility check failed.");
+            setLoading(false);
+          }
+        } else if (candidateStep === "password") {
+          const res = await candidateLoginStep1(email, mobileNum, password);
+          saveOtpSession(res.otp_session_token, email, mobileNum);
+          toast.success(res.hint);
+          nav({ to: "/candidate/otp-verify" });
+        } else if (candidateStep === "select_year") {
+          const yrNum = parseInt(candidateYear, 10);
+          if (yrNum === 1 || yrNum === 2) {
+            setError("Only 3rd and 4th year students are eligible to contest in elections.");
+            toast.error("Only 3rd and 4th year students are eligible.");
+            setLoading(false);
+          } else if (yrNum === 3 || yrNum === 4) {
+            const res = await candidateInitiateNew(email, mobileNum, yrNum);
+            if (res.status === "eligible" && res.token) {
+              saveAuth(res.token, "candidate", "", "", "", "");
+              saveOtpSession(res.token, email, mobileNum);
+              sessionStorage.removeItem("candidate-prefill-name");
+              sessionStorage.removeItem("candidate-prefill-department");
+              sessionStorage.removeItem("candidate-prefill-semester");
+              toast.success("College email verified. Set your password to register.");
+              nav({ to: "/candidate/register" });
+            } else {
+              setError(res.reason || "Verification failed.");
+              toast.error(res.reason || "Verification failed.");
+              setLoading(false);
+            }
+          } else {
+            toast.error("Please select your year of study.");
+            setLoading(false);
+          }
+        }
       }
     } catch (err: any) {
-      setError(err.message || "Invalid credentials. Please try again.");
+      setError(err.message || "An error occurred. Please try again.");
       if (err.remarks) {
         setRejectionRemarks(err.remarks);
       }
-      toast.error(err.message || "Login failed.");
+      toast.error(err.message || "Failed.");
       setLoading(false);
     }
   }
@@ -221,40 +287,154 @@ function Login() {
               </div>
 
               <form onSubmit={submit} className="mt-6 space-y-4">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">College Email</label>
-                  <Input type="email" required placeholder="yourname@college.edu.in" className="mt-1.5 h-11" value={email} onChange={(e) => setEmail(e.target.value)} />
-                </div>
-                {tab === "candidate" && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Phone Number</label>
-                    <div className="mt-1.5 flex">
-                      <span className="inline-flex items-center px-3 border border-r-0 border-border bg-muted rounded-l-md text-sm">+91</span>
-                      <Input type="tel" required placeholder="98765 43210" className="rounded-l-none h-11" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+                {tab === "voter" ? (
+                  <>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">College Email</label>
+                      <Input type="email" required placeholder="yourname@college.edu.in" className="mt-1.5 h-11" value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
-                  </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-muted-foreground">Password</label>
+                        <button 
+                          type="button" 
+                          onClick={() => { setError(""); setMode("forgot_email"); }}
+                          className="text-xs text-[#6C63FF] font-semibold hover:underline"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+                      <div className="mt-1.5 relative">
+                        <Input type={show ? "text" : "password"} required placeholder="••••••••" className="pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} />
+                        <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <Button type="submit" disabled={loading} className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white">
+                      {loading ? "Signing in..." : "Login"}
+                    </Button>
+                  </>
+                ) : (
+                  // Candidate Tab Flow
+                  <>
+                    {candidateStep === "email_mobile" && (
+                      <>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">College Email</label>
+                          <Input type="email" required placeholder="yourname@college.edu.in" className="mt-1.5 h-11" value={email} onChange={(e) => setEmail(e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">Phone Number</label>
+                          <div className="mt-1.5 flex">
+                            <span className="inline-flex items-center px-3 border border-r-0 border-border bg-muted rounded-l-md text-sm">+91</span>
+                            <Input type="tel" required placeholder="98765 43210" className="rounded-l-none h-11" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+                          </div>
+                        </div>
+                        <Button type="submit" disabled={loading} className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white mt-2">
+                          {loading ? "Checking eligibility..." : "Continue"}
+                        </Button>
+                      </>
+                    )}
+
+                    {candidateStep === "password" && (
+                      <>
+                        <div className="bg-muted/50 border border-border p-3.5 rounded-xl text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Email:</span>
+                            <span className="font-semibold">{email}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Phone:</span>
+                            <span className="font-semibold">+91 {mobile}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-medium text-muted-foreground">Password</label>
+                            <button 
+                              type="button" 
+                              onClick={() => { setError(""); setMode("forgot_email"); }}
+                              className="text-xs text-[#6C63FF] font-semibold hover:underline"
+                            >
+                              Forgot Password?
+                            </button>
+                          </div>
+                          <div className="mt-1.5 relative">
+                            <Input type={show ? "text" : "password"} required placeholder="••••••••" className="pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} />
+                            <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex gap-3 mt-2">
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setCandidateStep("email_mobile");
+                              setError("");
+                              setPassword("");
+                            }}
+                            variant="outline"
+                            className="flex-1 h-11 border border-border hover:bg-muted"
+                          >
+                            Back
+                          </Button>
+                          <Button type="submit" disabled={loading} className="flex-1 h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white">
+                            {loading ? "Signing in..." : "Login"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+
+                    {candidateStep === "select_year" && (
+                      <>
+                        <div className="bg-muted/50 border border-border p-3.5 rounded-xl text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Email:</span>
+                            <span className="font-semibold">{email}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Phone:</span>
+                            <span className="font-semibold">+91 {mobile}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground">Select Your Year of Study</label>
+                          <select
+                            value={candidateYear}
+                            onChange={(e) => setCandidateYear(e.target.value)}
+                            required
+                            className="mt-1.5 w-full h-11 px-3 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            <option value="">-- Choose Year --</option>
+                            <option value="1">1st Year</option>
+                            <option value="2">2nd Year</option>
+                            <option value="3">3rd Year (Eligible)</option>
+                            <option value="4">4th Year (Eligible)</option>
+                          </select>
+                        </div>
+                        <div className="flex gap-3 mt-2">
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setCandidateStep("email_mobile");
+                              setError("");
+                              setCandidateYear("");
+                            }}
+                            variant="outline"
+                            className="flex-1 h-11 border border-border hover:bg-muted"
+                          >
+                            Back
+                          </Button>
+                          <Button type="submit" disabled={loading} className="flex-1 h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white">
+                            {loading ? "Continuing..." : "Continue"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </>
                 )}
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-muted-foreground">Password</label>
-                    <button 
-                      type="button" 
-                      onClick={() => { setError(""); setMode("forgot_email"); }}
-                      className="text-xs text-[#6C63FF] font-semibold hover:underline"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
-                  <div className="mt-1.5 relative">
-                    <Input type={show ? "text" : "password"} required placeholder="••••••••" className="pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <Button type="submit" disabled={loading} className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white">
-                  {loading ? "Signing in..." : "Login"}
-                </Button>
               </form>
             </>
           )}

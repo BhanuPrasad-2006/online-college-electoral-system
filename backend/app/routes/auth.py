@@ -1,13 +1,18 @@
 import uuid
+import jwt
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.voter import Voter
 from app.models.candidate import Candidate
 from app.models.position import Position
+from app.models.election import Election
+from app.enums.election_status import ElectionStatusEnum
 from app.schemas.auth_schema import (
     VoterLoginRequest,
     VoterOTPVerifyRequest,
@@ -22,6 +27,8 @@ from app.schemas.auth_schema import (
     ResendOTPRequest,
     OTPSentResponse,
     AuthTokenResponse,
+    CandidateCheckRequest,
+    CandidateInitiateRequest,
 )
 from app.services.auth_service import (
     voter_login_step1,
@@ -86,6 +93,137 @@ async def voter_verify_otp(
 
 
 # ─── Candidate Routes ────────────────────────────────────────
+
+@router.post("/candidate/check", status_code=status.HTTP_200_OK)
+async def candidate_check(
+    body: CandidateCheckRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    email_norm = body.email.strip().lower()
+    mobile_norm = body.mobile_number.strip().replace("+91", "").replace(" ", "").replace("-", "")
+
+    # 1. Check if candidate exists
+    # Find voter by email first
+    voter_res = await db.execute(select(Voter).where(Voter.college_email == email_norm))
+    voter = voter_res.scalar_one_or_none()
+
+    if voter:
+        # Check if they have a candidate record
+        cand_res = await db.execute(select(Candidate).where(Candidate.voter_id == voter.voter_id))
+        candidate = cand_res.scalar_one_or_none()
+
+        if candidate:
+            # Existing candidate
+            return {"status": "exists"}
+
+        # Eligible voter but not candidate
+        if voter.year_of_study in [3, 4]:
+            # Generate temporary token
+            expire = datetime.now(timezone.utc) + timedelta(minutes=20)
+            payload = {
+                "sub": str(voter.voter_id),
+                "email": voter.college_email,
+                "mobile_number": body.mobile_number,
+                "year_of_study": voter.year_of_study,
+                "type": "candidate_eligibility_session",
+                "exp": expire,
+            }
+            token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+            return {
+                "status": "eligible",
+                "token": token,
+                "voter_details": {
+                    "full_name": voter.full_name,
+                    "department": voter.department or "",
+                    "semester": f"{voter.year_of_study * 2}th" if voter.year_of_study else ""
+                }
+            }
+        else:
+            return {
+                "status": "ineligible",
+                "reason": "Only 3rd and 4th year students can become candidates."
+            }
+
+    # 2. Not yet voter in the database
+    # Check college email validity
+    if not (email_norm.endswith("@college.edu.in") or email_norm.endswith("@dsce.edu.in")):
+        return {
+            "status": "ineligible",
+            "reason": "Invalid college email. You must use your official college email address (@college.edu.in) to register as a candidate."
+        }
+
+    return {"status": "need_year"}
+
+
+@router.post("/candidate/initiate", status_code=status.HTTP_200_OK)
+async def candidate_initiate(
+    body: CandidateInitiateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    email_norm = body.email.strip().lower()
+
+    # 1. College email only
+    if not (email_norm.endswith("@college.edu.in") or email_norm.endswith("@dsce.edu.in")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid college email. You must use your official college email address (@college.edu.in)."
+        )
+
+    # 2. Year must be 3 or 4
+    if body.year_of_study not in [3, 4]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only 3rd and 4th year students can become candidates."
+        )
+
+    # 3. Mobile unique check
+    cand_mobile_res = await db.execute(select(Candidate).where(Candidate.mobile_number == body.mobile_number))
+    if cand_mobile_res.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This mobile number is already registered for a candidate."
+        )
+
+    # 4. Check if registration window is open
+    election_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = election_res.scalars().first()
+    if not election:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active election found."
+        )
+
+    if election.status not in [ElectionStatusEnum.UPCOMING.value, ElectionStatusEnum.REGISTRATION_OPEN.value]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Candidate registration window is closed."
+        )
+
+    now = datetime.now(timezone.utc)
+    if election.registration_start and election.registration_end:
+        if now < election.registration_start or now > election.registration_end:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Candidate registration window is closed."
+            )
+
+    # Generate temporary registration token
+    expire = datetime.now(timezone.utc) + timedelta(minutes=20)
+    payload = {
+        "sub": str(uuid.uuid4()), # generate temp voter ID
+        "email": email_norm,
+        "mobile_number": body.mobile_number,
+        "year_of_study": body.year_of_study,
+        "type": "candidate_eligibility_session",
+        "exp": expire,
+    }
+    token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
+
+    return {
+        "status": "eligible",
+        "token": token
+    }
+
 
 @router.post(
     "/candidate/login",
@@ -201,6 +339,7 @@ async def get_voter_profile(
         "department": voter.department or "—",
         "year": year_str,
         "studentId": voter.student_id or "—",
+        "voter_code": voter.voter_code or "—",
         "voted": voter.has_voted,
         "vote_permission": voter.vote_permission,
     }

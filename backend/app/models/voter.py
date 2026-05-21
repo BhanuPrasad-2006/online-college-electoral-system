@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Boolean, DateTime, Integer
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -16,6 +16,9 @@ class Voter(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
+
+    # Hashed 8-character verification ID printed on the voter's card.
+    verification_id = Column(String(255), nullable=True, index=True)
 
     student_id = Column(String(50), unique=True, nullable=True, index=True)
 
@@ -52,6 +55,14 @@ class Voter(Base):
         back_populates="voter",
         uselist=False,
     )
+
+    @property
+    def verification_code(self):
+        return None
+
+    @property
+    def voter_code(self):
+        return "Configured" if self.verification_id else None
 
     def __repr__(self):
         return f"<Voter {self.college_email}>"

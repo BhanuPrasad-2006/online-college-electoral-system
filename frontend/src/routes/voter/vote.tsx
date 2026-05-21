@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { castVote } from "@/lib/api";
+import { castVote, verifyVoterId } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
@@ -18,8 +18,9 @@ function VotePage() {
   const nav = useNavigate();
   const { logout } = useAuth();
   const [verified, setVerified] = useState(false);
-  const [studentId, setStudentId] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [attempts, setAttempts] = useState(0);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [review, setReview] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -103,20 +104,49 @@ function VotePage() {
 
   const presidents = candidates.filter((c) => c.position === "President" && (c.status || "").toLowerCase() === "approved");
 
-  function tryVerify() {
-    if (studentId.trim().length >= 6) setVerified(true);
-    else setAttempts((a) => a + 1);
+  async function tryVerify() {
+    const idToVerify = verificationCode.trim();
+    if (!/^[A-Z0-9]{8}$/.test(idToVerify)) {
+      toast.error("Verification ID must be exactly 8 uppercase letters and numbers.");
+      return;
+    }
+    
+    setIsVerifying(true);
+    try {
+      const res = await verifyVoterId(idToVerify);
+      if (res.success) {
+        setVerified(true);
+        toast.success("Verification successful!");
+      }
+    } catch (e: any) {
+      console.error(e);
+      const nextAttempts = attempts + 1;
+      setAttempts(nextAttempts);
+      toast.error(e.message || "Invalid Verification ID");
+      if (nextAttempts >= 3) {
+        toast.error("Session locked due to too many failed attempts.");
+        logout();
+        nav({ to: "/" });
+      }
+    } finally {
+      setIsVerifying(false);
+    }
   }
 
   async function handleCastVote() {
     setIsSubmitting(true);
     try {
-      await castVote(selected === NOTA_ID ? null : selected);
+      await castVote(selected === NOTA_ID ? null : selected, verificationCode.trim());
       setConfirmed(true);
       toast.success("Vote cast successfully!");
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to cast vote. Please try again.");
+      // If verification code was wrong, go back to verification screen
+      if (e.message?.toLowerCase().includes("verification code")) {
+        setVerified(false);
+        setAttempts((a) => a + 1);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -149,13 +179,28 @@ function VotePage() {
             <ShieldCheck className="h-7 w-7 text-[#6C63FF]" />
           </div>
           <h1 className="text-xl font-bold mt-4">Identity Verification</h1>
-          <p className="text-sm text-muted-foreground mt-2">Enter the Student ID printed on your physical college ID card.</p>
-          <Input value={studentId} onChange={(e) => setStudentId(e.target.value)} placeholder="e.g. CS2021001" className="mt-5 text-center h-12" />
-          {attempts > 0 && <p className="text-xs text-destructive mt-2">Invalid ID. {3 - attempts} attempts remaining.</p>}
+          <p className="text-sm text-muted-foreground mt-2">
+            Enter the <strong>Verification Code</strong> given to you by the election coordinator.
+          </p>
+          <Input 
+            value={verificationCode} 
+            onChange={(e) => setVerificationCode(e.target.value.toUpperCase())} 
+            placeholder="e.g. A7K9P2XQ" 
+            maxLength={8}
+            className="mt-5 text-center h-12 tracking-widest font-mono text-lg animate-in fade-in slide-in-from-bottom-2 duration-350" 
+            onKeyDown={(e) => e.key === "Enter" && tryVerify()}
+          />
+          {attempts > 0 && <p className="text-xs text-destructive mt-2">Invalid code. {3 - attempts} attempts remaining.</p>}
           <p className="text-xs text-muted-foreground mt-2">3 failed attempts will lock your session.</p>
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" className="flex-1" onClick={() => nav({ to: "/voter/dashboard" })}>Cancel</Button>
-            <Button className="flex-1 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={tryVerify} disabled={!studentId.trim()}>Verify & Proceed</Button>
+            <Button variant="outline" className="flex-1 rounded-xl" onClick={() => nav({ to: "/voter/dashboard" })} disabled={isVerifying}>Cancel</Button>
+            <Button 
+              className="flex-1 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white rounded-xl font-semibold shadow-sm transition-all" 
+              onClick={tryVerify} 
+              disabled={!verificationCode.trim() || isVerifying || verificationCode.length !== 8}
+            >
+              {isVerifying ? "Verifying..." : "Verify & Proceed"}
+            </Button>
           </div>
         </div>
       </div>
