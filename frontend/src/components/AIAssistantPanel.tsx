@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send, Sparkles, ShieldAlert, RotateCcw, Loader2,
-  Bot, User, X, Minimize2, ChevronDown,
+  Bot, User, X, Minimize2, ChevronDown, MessageCircle,
 } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
 
@@ -18,35 +18,31 @@ const API_BASE = "http://127.0.0.1:8000/api/v1/ai";
 // ── Minimal Markdown renderer (no extra deps) ─────────────────────────────────
 function renderMarkdown(raw: string): string {
   let html = raw
-    // Bold
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    // Italic
     .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
-    // Inline code
     .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 
-  // Tables
   html = html.replace(/((?:\|[^\n]+\|\n?)+)/g, (table) => {
     const rows = table.trim().split("\n");
     if (rows.length < 2) return table;
     const headerCells = rows[0].split("|").filter(Boolean);
     const header = headerCells.map((c) => `<th>${c.trim()}</th>`).join("");
-    const bodyRows = rows.slice(2).map(
-      (row) =>
-        `<tr>${row
-          .split("|")
-          .filter(Boolean)
-          .map((c) => `<td>${c.trim()}</td>`)
-          .join("")}</tr>`
-    ).join("");
+    const bodyRows = rows
+      .slice(2)
+      .map(
+        (row) =>
+          `<tr>${row
+            .split("|")
+            .filter(Boolean)
+            .map((c) => `<td>${c.trim()}</td>`)
+            .join("")}</tr>`
+      )
+      .join("");
     return `<div class="chat-table-wrap"><table class="chat-table"><thead><tr>${header}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
   });
 
-  // Bullet lists
   html = html.replace(/^[\-\*] (.+)$/gm, "<li>$1</li>");
   html = html.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
-
-  // Line breaks
   html = html.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>");
 
   return `<p>${html}</p>`;
@@ -57,7 +53,6 @@ const SUGGESTIONS = [
   "Compare all candidates on Wi-Fi",
   "Who addresses placements?",
   "Top student concerns?",
-  "Kiran Reddy's sports plan",
   "Mental health support plans",
 ];
 
@@ -129,13 +124,13 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
   );
 }
 
-// ── Floating chatbot widget (used from AppLayout) ─────────────────────────────
+// ── Floating chatbot widget ────────────────────────────────────────────────────
 export function FloatingChatbot() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([{
     from: "ai",
-    text: "👋 Hi! I'm your **Election AI Assistant**. Ask me anything about candidates or manifestos!",
+    text: "👋 Hi! I'm your **Election AI Assistant**.\n\nAsk me anything about candidates or their manifestos. I'm completely neutral!",
     timestamp: new Date(),
   }]);
   const [input, setInput] = useState("");
@@ -147,15 +142,13 @@ export function FloatingChatbot() {
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Fetch suggestions from backend
   useEffect(() => {
     fetch(`${API_BASE}/chat/suggestions`)
       .then((r) => r.json())
-      .then((d) => d?.suggestions?.length && setSuggestions(d.suggestions.slice(0, 5)))
+      .then((d) => d?.suggestions?.length && setSuggestions(d.suggestions.slice(0, 4)))
       .catch(() => {});
   }, []);
 
-  // Scroll to bottom whenever messages change
   useEffect(() => {
     if (!open || minimized) return;
     requestAnimationFrame(() => {
@@ -163,7 +156,6 @@ export function FloatingChatbot() {
     });
   }, [msgs, loading, open, minimized]);
 
-  // Focus input when opened
   useEffect(() => {
     if (open && !minimized) {
       setTimeout(() => inputRef.current?.focus(), 150);
@@ -194,7 +186,7 @@ export function FloatingChatbot() {
     } catch (e: any) {
       setMsgs((p) => [...p, {
         from: "ai",
-        text: `⚠️ **Connection error**: ${e.message || "Could not reach the backend. Make sure the server is running."}`,
+        text: `⚠️ **Connection error**: ${e.message || "Could not reach the backend."}`,
         isError: true,
         timestamp: new Date(),
       }]);
@@ -219,53 +211,57 @@ export function FloatingChatbot() {
 
   return (
     <>
-      {/* ── Floating Toggle Button — fixed bottom-right ── */}
-      <button
-        onClick={() => { setOpen((o) => !o); setMinimized(false); }}
-        className="fixed bottom-6 right-6 z-[9999] group relative h-14 w-14 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white shadow-lg shadow-[#6C63FF]/30 flex items-center justify-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#6C63FF]/40 active:scale-95"
-        aria-label="Toggle AI Assistant"
-        title="Election AI Assistant"
-      >
-        <span className="absolute inset-0 rounded-full bg-[#6C63FF]/20 animate-ping" style={{ animationDuration: "3s" }} />
-        <Bot className={`h-6 w-6 relative z-10 transition-all duration-200 ${open ? "scale-90 opacity-0 absolute" : "scale-100 opacity-100"}`} />
-        <X className={`h-5 w-5 relative z-10 transition-all duration-200 ${open ? "scale-100 opacity-100" : "scale-90 opacity-0 absolute"}`} />
-        <span className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-white z-20" />
-      </button>
-
-      {/* ── Chat Window — anchored bottom-right, never overflows viewport ── */}
+      {/* ── Chat panel — sits above the FAB button ── */}
       {open && (
         <div
-          className="fixed z-[9998] w-[380px] max-w-[calc(100vw-16px)] flex flex-col rounded-2xl overflow-hidden shadow-2xl shadow-black/25 border border-white/10 animate-in slide-in-from-bottom-3 fade-in duration-200"
+          className="fixed z-[9998] flex flex-col rounded-2xl overflow-hidden shadow-2xl shadow-black/30 border border-white/10 animate-in slide-in-from-bottom-4 fade-in duration-300"
           style={{
-            bottom: "88px",   /* sits just above the 56px button + 32px gap */
+            bottom: "88px",
             right: "24px",
-            height: minimized ? "auto" : "min(540px, calc(100vh - 110px))",
-            maxHeight: "calc(100vh - 110px)",
+            width: "380px",
+            maxWidth: "calc(100vw - 32px)",
+            height: minimized ? "auto" : "min(560px, calc(100vh - 120px))",
+            maxHeight: "calc(100vh - 120px)",
           }}
         >
           {/* ── Header ── */}
-          <div className="bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] px-4 py-3 flex items-center gap-3 shrink-0">
-            <div className="relative">
-              <div className="h-9 w-9 rounded-full bg-white/15 flex items-center justify-center">
+          <div className="bg-gradient-to-r from-[#1a1a2e] via-[#1F3A6E] to-[#6C63FF] px-4 py-3 flex items-center gap-3 shrink-0">
+            <div className="relative shrink-0">
+              <div className="h-9 w-9 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20">
                 <Bot className="h-5 w-5 text-white" />
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-[#1F3A6E]" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-semibold text-sm leading-tight">Election AI Assistant</p>
-              <p className="text-white/60 text-[10px]">Powered by Gemini 2.5 Flash · Strictly neutral</p>
+              <p className="text-white/60 text-[10px] flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
+                Online · Powered by Gemini 2.5 Flash
+              </p>
             </div>
-            <div className="flex items-center gap-1">
-              <button onClick={clearChat} title="Clear chat"
-                className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={clearChat}
+                title="Clear chat"
+                className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-colors"
+              >
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => setMinimized((m) => !m)} title={minimized ? "Expand" : "Minimize"}
-                className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
-                {minimized ? <ChevronDown className="h-3.5 w-3.5 rotate-180" /> : <Minimize2 className="h-3.5 w-3.5" />}
+              <button
+                onClick={() => setMinimized((m) => !m)}
+                title={minimized ? "Expand" : "Minimize"}
+                className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-colors"
+              >
+                {minimized
+                  ? <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+                  : <Minimize2 className="h-3.5 w-3.5" />
+                }
               </button>
-              <button onClick={() => setOpen(false)} title="Close"
-                className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+              <button
+                onClick={() => setOpen(false)}
+                title="Close"
+                className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-colors"
+              >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -274,26 +270,30 @@ export function FloatingChatbot() {
           {!minimized && (
             <>
               {/* ── Neutrality notice ── */}
-              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200/40 dark:border-amber-800/30 px-3 py-1.5 flex items-center gap-2 shrink-0">
-                <ShieldAlert className="h-3 w-3 text-amber-600 shrink-0" />
+              <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200/50 dark:border-amber-800/30 px-3 py-1.5 flex items-center gap-2 shrink-0">
+                <ShieldAlert className="h-3 w-3 text-amber-500 shrink-0" />
                 <p className="text-[10px] text-amber-700 dark:text-amber-400">
                   Neutral responses only · Based strictly on submitted manifestos
                 </p>
               </div>
 
-              {/* ── Messages area — this is the ONLY scrollable container ── */}
+              {/* ── Messages ── */}
               <div
                 ref={scrollAreaRef}
-                className="flex-1 overflow-y-auto bg-[#F8F9FB] dark:bg-[#0F1724] overscroll-contain"
+                className="flex-1 overflow-y-auto bg-[#F7F8FC] dark:bg-[#0F1724] overscroll-contain"
                 style={{ minHeight: 0 }}
               >
                 <div className="p-3 space-y-3">
-                  {/* Suggestion chips (only before first user message) */}
+                  {/* Suggestion chips */}
                   {showSuggestions && (
                     <div className="flex flex-wrap gap-1.5 pb-1">
                       {suggestions.map((s) => (
-                        <button key={s} onClick={() => send(s)} disabled={loading}
-                          className="px-2.5 py-1 rounded-full bg-white dark:bg-white/5 border border-[#6C63FF]/20 text-[#6C63FF] text-[10px] font-medium hover:bg-[#6C63FF] hover:text-white transition-all duration-150 disabled:opacity-40 shadow-sm flex items-center gap-1">
+                        <button
+                          key={s}
+                          onClick={() => send(s)}
+                          disabled={loading}
+                          className="px-2.5 py-1.5 rounded-full bg-white dark:bg-white/5 border border-[#6C63FF]/25 text-[#6C63FF] text-[10px] font-medium hover:bg-[#6C63FF] hover:text-white hover:border-[#6C63FF] transition-all duration-150 disabled:opacity-40 shadow-sm flex items-center gap-1"
+                        >
                           <Sparkles className="h-2.5 w-2.5" /> {s}
                         </button>
                       ))}
@@ -306,20 +306,25 @@ export function FloatingChatbot() {
               </div>
 
               {/* ── Input bar ── */}
-              <div className="bg-white dark:bg-[#0F1724] border-t border-border/60 p-2.5 flex gap-2 items-center shrink-0">
+              <div className="bg-white dark:bg-[#0F1724] border-t border-gray-100 dark:border-white/10 p-3 flex gap-2 items-center shrink-0">
                 <input
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send(input);
+                    }
+                  }}
                   placeholder="Ask about candidates..."
                   disabled={loading}
-                  className="flex-1 h-9 px-3 rounded-xl border border-border bg-[#F8F9FB] dark:bg-white/5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 focus:border-[#6C63FF]/50 disabled:opacity-50 transition-all"
+                  className="flex-1 h-9 px-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 focus:border-[#6C63FF]/60 disabled:opacity-50 transition-all"
                 />
                 <button
                   onClick={() => send(input)}
                   disabled={loading || !input.trim()}
-                  className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-opacity shrink-0"
+                  className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-all shrink-0 shadow-md shadow-[#6C63FF]/30"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </button>
@@ -329,7 +334,27 @@ export function FloatingChatbot() {
         </div>
       )}
 
-      {/* ── Inline styles for chat elements ── */}
+      {/* ── FAB Toggle Button — always fixed bottom-right ── */}
+      <button
+        onClick={() => { setOpen((o) => !o); setMinimized(false); }}
+        className="fixed bottom-6 right-6 z-[9999] h-14 w-14 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white shadow-lg shadow-[#6C63FF]/40 flex items-center justify-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#6C63FF]/50 active:scale-95 group"
+        aria-label="Toggle AI Assistant"
+        title="Election AI Assistant"
+      >
+        {/* Pulse ring */}
+        <span className="absolute inset-0 rounded-full bg-[#6C63FF]/30 animate-ping" style={{ animationDuration: "2.5s" }} />
+        {/* Online dot */}
+        <span className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-white z-10 shadow-sm" />
+        {/* Icon toggle */}
+        <span className="relative z-10 transition-all duration-200">
+          {open
+            ? <X className="h-5 w-5" />
+            : <MessageCircle className="h-6 w-6" />
+          }
+        </span>
+      </button>
+
+      {/* ── Inline styles ── */}
       <style>{`
         .inline-code {
           padding: 1px 5px;
@@ -350,9 +375,7 @@ export function FloatingChatbot() {
           font-size: 11px;
           border-collapse: collapse;
         }
-        .chat-table thead tr {
-          background: rgba(108,99,255,0.08);
-        }
+        .chat-table thead tr { background: rgba(108,99,255,0.08); }
         .chat-table th, .chat-table td {
           padding: 6px 10px;
           text-align: left;
@@ -385,20 +408,24 @@ function MessageList({
   return (
     <>
       {msgs.map((m, i) => (
-        <div key={i} className={`flex gap-2 ${m.from === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-1 duration-150`}>
+        <div
+          key={i}
+          className={`flex gap-2 ${m.from === "user" ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-1 duration-200`}
+        >
           {m.from === "ai" && (
-            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/20 flex items-center justify-center shrink-0 mt-0.5 border border-[#6C63FF]/15">
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/20 flex items-center justify-center shrink-0 mt-0.5 border border-[#6C63FF]/20">
               <Bot className="h-3.5 w-3.5 text-[#6C63FF]" />
             </div>
           )}
           <div className={`${compact ? "max-w-[85%]" : "max-w-[78%]"} flex flex-col ${m.from === "user" ? "items-end" : "items-start"} gap-0.5`}>
-            <div className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed
-              ${m.from === "user"
-                ? "bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white rounded-br-sm shadow-md shadow-[#6C63FF]/20"
-                : m.isError
-                ? "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200/50 rounded-bl-sm"
-                : "bg-white dark:bg-white/5 text-foreground border border-border/60 rounded-bl-sm shadow-sm"
-              }`}
+            <div
+              className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed
+                ${m.from === "user"
+                  ? "bg-gradient-to-br from-[#6C63FF] to-[#4F46E5] text-white rounded-br-sm shadow-md shadow-[#6C63FF]/25"
+                  : m.isError
+                    ? "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200/50 rounded-bl-sm"
+                    : "bg-white dark:bg-white/5 text-foreground border border-gray-100 dark:border-white/10 rounded-bl-sm shadow-sm"
+                }`}
             >
               {m.from === "user" ? (
                 <p className="break-words">{m.text}</p>
@@ -412,8 +439,8 @@ function MessageList({
             <span className="text-[10px] text-muted-foreground px-1">{ft(m.timestamp)}</span>
           </div>
           {m.from === "user" && (
-            <div className="h-7 w-7 rounded-full bg-[#1F3A6E]/10 dark:bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
-              <User className="h-3.5 w-3.5 text-[#1F3A6E] dark:text-white/70" />
+            <div className="h-7 w-7 rounded-full bg-[#6C63FF]/10 dark:bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
+              <User className="h-3.5 w-3.5 text-[#6C63FF] dark:text-white/70" />
             </div>
           )}
         </div>
@@ -421,14 +448,20 @@ function MessageList({
 
       {loading && (
         <div className="flex gap-2 justify-start animate-in fade-in duration-150">
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/20 flex items-center justify-center shrink-0 border border-[#6C63FF]/15">
+          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/20 flex items-center justify-center shrink-0 border border-[#6C63FF]/20">
             <Bot className="h-3.5 w-3.5 text-[#6C63FF]" />
           </div>
-          <div className="bg-white dark:bg-white/5 border border-border/60 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+          <div className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
             <div className="flex items-center gap-1.5">
               {[0, 1, 2].map((i) => (
-                <span key={i} className="h-1.5 w-1.5 rounded-full bg-[#6C63FF] animate-bounce"
-                  style={{ animationDelay: `${i * 150}ms`, animationDuration: "0.8s" }} />
+                <span
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full bg-[#6C63FF]"
+                  style={{
+                    animation: "bounce 0.8s infinite",
+                    animationDelay: `${i * 150}ms`,
+                  }}
+                />
               ))}
             </div>
           </div>
@@ -446,7 +479,7 @@ function ChatInput({
   setInput: (v: string) => void;
   send: (t: string) => void;
   loading: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="border-t border-border p-3 flex gap-2 items-center bg-card rounded-b-2xl">

@@ -1,13 +1,12 @@
 import { Outlet, useRouterState, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { MessageSquare } from "lucide-react";
 import { Sidebar, type SidebarKind } from "./Sidebar";
 import { Header } from "./Header";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ElectionIsland } from "@/components/ElectionIsland";
 import { useAuth } from "@/context/AuthContext";
 import { MobileBottomNav } from "./MobileBottomNav";
-import { AIAssistantPanel } from "@/components/AIAssistantPanel";
+import { FloatingChatbot } from "@/components/AIAssistantPanel";
 import { PageLoader } from "@/components/PageLoader";
 
 const AUTH_PATHS = new Set([
@@ -22,7 +21,6 @@ const AUTH_PATHS = new Set([
 export function AppLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const { role, isAuthed, authReady } = useAuth();
 
   // Pure auth shell — no sidebar/header/island
@@ -74,20 +72,6 @@ export function AppLayout() {
         </SheetContent>
       </Sheet>
 
-      {/* AI Assistant slide-in sheet (voter only) */}
-      {kind === "voter" && (
-        <Sheet open={aiAssistantOpen} onOpenChange={setAiAssistantOpen}>
-          <SheetContent
-            side="right"
-            className="w-full sm:max-w-xl flex flex-col p-0 overflow-hidden"
-          >
-            <div className="flex-1 overflow-y-auto p-6">
-              <AIAssistantPanel compact />
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
-
       {/*
         Main content area.
         md:ml-[260px] offsets the content to the right of the fixed sidebar.
@@ -101,17 +85,8 @@ export function AppLayout() {
         <MobileBottomNav kind={kind} />
       </div>
 
-      {/* AI chatbot FAB — fixed bottom-right, voter only */}
-      {kind === "voter" && (
-        <button
-          onClick={() => setAiAssistantOpen(true)}
-          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white shadow-lg shadow-[#6C63FF]/30 flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-95"
-          aria-label="Open AI Assistant"
-          title="Election AI Assistant"
-        >
-          <MessageSquare className="h-6 w-6" />
-        </button>
-      )}
+      {/* Floating AI chatbot widget — fixed bottom-right, voter only */}
+      {kind === "voter" && <FloatingChatbot />}
     </div>
   );
 }
