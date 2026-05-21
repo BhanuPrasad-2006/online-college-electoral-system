@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Users, Lock, Unlock, CheckCircle2, ShieldAlert, RefreshCw, Search, Edit2, Check, Key } from "lucide-react";
+import { Plus, X, Users, Lock, Unlock, RefreshCw, Search, Edit2, Check, Building2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { fetchVotersForAdmin, updateVoterPermission, fetchCurrentElection, openVoting, closeVoting, publishResults, setVoterVerificationCode, updateElectionDates } from "@/lib/api";
 
@@ -17,6 +17,9 @@ function Page() {
   const [loadingVoters, setLoadingVoters] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingVoterId, setUpdatingVoterId] = useState<string | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string>("All");
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({});
 
   // Verification ID states
   const [editingVoterId, setEditingVoterId] = useState<string | null>(null);
@@ -252,11 +255,66 @@ function Page() {
     }
   }
 
-  const filteredVoters = voters.filter(v => 
-    v.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.student_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.college_email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ── Derived department list & filtered voters ──────────────
+  const departments = useMemo(() => {
+    const depts = new Set<string>();
+    voters.forEach(v => { if (v.department) depts.add(v.department.trim()); });
+    return ["All", ...Array.from(depts).sort()];
+  }, [voters]);
+
+  const filteredVoters = useMemo(() => {
+    return voters.filter(v => {
+      const matchesSearch =
+        (v.full_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (v.student_id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (v.college_email || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesDept = selectedDept === "All" || (v.department || "").trim() === selectedDept;
+      return matchesSearch && matchesDept;
+    });
+  }, [voters, searchQuery, selectedDept]);
+
+  const deptStats = useMemo(() => {
+    const map: Record<string, { total: number; allowed: number; voted: number }> = {};
+    voters.forEach(v => {
+      const d = (v.department || "Unknown").trim();
+      if (!map[d]) map[d] = { total: 0, allowed: 0, voted: 0 };
+      map[d].total++;
+      if (v.vote_permission) map[d].allowed++;
+      if (v.has_voted) map[d].voted++;
+    });
+    return map;
+  }, [voters]);
+
+  async function handleBulkPermission(dept: string, grant: boolean) {
+    const targets = (dept === "All" ? voters : voters.filter(v => (v.department || "").trim() === dept))
+      .filter(v => v.vote_permission !== grant);
+    if (targets.length === 0) {
+      toast.info(`All voters in ${dept} are already ${grant ? "allowed" : "blocked"}.`);
+      return;
+    }
+    setBulkUpdating(true);
+    let success = 0;
+    let fail = 0;
+    for (const v of targets) {
+      try {
+        await updateVoterPermission(v.voter_id, grant);
+        success++;
+      } catch {
+        fail++;
+      }
+    }
+    // Refresh local state
+    setVoters(prev => prev.map(v => {
+      const inTarget = targets.some(t => t.voter_id === v.voter_id);
+      return inTarget ? { ...v, vote_permission: grant } : v;
+    }));
+    setBulkUpdating(false);
+    if (fail === 0) {
+      toast.success(`${success} voter${success !== 1 ? "s" : ""} ${grant ? "allowed" : "blocked"} successfully.`);
+    } else {
+      toast.warning(`${success} updated, ${fail} failed.`);
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -269,6 +327,7 @@ function Page() {
         <div className="lg:col-span-2 space-y-6">
           {/* Voter Voting Permission Control Section */}
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
+            {/* ── Header ── */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <h2 className="text-base font-semibold flex items-center gap-2">
@@ -276,7 +335,7 @@ function Page() {
                   Voter Voting Permissions
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Approve voters to allow them to cast their ballots during the active election.
+                  Filter by department, then bulk-allow or revoke access for any group.
                 </p>
               </div>
               <Button size="sm" variant="outline" onClick={loadVoters} disabled={loadingVoters} className="gap-2">
@@ -285,6 +344,23 @@ function Page() {
               </Button>
             </div>
 
+            {/* ── Summary stats row ── */}
+            {!loadingVoters && voters.length > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Total Voters", value: voters.length, color: "text-foreground" },
+                  { label: "Allowed to Vote", value: voters.filter(v => v.vote_permission).length, color: "text-[#6C63FF]" },
+                  { label: "Already Voted", value: voters.filter(v => v.has_voted).length, color: "text-success" },
+                ].map(stat => (
+                  <div key={stat.label} className="bg-muted/40 rounded-xl p-3 border border-border/40 text-center">
+                    <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Search ── */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -295,6 +371,72 @@ function Page() {
               />
             </div>
 
+            {/* ── Department filter pills ── */}
+            {!loadingVoters && voters.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {departments.map(dept => {
+                  const stats = dept === "All"
+                    ? { total: voters.length, allowed: voters.filter(v => v.vote_permission).length }
+                    : (deptStats[dept] || { total: 0, allowed: 0 });
+                  const isActive = selectedDept === dept;
+                  return (
+                    <button
+                      key={dept}
+                      onClick={() => setSelectedDept(dept)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                        isActive
+                          ? "bg-[#1F3A6E] text-white border-[#1F3A6E] shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-border hover:border-[#1F3A6E]/40 hover:text-foreground"
+                      }`}
+                    >
+                      {dept === "All" ? <Users className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                      {dept}
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        isActive ? "bg-white/20" : "bg-border/60"
+                      }`}>{stats.total}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Bulk action bar for selected department ── */}
+            {!loadingVoters && filteredVoters.length > 0 && (
+              <div className="flex items-center justify-between bg-muted/30 border border-border/50 rounded-xl px-4 py-3 flex-wrap gap-3">
+                <div className="text-xs">
+                  <span className="font-semibold text-foreground">
+                    {selectedDept === "All" ? "All Departments" : selectedDept}
+                  </span>
+                  <span className="text-muted-foreground ml-2">
+                    {filteredVoters.length} voter{filteredVoters.length !== 1 ? "s" : ""} ·{" "}
+                    {filteredVoters.filter(v => v.vote_permission).length} allowed ·{" "}
+                    {filteredVoters.filter(v => v.has_voted).length} voted
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-[#6C63FF] hover:bg-[#6C63FF]/90 text-white h-8 text-xs gap-1.5"
+                    disabled={bulkUpdating || filteredVoters.every(v => v.vote_permission)}
+                    onClick={() => handleBulkPermission(selectedDept, true)}
+                  >
+                    {bulkUpdating ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Unlock className="h-3 w-3" />}
+                    Allow All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-8 text-xs gap-1.5"
+                    disabled={bulkUpdating || filteredVoters.every(v => !v.vote_permission)}
+                    onClick={() => handleBulkPermission(selectedDept, false)}
+                  >
+                    {bulkUpdating ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3" />}
+                    Revoke All
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {loadingVoters ? (
               <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                 <RefreshCw className="h-8 w-8 animate-spin text-[#6C63FF] mb-2" />
@@ -302,7 +444,8 @@ function Page() {
               </div>
             ) : filteredVoters.length === 0 ? (
               <div className="text-center py-10 border border-dashed border-border rounded-xl">
-                <p className="text-sm text-muted-foreground">No voters found matching your query.</p>
+                <Building2 className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground">No voters found{selectedDept !== "All" ? ` in ${selectedDept}` : ""}.</p>
               </div>
             ) : (
               <div className="overflow-x-auto border border-border/60 rounded-xl">
@@ -310,10 +453,10 @@ function Page() {
                   <thead>
                     <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground border-b border-border/60">
                       <th className="p-3">Student Details</th>
-                      <th className="p-3">Department</th>
-                      <th className="p-3 text-center">Verification ID Status</th>
-                      <th className="p-3 text-center">Tally Status</th>
-                      <th className="p-3 text-center">Voting Permission</th>
+                      <th className="p-3">Dept / Year</th>
+                      <th className="p-3 text-center">Verification ID</th>
+                      <th className="p-3 text-center">Voted?</th>
+                      <th className="p-3 text-center">Permission</th>
                       <th className="p-3 text-right">Action</th>
                     </tr>
                   </thead>
@@ -324,14 +467,15 @@ function Page() {
                           <p className="font-medium text-foreground">{v.full_name}</p>
                           <p className="text-xs text-muted-foreground">{v.student_id} · {v.college_email}</p>
                         </td>
-                        <td className="p-3 text-muted-foreground">
-                          {v.department} <span className="text-xs">({v.year_of_study} Year)</span>
+                        <td className="p-3">
+                          <p className="text-sm font-medium text-foreground">{v.department || "—"}</p>
+                          <p className="text-xs text-muted-foreground">Year {v.year_of_study || "—"}</p>
                         </td>
                         <td className="p-3 text-center">
                           {editingVoterId === v.voter_id ? (
                             <div className="flex items-center justify-center gap-1.5 max-w-[150px] mx-auto">
-                              <Input 
-                                value={editingIdVal} 
+                              <Input
+                                value={editingIdVal}
                                 onChange={(e) => setEditingIdVal(e.target.value.toUpperCase())}
                                 placeholder="8 chars"
                                 maxLength={8}
@@ -343,40 +487,30 @@ function Page() {
                                 disabled={savingVoterId === v.voter_id || editingIdVal.length !== 8}
                                 onClick={() => handleSaveVerificationId(v.voter_id)}
                               >
-                                {savingVoterId === v.voter_id ? (
-                                  <RefreshCw className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Check className="h-3.5 w-3.5" />
-                                )}
+                                {savingVoterId === v.voter_id
+                                  ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                  : <Check className="h-3.5 w-3.5" />}
                               </Button>
                               <Button
                                 size="icon"
                                 variant="outline"
                                 className="h-8 w-8 text-muted-foreground border-border hover:bg-muted"
                                 disabled={savingVoterId === v.voter_id}
-                                onClick={() => {
-                                  setEditingVoterId(null);
-                                  setEditingIdVal("");
-                                }}
+                                onClick={() => { setEditingVoterId(null); setEditingIdVal(""); }}
                               >
                                 <X className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           ) : (
                             <div className="flex items-center justify-center gap-2">
-                              {v.verification_id_set ? (
-                                <Badge className="bg-success/15 text-success border-0 font-medium">Set ✓</Badge>
-                              ) : (
-                                <Badge variant="destructive" className="bg-destructive/15 text-destructive border-0 font-medium">Not Set ✗</Badge>
-                              )}
+                              {v.verification_id_set
+                                ? <Badge className="bg-success/15 text-success border-0 font-medium">Set ✓</Badge>
+                                : <Badge variant="destructive" className="bg-destructive/15 text-destructive border-0 font-medium">Not Set</Badge>}
                               <Button
                                 size="icon"
                                 variant="ghost"
                                 className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                onClick={() => {
-                                  setEditingVoterId(v.voter_id);
-                                  setEditingIdVal("");
-                                }}
+                                onClick={() => { setEditingVoterId(v.voter_id); setEditingIdVal(""); }}
                               >
                                 <Edit2 className="h-3.5 w-3.5" />
                               </Button>
@@ -384,24 +518,14 @@ function Page() {
                           )}
                         </td>
                         <td className="p-3 text-center">
-                          {v.has_voted ? (
-                            <Badge className="bg-success/15 text-success hover:bg-success/20 border-0 font-medium">Voted</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground border-border font-medium">Not Voted</Badge>
-                          )}
+                          {v.has_voted
+                            ? <Badge className="bg-success/15 text-success border-0 font-medium">Voted ✓</Badge>
+                            : <Badge variant="outline" className="text-muted-foreground border-border font-medium">Not Yet</Badge>}
                         </td>
                         <td className="p-3 text-center">
-                          {v.vote_permission ? (
-                            <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] hover:bg-[#6C63FF]/20 border-0 font-medium gap-1">
-                              <Unlock className="h-3 w-3" />
-                              Allowed
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="bg-destructive/15 text-destructive hover:bg-destructive/20 border-0 font-medium gap-1">
-                              <Lock className="h-3 w-3" />
-                              Blocked
-                            </Badge>
-                          )}
+                          {v.vote_permission
+                            ? <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium gap-1"><Unlock className="h-3 w-3" />Allowed</Badge>
+                            : <Badge variant="destructive" className="bg-destructive/15 text-destructive border-0 font-medium gap-1"><Lock className="h-3 w-3" />Blocked</Badge>}
                         </td>
                         <td className="p-3 text-right">
                           <Button
@@ -411,13 +535,9 @@ function Page() {
                             disabled={updatingVoterId === v.voter_id}
                             onClick={() => handleTogglePermission(v.voter_id, v.vote_permission)}
                           >
-                            {updatingVoterId === v.voter_id ? (
-                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                            ) : v.vote_permission ? (
-                              "Revoke"
-                            ) : (
-                              "Allow to Vote"
-                            )}
+                            {updatingVoterId === v.voter_id
+                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              : v.vote_permission ? "Revoke" : "Allow"}
                           </Button>
                         </td>
                       </tr>
