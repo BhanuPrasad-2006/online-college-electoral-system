@@ -9,8 +9,21 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/AuthContext";
 import { fetchPositions, registerCandidate, getOtpSession, getAuthToken } from "@/lib/api";
+import { fetchVoterProfile } from "@/lib/demo-api";
 
 export const Route = createFileRoute("/candidate/register")({ component: Register });
+
+function getSemesterFromYear(yearStr: string): string {
+  if (!yearStr) return "";
+  const match = yearStr.match(/\d+/);
+  if (!match) return "";
+  const year = parseInt(match[0], 10);
+  if (isNaN(year)) return "";
+  const sem = (year * 2) - 1;
+  const suffixes: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
+  const suffix = suffixes[sem] || "th";
+  return `${sem}${suffix} Sem`;
+}
 
 const STEPS = ["Set Password", "Basic Details", "Payment", "Terms", "Review"];
 
@@ -61,8 +74,13 @@ function Register() {
     newPassword: "",
     confirmPassword: "",
     symbol: "", photo: "", payment: "", confirm: false, terms: false,
+    vicePresident: "",
+    secretary: "",
   });
   const set = (k: string, v: any) => setData((d) => ({ ...d, [k]: v }));
+
+  const selectedPosition = positions.find((p) => p.position_id === data.positionId);
+  const isPresident = selectedPosition?.title?.toLowerCase() === "president";
 
   useEffect(() => {
     async function loadPositions() {
@@ -74,6 +92,32 @@ function Register() {
       }
     }
     loadPositions();
+  }, []);
+
+  useEffect(() => {
+    async function loadVoterDetails() {
+      try {
+        const voter = await fetchVoterProfile();
+        if (voter) {
+          setData((d) => {
+            let semesterVal = d.semester;
+            if (voter.year && voter.year !== "—") {
+              semesterVal = getSemesterFromYear(voter.year);
+            }
+            return {
+              ...d,
+              name: voter.name || d.name,
+              department: voter.department && voter.department !== "—" ? voter.department : d.department,
+              semester: semesterVal || d.semester,
+              usn: voter.studentId && voter.studentId !== "—" ? voter.studentId : d.usn,
+            };
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load voter profile:", err);
+      }
+    }
+    loadVoterDetails();
   }, []);
 
   function handleNext() {
@@ -97,23 +141,31 @@ function Register() {
       }
     }
     if (step === 1) {
-      if (isAutoCreated) {
-        if (!data.name.trim()) {
-          toast.error("Please enter your full name.");
-          return;
-        }
-        if (!data.department.trim()) {
-          toast.error("Please enter your department.");
-          return;
-        }
-        if (!data.usn.trim()) {
-          toast.error("Please enter your USN / Student ID.");
-          return;
-        }
+      if (!data.name.trim()) {
+        toast.error("Please enter your full name.");
+        return;
+      }
+      if (!data.department.trim()) {
+        toast.error("Please enter your department.");
+        return;
+      }
+      if (!data.usn.trim()) {
+        toast.error("Please enter your USN / Student ID.");
+        return;
       }
       if (!data.positionId) {
         toast.error("Please select a target position.");
         return;
+      }
+      if (isPresident) {
+        if (!data.vicePresident?.trim()) {
+          toast.error("Please enter Vice President name.");
+          return;
+        }
+        if (!data.secretary?.trim()) {
+          toast.error("Please enter Secretary name.");
+          return;
+        }
       }
       if (!data.manifesto) {
         toast.error("Please write a campaign manifesto.");
@@ -154,6 +206,8 @@ function Register() {
         full_name: isAutoCreated ? data.name : undefined,
         department: isAutoCreated ? data.department : undefined,
         student_id: isAutoCreated ? data.usn : undefined,
+        vice_president: isPresident ? data.vicePresident : undefined,
+        secretary: isPresident ? data.secretary : undefined,
       });
 
       // Update auth context state
@@ -264,8 +318,8 @@ function Register() {
                 <Input 
                   value={data.name} 
                   onChange={(e) => set("name", e.target.value)} 
-                  disabled={!isAutoCreated}
-                  className={cn(!isAutoCreated && "bg-muted cursor-not-allowed opacity-70")}
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
                   placeholder="e.g. John Doe"
                 />
               </Field>
@@ -273,8 +327,8 @@ function Register() {
                 <Input 
                   value={data.department} 
                   onChange={(e) => set("department", e.target.value)}
-                  disabled={!isAutoCreated}
-                  className={cn(!isAutoCreated && "bg-muted cursor-not-allowed opacity-70")}
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
                   placeholder="e.g. Computer Science"
                 />
               </Field>
@@ -282,20 +336,20 @@ function Register() {
                 <Input 
                   value={data.semester} 
                   onChange={(e) => set("semester", e.target.value)}
-                  disabled={!isAutoCreated}
-                  className={cn(!isAutoCreated && "bg-muted cursor-not-allowed opacity-70")}
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
                   placeholder="e.g. 6th"
                 />
               </Field>
-              {isAutoCreated && (
-                <Field label="USN / Student ID *">
-                  <Input 
-                    value={data.usn} 
-                    onChange={(e) => set("usn", e.target.value)}
-                    placeholder="e.g. 1RV21CS001"
-                  />
-                </Field>
-              )}
+              <Field label="USN / Student ID *">
+                <Input 
+                  value={data.usn} 
+                  onChange={(e) => set("usn", e.target.value)}
+                  disabled={true}
+                  className="bg-muted cursor-not-allowed opacity-70"
+                  placeholder="e.g. 1RV21CS001"
+                />
+              </Field>
               <Field label="Target Election Position *">
                 <Select value={data.positionId} onValueChange={(v) => set("positionId", v)}>
                   <SelectTrigger className="h-11"><SelectValue placeholder="Select Position" /></SelectTrigger>
@@ -311,6 +365,24 @@ function Register() {
               <Field label="Party / Group Name (optional)">
                 <Input value={data.party} onChange={(e) => set("party", e.target.value)} placeholder="e.g. Alliance Group" />
               </Field>
+              {isPresident && (
+                <>
+                  <Field label="Vice President Name *">
+                    <Input 
+                      value={data.vicePresident} 
+                      onChange={(e) => set("vicePresident", e.target.value)} 
+                      placeholder="e.g. Jane Doe"
+                    />
+                  </Field>
+                  <Field label="Secretary Name *">
+                    <Input 
+                      value={data.secretary} 
+                      onChange={(e) => set("secretary", e.target.value)} 
+                      placeholder="e.g. Bob Smith"
+                    />
+                  </Field>
+                </>
+              )}
               <div className="sm:col-span-2">
                 <Field label="Campaign Manifesto *">
                   <textarea 
@@ -321,7 +393,7 @@ function Register() {
                   />
                 </Field>
               </div>
-              <UploadBox label="Party Symbol" value={data.symbol} onSet={(v) => set("symbol", v)} />
+              <UploadBox label="Party Symbol (optional)" value={data.symbol} onSet={(v) => set("symbol", v)} simName="party-symbol.jpg" />
               <UploadBox label="Candidate Photo" value={data.photo} onSet={(v) => set("photo", v)} />
             </div>
           )}
@@ -368,6 +440,12 @@ function Register() {
               <Row k="Department" v={data.department || "—"} />
               <Row k="Semester" v={data.semester || "—"} />
               <Row k="Target Position" v={positions.find(p => p.position_id === data.positionId)?.title || "—"} />
+              {isPresident && (
+                <>
+                  <Row k="Vice President" v={data.vicePresident || "—"} />
+                  <Row k="Secretary" v={data.secretary || "—"} />
+                </>
+              )}
               <Row k="Party" v={data.party || "Independent"} />
               <Row k="Manifesto" v={data.manifesto ? `${data.manifesto.substring(0, 100)}...` : "—"} />
               <Row k="Party Symbol" v={data.symbol || "Not uploaded"} />
@@ -430,7 +508,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function UploadBox({ label, value, onSet }: { label: string; value: string; onSet: (v: string) => void }) {
+function UploadBox({ label, value, onSet, simName }: { label: string; value: string; onSet: (v: string) => void; simName?: string }) {
   return (
     <div className="border-2 border-dashed border-border rounded-xl p-5 text-center">
       <p className="text-xs font-medium mb-2">{label}</p>
@@ -439,7 +517,7 @@ function UploadBox({ label, value, onSet }: { label: string; value: string; onSe
           <CheckCircle2 className="h-4 w-4" /> {value}
         </div>
       ) : (
-        <button onClick={() => onSet(`${label.toLowerCase().replace(/\s+/g, "-")}.jpg`)} className="inline-flex items-center gap-2 text-xs text-[#6C63FF] font-medium">
+        <button onClick={() => onSet(simName || `${label.toLowerCase().replace(/\s+/g, "-")}.jpg`)} className="inline-flex items-center gap-2 text-xs text-[#6C63FF] font-medium">
           <Upload className="h-4 w-4" /> Drag & drop or click
         </button>
       )}

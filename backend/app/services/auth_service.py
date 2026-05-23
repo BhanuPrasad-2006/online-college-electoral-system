@@ -145,6 +145,7 @@ async def voter_login_step2(
     db: AsyncSession,
     otp_session_token: str,
     otp: str,
+    device_fingerprint: str | None = None,
 ) -> dict:
 
     try:
@@ -193,13 +194,18 @@ async def voter_login_step2(
 
     await db.commit()
 
+    import secrets
+    csrf_token = secrets.token_hex(16)
+
     access_token = create_access_token(
         data={
             "sub": voter_id_str,
             "role": UserRoleEnum.VOTER.value,
             "email": college_email,
+            "csrf_token": csrf_token,
         },
         expires_delta=timedelta(minutes=expiry_minutes),
+        device_fingerprint=device_fingerprint,
     )
 
     # Trigger login security alert SMS if mobile number exists
@@ -217,6 +223,7 @@ async def voter_login_step2(
         "user_id": voter_id_str,
         "full_name": full_name,
         "expires_in_seconds": expiry_minutes * 60,
+        "csrf_token": csrf_token,
     }
 
 
@@ -403,6 +410,7 @@ async def candidate_login_step2(
     otp_session_token: str,
     email_otp: str,
     sms_otp: str,
+    device_fingerprint: str | None = None,
 ) -> dict:
 
     try:
@@ -472,6 +480,9 @@ async def candidate_login_step2(
 
     await db.commit()
 
+    import secrets
+    csrf_token = secrets.token_hex(16)
+
     # If is_registered is True, we have an existing candidate profile
     if is_registered:
         # Access token sub is the candidate_id for registered candidates
@@ -480,8 +491,10 @@ async def candidate_login_step2(
                 "sub": candidate_id_str,
                 "role": UserRoleEnum.CANDIDATE.value,
                 "email": college_email,
+                "csrf_token": csrf_token,
             },
             expires_delta=timedelta(minutes=expiry_minutes),
+            device_fingerprint=device_fingerprint,
         )
 
         return {
@@ -494,6 +507,7 @@ async def candidate_login_step2(
             "is_registered": True,
             "department": department,
             "semester": str((year_of_study * 2) - 1) if year_of_study is not None else None,
+            "csrf_token": csrf_token,
         }
     else:
         # If not registered yet, we create a temporary registration JWT token!
@@ -506,8 +520,10 @@ async def candidate_login_step2(
                 "email": college_email,
                 "temp_reg": True,
                 "mobile_number": mobile_number,
+                "csrf_token": csrf_token,
             },
             expires_delta=timedelta(minutes=expiry_minutes),
+            device_fingerprint=device_fingerprint,
         )
 
         return {
@@ -521,6 +537,7 @@ async def candidate_login_step2(
             "department": department,
             "semester": str((year_of_study * 2) - 1) if year_of_study is not None else None,
             "mobile_number": mobile_number,
+            "csrf_token": csrf_token,
         }
 
 
@@ -612,6 +629,7 @@ async def admin_login_step2(
     otp_session_token: str,
     email_otp: str,
     sms_otp: str,
+    device_fingerprint: str | None = None,
 ) -> dict:
     """
     Step 2: Verify both OTP codes for the admin session and issue access JWT.
@@ -664,14 +682,19 @@ async def admin_login_step2(
 
     await db.commit()
 
+    import secrets
+    csrf_token = secrets.token_hex(16)
+
     # Generate Access JWT Token for Admin
     access_token = create_access_token(
         data={
             "sub": admin_id_str,
             "role": "admin",
             "email": admin_email,
+            "csrf_token": csrf_token,
         },
         expires_delta=timedelta(minutes=expiry_minutes),
+        device_fingerprint=device_fingerprint,
     )
 
     return {
@@ -681,6 +704,7 @@ async def admin_login_step2(
         "user_id": admin_id_str,
         "full_name": full_name,
         "expires_in_seconds": expiry_minutes * 60,
+        "csrf_token": csrf_token,
     }
 
 

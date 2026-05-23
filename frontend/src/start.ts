@@ -12,7 +12,12 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     console.error(error);
     return new Response(renderErrorPage(), {
       status: 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "strict-origin-when-cross-origin",
+      },
     });
   }
 });

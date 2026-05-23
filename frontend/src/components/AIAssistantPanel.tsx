@@ -13,11 +13,25 @@ type Msg = {
   timestamp: Date;
 };
 
-const API_BASE = "http://127.0.0.1:8000/api/v1/ai";
+// Use HTTPS in production (when on https), HTTP for local dev
+const API_PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
+const API_BASE = `${API_PROTOCOL}://127.0.0.1:8000/api/v1/ai`;
 
 // ── Minimal Markdown renderer (no extra deps) ─────────────────────────────────
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function renderMarkdown(raw: string): string {
-  let html = raw
+  // First, escape HTML entities to prevent XSS
+  let escaped = escapeHtml(raw);
+  // Then apply markdown formatting on the escaped text
+  let html = escaped
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');

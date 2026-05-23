@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, CHAR
+from sqlalchemy import Column, String, DateTime, ForeignKey, CHAR, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -25,6 +25,13 @@ class Vote(Base):
     election_id      = Column(String(36), ForeignKey("elections.election_id"), nullable=False, index=True)
     position_id      = Column(String(36), ForeignKey("positions.position_id"), nullable=False, index=True)
     voted_at         = Column(DateTime(timezone=True), server_default=func.now())
+
+    # ── Ledger Columns (Phase 5) ─────────────────────────────
+    previous_hash    = Column(CHAR(64), nullable=True, index=True)
+    current_hash     = Column(CHAR(64), unique=True, nullable=True, index=True)
+    ledger_sequence  = Column(Integer, nullable=True)
+    hash_version     = Column(String(10), default="v1")
+    timestamp_utc    = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
 
     # ── Relationships (no voter link — intentional) ───────────
     candidate = relationship("Candidate")

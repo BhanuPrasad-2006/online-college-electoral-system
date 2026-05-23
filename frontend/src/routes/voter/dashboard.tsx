@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
-import { KPI as KPI_DATA, NOTIFICATIONS } from "@/lib/mock";
-import { useCandidates, useVoterProfile } from "@/hooks/use-election-data";
+import { useCandidates, useVoterProfile, useKpi } from "@/hooks/use-election-data";
+import { useNotifications } from "@/context/NotificationStore";
 import { PageLoader } from "@/components/PageLoader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
@@ -10,8 +10,8 @@ import { CheckCircle2, Users, TrendingUp, AlertCircle, Bell, ChevronRight, Lock,
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { fetchCurrentElection } from "@/lib/api";
-
+import { getCurrentPhase } from "@/lib/api";
+import * as api from "@/lib/api";
 // ── helpers for election phase ─────────────────────────────────
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 function fmtCountdown(ms: number) {
@@ -32,51 +32,41 @@ function VoterDash() {
   const { logout } = useAuth();
   const { data: voter, isPending } = useVoterProfile();
   const { data: candidates = [], isPending: isCandidatesPending } = useCandidates();
+  const { data: kpi } = useKpi();
+  const { notifications = [] } = useNotifications();
   const [timeLeft, setTimeLeft] = useState<string>("");
 
   // ── Real-time election phase state ─────────────────────────
-  const [election, setElection] = useState<any>(null);
-  const [now, setNow] = useState(Date.now());
-
-  const loadElection = useCallback(async () => {
-    try { setElection(await fetchCurrentElection()); } catch { /* ignore */ }
+  const [phaseData, setPhaseData] = useState<any>(null);
+  const loadPhase = useCallback(async () => {
+    try { setPhaseData(await getCurrentPhase()); } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
-    loadElection();
-    const id = setInterval(loadElection, 15_000);
+    loadPhase();
+    const id = setInterval(() => {
+      loadPhase();
+    }, 15_000);
     return () => clearInterval(id);
-  }, [loadElection]);
+  }, [loadPhase]);
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1_000);
-    return () => clearInterval(id);
-  }, []);
+  const isRegOpen  = phaseData?.phase === "registration_open";
+  const isVoteOpen = phaseData?.phase === "voting_open";
+  const regOpensSoon = phaseData?.phase === "pre_registration";
+  const voteOpensSoon = phaseData?.phase === "registration_closed" || phaseData?.phase === "campaign_period";
+  const isPaused = phaseData?.is_paused;
 
-  // Derive phase from real election timestamps
-  const regStart  = election?.registration_start ? new Date(election.registration_start).getTime() : null;
-  const regEnd    = election?.registration_end   ? new Date(election.registration_end).getTime()   : null;
-  const votStart  = election?.voting_start        ? new Date(election.voting_start).getTime()        : null;
-  const votEnd    = election?.voting_end          ? new Date(election.voting_end).getTime()          : null;
-
-  const isRegOpen  = !!regStart && !!regEnd  && now >= regStart && now < regEnd;
-  const isVoteOpen = !!votStart && !!votEnd  && now >= votStart && now < votEnd;
-  const regOpensSoon = !!regStart && now < regStart;
-  const voteOpensSoon = !!votStart && !isVoteOpen && now < votStart;
-
-  const regTimeLeft  = isRegOpen  && regEnd  ? fmtCountdown(regEnd  - now) : null;
-  const voteTimeLeft = isVoteOpen && votEnd  ? fmtCountdown(votEnd  - now) : null;
-  const regSoonLeft  = regOpensSoon  && regStart ? fmtCountdown(regStart - now) : null;
-  const voteSoonLeft = voteOpensSoon && votStart ? fmtCountdown(votStart - now) : null;
+  const remainingTimeStr = phaseData?.remaining_time || "";
 
   useEffect(() => {
     // Decode JWT from sessionStorage and start the countdown timer
     const token = sessionStorage.getItem("collegevote-token");
     if (!token) return;
+    const jwtToken = token;
 
     function updateTimer() {
       try {
-        const base64Url = token.split(".")[1];
+        const base64Url = jwtToken.split(".")[1];
         const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
         const payload = JSON.parse(window.atob(base64));
         const exp = payload.exp;
@@ -140,86 +130,92 @@ function VoterDash() {
       {/* ── Real-time Election Phase Banner ── */}
 
       {/* Registration OPEN */}
-      {isRegOpen && (
-        <div className="relative overflow-hidden rounded-2xl border border-[#6C63FF]/30 bg-gradient-to-r from-[#1F3A6E]/40 via-[#6C63FF]/10 to-[#1F3A6E]/30 p-5 animate-in fade-in slide-in-from-top-2 duration-500">
-          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#6C63FF]/10 blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between gap-4 flex-wrap relative z-10">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#6C63FF]/20 flex items-center justify-center shrink-0">
-                <UserPlus className="h-5 w-5 text-[#6C63FF]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-[#6C63FF]/20 text-[#6C63FF] text-[10px] font-bold rounded-full tracking-widest">OPEN NOW</span>
-                  <span className="h-2 w-2 rounded-full bg-[#6C63FF] animate-pulse" />
-                </div>
-                <p className="font-bold text-base text-foreground mt-1">Candidate Registration is Open!</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {votePermission
-                    ? <>You are eligible to register as a candidate · closes in <span className="font-mono font-bold text-[#6C63FF]">{regTimeLeft}</span></>
-                    : <>Registration is open · closes in <span className="font-mono font-bold text-[#6C63FF]">{regTimeLeft}</span> · contact admin for permission</>}
-                </p>
-              </div>
+      {!isPaused && isRegOpen && (
+        <div className="relative overflow-hidden rounded-2xl border border-[#1F3A6E]/20 bg-gradient-to-r from-[#1F3A6E]/10 to-[#6C63FF]/5 shadow-sm animate-fade-in mb-6">
+          <div className="absolute inset-y-0 left-0 w-1 bg-[#1F3A6E]" />
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 z-10">
+              <h3 className="text-lg font-bold text-[#1F3A6E] flex items-center gap-2">
+                <Users className="h-5 w-5 text-[#6C63FF]" />
+                Candidate Registration is Open!
+              </h3>
+              <p className="text-sm text-foreground/80 max-w-xl">
+                {voter.vote_permission 
+                    ? <>You are eligible to register as a candidate — closes in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span></>
+                    : <>Registration is open — closes in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span> — contact admin for permission</>}
+              </p>
             </div>
-            {votePermission && (
-              <button
-                onClick={() => nav({ to: "/candidate/register" })}
-                className="px-5 py-2.5 bg-[#1F3A6E] hover:bg-[#2a4d8f] text-white text-sm font-bold rounded-xl transition-all hover:scale-105 hover:shadow-lg hover:shadow-[#1F3A6E]/40 border border-[#6C63FF]/30 shrink-0"
-              >
-                Register as Candidate →
-              </button>
+            {voter.vote_permission && (
+              <Link to="/candidate/register" className="shrink-0 z-10">
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1F3A6E] text-white text-sm font-semibold hover:bg-[#1F3A6E]/90 transition-all shadow-md">
+                  Register as Candidate
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              </Link>
             )}
           </div>
         </div>
       )}
 
       {/* Voting OPEN */}
-      {isVoteOpen && (
-        <div className="relative overflow-hidden rounded-2xl border border-[#1F3A6E]/50 bg-gradient-to-r from-[#1F3A6E]/50 via-[#6C63FF]/10 to-[#1F3A6E]/40 p-5 animate-in fade-in slide-in-from-top-2 duration-500">
-          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#6C63FF]/10 blur-2xl pointer-events-none" />
-          <div className="flex items-center justify-between gap-4 flex-wrap relative z-10">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#6C63FF]/20 flex items-center justify-center shrink-0">
-                <Vote className="h-5 w-5 text-[#6C63FF]" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-[#6C63FF]/20 text-[#6C63FF] text-[10px] font-bold rounded-full tracking-widest">VOTING OPEN</span>
-                  <span className="h-2 w-2 rounded-full bg-[#6C63FF] animate-pulse" />
-                </div>
-                <p className="font-bold text-base text-foreground mt-1">Voting is Now Open!</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Cast your ballot securely · closes in <span className="font-mono font-bold text-[#6C63FF]">{voteTimeLeft}</span>
-                </p>
-              </div>
+      {!isPaused && isVoteOpen && (
+        <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/10 to-indigo-500/5 shadow-sm animate-fade-in mb-6">
+          <div className="absolute inset-y-0 left-0 w-1 bg-violet-500" />
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 z-10">
+              <h3 className="text-lg font-bold text-violet-700 flex items-center gap-2">
+                <Vote className="h-5 w-5" />
+                Voting is Live!
+              </h3>
+              <p className="text-sm text-foreground/80 max-w-xl">
+                Cast your ballot securely — closes in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+              </p>
             </div>
-            <button
-              onClick={() => nav({ to: "/voter/vote" })}
-              className="px-5 py-2.5 bg-[#1F3A6E] hover:bg-[#2a4d8f] text-white text-sm font-bold rounded-xl transition-all hover:scale-105 hover:shadow-lg hover:shadow-[#1F3A6E]/40 border border-[#6C63FF]/30 shrink-0"
-            >
-              Cast Your Vote →
-            </button>
+            {!hasVoted && (
+              <button onClick={() => nav({ to: "/voter/vote" })} className="shrink-0 z-10">
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition-all shadow-md animate-pulse">
+                  <Sparkles className="h-4 w-4" />
+                  Vote Now
+                </div>
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Registration opening soon */}
-      {regOpensSoon && regSoonLeft && (
-        <div className="flex items-center gap-3 rounded-xl border border-[#6C63FF]/20 bg-[#6C63FF]/5 px-4 py-3 text-sm animate-in fade-in duration-500">
-          <Sparkles className="h-4 w-4 text-[#6C63FF] shrink-0" />
-          <span className="text-foreground font-medium">Candidate registration opens in </span>
-          <span className="font-mono font-bold text-[#6C63FF]">{regSoonLeft}</span>
-          {election?.title && <span className="text-muted-foreground ml-1 hidden sm:inline">· {election.title}</span>}
+      {/* Registration OPENS SOON */}
+      {!isPaused && regOpensSoon && remainingTimeStr && (
+        <div className="relative overflow-hidden rounded-2xl border border-[#6C63FF]/20 bg-gradient-to-r from-[#6C63FF]/10 to-transparent shadow-sm animate-fade-in mb-6">
+          <div className="absolute inset-y-0 left-0 w-1 bg-[#6C63FF]" />
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 z-10">
+              <h3 className="text-lg font-bold text-[#6C63FF] flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Registration Opens Soon
+              </h3>
+              <p className="text-sm text-foreground/80 max-w-xl">
+                Candidate registration begins in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Voting opening soon */}
-      {voteOpensSoon && voteSoonLeft && !isRegOpen && (
-        <div className="flex items-center gap-3 rounded-xl border border-[#1F3A6E]/40 bg-[#1F3A6E]/10 px-4 py-3 text-sm animate-in fade-in duration-500">
-          <Clock className="h-4 w-4 text-[#6C63FF] shrink-0" />
-          <span className="text-foreground font-medium">Voting opens in </span>
-          <span className="font-mono font-bold text-[#6C63FF]">{voteSoonLeft}</span>
-          {election?.title && <span className="text-muted-foreground ml-1 hidden sm:inline">· {election.title}</span>}
+      {/* Voting OPENS SOON */}
+      {!isPaused && voteOpensSoon && remainingTimeStr && !isRegOpen && (
+        <div className="relative overflow-hidden rounded-2xl border border-[#6C63FF]/20 bg-gradient-to-r from-[#6C63FF]/10 to-transparent shadow-sm animate-fade-in mb-6">
+          <div className="absolute inset-y-0 left-0 w-1 bg-[#6C63FF]" />
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 z-10">
+              <h3 className="text-lg font-bold text-[#6C63FF] flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Voting Opens Soon
+              </h3>
+              <p className="text-sm text-foreground/80 max-w-xl">
+                The polls will open in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -237,7 +233,7 @@ function VoterDash() {
         <StatCard
           icon={TrendingUp}
           label="Voter Turnout"
-          value={`${KPI_DATA.turnout}%`}
+          value={`${kpi?.turnout || 0}%`}
           tone="bg-success/15 text-success"
           delay={100}
         />
@@ -249,6 +245,8 @@ function VoterDash() {
           delay={150}
         />
       </div>
+
+
 
       <div className="flex justify-center items-center w-full py-8 my-4 bg-transparent z-10">
         {hasVoted ? (
@@ -315,7 +313,7 @@ function VoterDash() {
             const dispName = c.full_name || c.name || "Candidate";
             const initials = dispName
               .split(" ")
-              .map((n) => n[0] || "")
+              .map((n: string) => n[0] || "")
               .join("");
             const partyName = c.party || c.party_symbol_url || "Independent";
             return (
@@ -352,7 +350,7 @@ function VoterDash() {
           <h2 className="text-base font-semibold">Recent Announcements</h2>
         </div>
         <div className="divide-y divide-border">
-          {NOTIFICATIONS.slice(0, 4).map((n, i) => (
+          {notifications.slice(0, 4).map((n: any, i: number) => (
             <div
               key={n.id}
               className={cn(

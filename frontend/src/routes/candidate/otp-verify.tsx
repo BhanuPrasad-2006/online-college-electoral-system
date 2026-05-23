@@ -49,7 +49,7 @@ function Page() {
       const emailOtpStr = emailOtp.join("");
       const phoneOtpStr = phoneOtp.join("");
       const res = await candidateLoginStep2(sessionToken, emailOtpStr, phoneOtpStr);
-      saveAuth(res.access_token, res.role, res.user_id, res.full_name, res.department, res.semester);
+      saveAuth(res.access_token, res.role, res.user_id, res.full_name, res.department, res.semester, (res as any).csrf_token);
       login("candidate");
       toast.success("Both OTPs verified!");
       

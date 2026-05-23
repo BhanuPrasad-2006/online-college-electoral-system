@@ -1,16 +1,33 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageLoader } from "@/components/PageLoader";
+import { useState, useEffect } from "react";
 import { useCandidateProfile, useNotifications } from "@/hooks/use-election-data";
+import { getCurrentPhase } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Clock, FileCheck, Brain, Bell, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, FileCheck, Brain, Bell, AlertCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Page() {
   const { data: profile, isPending: loadingProfile } = useCandidateProfile();
   const { data: notifications = [], isPending: loadingNotifications } = useNotifications();
+  const [phaseData, setPhaseData] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadPhase() {
+      try {
+        const data = await getCurrentPhase();
+        setPhaseData(data);
+      } catch (e) {
+        console.error("Failed to fetch phase:", e);
+      }
+    }
+    loadPhase();
+    const interval = setInterval(loadPhase, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (loadingProfile || loadingNotifications || !profile) return <PageLoader />;
 
@@ -57,6 +74,29 @@ function Page() {
               The Election Committee is verifying your details. Campaign analytics and AI matching tools will become fully active once approved.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Phase Info Banner */}
+      {phaseData && (
+        <div className="bg-[#1F3A6E] text-white rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in shadow-md">
+          <div>
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-[#6C63FF]" />
+              Current Phase: {phaseData.is_paused ? "PAUSED" : (phaseData.phase || "Unknown").toUpperCase().replace(/_/g, " ")}
+            </p>
+            {!phaseData.is_paused && phaseData.remaining_time && (
+              <p className="text-xs text-white/80 mt-1">
+                Time Remaining: <span className="font-bold text-white">{phaseData.remaining_time}</span>
+              </p>
+            )}
+          </div>
+          {!phaseData.is_paused && phaseData.next_phase && (
+            <div className="text-right">
+              <p className="text-xs text-white/60 uppercase tracking-wider font-semibold">Up Next</p>
+              <p className="text-sm font-medium">{phaseData.next_phase.replace(/_/g, " ")}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -155,9 +195,17 @@ function Page() {
           <Link to="/candidate/ai-report" className="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white text-sm font-semibold shadow-md hover:opacity-95 transition-all hover:-translate-y-0.5">
             View Full AI Report
           </Link>
-          <Link to="/candidate/manifesto" className="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors">
-            Edit Manifesto
-          </Link>
+          
+          {(phaseData?.phase === "registration_open" || phaseData?.phase === "campaign_period") ? (
+            <Link to="/candidate/manifesto" className="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors">
+              Edit Manifesto
+            </Link>
+          ) : (
+            <div className="inline-flex items-center px-4 py-2 rounded-lg border border-border bg-muted/50 text-muted-foreground text-sm font-medium cursor-not-allowed" title="Manifesto editing is only allowed during registration and campaign periods">
+              <Lock className="h-4 w-4 mr-2" />
+              Manifesto Locked
+            </div>
+          )}
         </div>
       </SectionCard>
 

@@ -65,6 +65,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Secure AI-based college election management system with voter, candidate, and admin portals.",
       },
+      {
+        // TODO: For production deployment, add the actual backend domain(s) to connect-src
+        // e.g., "https://backend.railway.app https://api.render.com"
+        httpEquiv: "Content-Security-Policy",
+        content: [
+          "default-src 'self';",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net;",
+          "font-src 'self' https://fonts.gstatic.com data:;",
+          "img-src 'self' data: blob:;",
+          "connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 https://localhost:8000 https://127.0.0.1:8000;",
+          "frame-ancestors 'none';",
+          "base-uri 'self';",
+          "form-action 'self';",
+        ].join(" "),
+      },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

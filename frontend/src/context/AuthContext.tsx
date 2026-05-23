@@ -59,6 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = readStoredRole();
     if (stored) setRole(stored);
     setAuthReady(true);
+
+    // Initialize device fingerprint as early as possible on app mount
+    if (typeof window !== "undefined" && !sessionStorage.getItem("collegevote-fingerprint")) {
+      import("../lib/device-fingerprint").then((mod) =>
+        mod.getDeviceFingerprint().then((fp) =>
+          sessionStorage.setItem("collegevote-fingerprint", fp)
+        )
+      );
+    }
   }, []);
 
   return (
@@ -72,6 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRole(r);
           try {
             sessionStorage.setItem(AUTH_STORAGE_KEY, r);
+            // Initialize device fingerprint if not already stored
+            if (!sessionStorage.getItem("collegevote-fingerprint")) {
+              import("../lib/device-fingerprint").then(mod =>
+                mod.getDeviceFingerprint().then(fp =>
+                  sessionStorage.setItem("collegevote-fingerprint", fp)
+                )
+              );
+            }
           } catch {
             /* ignore */
           }

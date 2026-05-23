@@ -1,14 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchAiAlerts,
-  fetchAuditLogs,
   fetchConcernCategories,
-  fetchDeptTurnout,
   fetchElection,
   fetchHourlyVotes,
-  fetchKpi,
   fetchMediaItems,
-  fetchNotifications,
   fetchResults,
   fetchVoterConcerns,
   fetchVoterProfile,
@@ -17,6 +12,11 @@ import {
 import {
   fetchCandidates,
   fetchCandidateProfile,
+  fetchDeptTurnout,
+  fetchKpi,
+  fetchNotifications,
+  fetchAiAlerts,
+  fetchAuditLogs,
 } from "@/lib/api";
 
 
@@ -24,6 +24,11 @@ const demoQuery = {
   retry: false,
   refetchOnWindowFocus: false,
   staleTime: 1000 * 60 * 30,
+};
+
+const liveQuery = {
+  retry: 2,
+  refetchInterval: 10000, // Real-time: refetch every 10 seconds
 };
 
 export function useElection() {
@@ -35,11 +40,11 @@ export function useCandidates() {
 }
 
 export function useKpi() {
-  return useQuery({ queryKey: ["kpi"], queryFn: fetchKpi, ...demoQuery });
+  return useQuery({ queryKey: ["kpi"], queryFn: fetchKpi, ...liveQuery });
 }
 
 export function useNotifications() {
-  return useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications, ...demoQuery });
+  return useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications, ...liveQuery });
 }
 
 export function useMediaItems() {

@@ -52,6 +52,7 @@ class AuthTokenResponse(BaseModel):
     is_registered: Optional[bool] = None
     department: Optional[str] = None
     semester: Optional[str] = None
+    csrf_token: Optional[str] = None
 
 
 # ─────────────────────────────────────────────

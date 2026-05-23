@@ -1,9 +1,20 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 
+def validate_non_empty_whitespace(value: str, name: str) -> str:
+    if not value.strip():
+        raise ValueError(f"{name} cannot be empty or whitespace-only")
+    return value
+
+
 class ClassifyRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, max_length=5000)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        return validate_non_empty_whitespace(v, "text")
 
 
 class ClassifyResponse(BaseModel):
@@ -13,7 +24,12 @@ class ClassifyResponse(BaseModel):
 
 
 class ManifestoAnalysisRequest(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=15000)
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: str) -> str:
+        return validate_non_empty_whitespace(v, "content")
 
 
 class ManifestoAnalysisResponse(BaseModel):
@@ -24,7 +40,19 @@ class ManifestoAnalysisResponse(BaseModel):
 
 
 class RecommendationRequest(BaseModel):
-    concerns: List[str]
+    concerns: List[str] = Field(..., min_length=1)
+
+    @field_validator("concerns")
+    @classmethod
+    def validate_concerns(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("Concerns list cannot be empty")
+        for i, concern in enumerate(v):
+            if not concern.strip():
+                raise ValueError(f"Concern at index {i} cannot be empty or whitespace-only")
+            if len(concern) > 1000:
+                raise ValueError(f"Concern at index {i} exceeds max length of 1000 characters")
+        return v
 
 
 class RecommendationResponse(BaseModel):
@@ -50,7 +78,12 @@ class AnomalyResponse(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=5000)
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        return validate_non_empty_whitespace(v, "message")
 
 
 class ChatResponse(BaseModel):

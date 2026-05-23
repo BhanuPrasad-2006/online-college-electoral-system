@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, Users, Lock, Unlock, RefreshCw, Search, Edit2, Check, Building2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
-import { fetchVotersForAdmin, updateVoterPermission, fetchCurrentElection, openVoting, closeVoting, publishResults, setVoterVerificationCode, updateElectionDates } from "@/lib/api";
+import { fetchVotersForAdmin, updateVoterPermission, fetchCurrentElection, openVoting, closeVoting, publishResults, setVoterVerificationCode, updateElectionDates, getCurrentPhase, announceElectionSchedule, pauseElection, resumeElection, emergencyStopElection, API_BASE_URL, getAuthToken } from "@/lib/api";
 
 
 function Page() {
@@ -25,10 +25,14 @@ function Page() {
   const [editingVoterId, setEditingVoterId] = useState<string | null>(null);
   const [editingIdVal, setEditingIdVal] = useState("");
   const [savingVoterId, setSavingVoterId] = useState<string | null>(null);
+  
+  // Face ID upload states
+  const [uploadingFaceId, setUploadingFaceId] = useState<string | null>(null);
 
   const [election, setElection] = useState<any>(null);
   const [loadingElection, setLoadingElection] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [phaseData, setPhaseData] = useState<any>(null);
 
   // Form states
   const [title, setTitle] = useState("Student Council Election 2025");
@@ -109,6 +113,9 @@ function Page() {
         // clear errors on fresh load
         setValidationErrors({});
       }
+      
+      const phaseRes = await getCurrentPhase();
+      setPhaseData(phaseRes);
     } catch (e) {
       console.warn("Failed to fetch current election status from backend:", e);
     } finally {
@@ -181,6 +188,63 @@ function Page() {
       setUpdatingStatus(false);
     }
   }
+  async function handleAnnounce() {
+    if (!election) return;
+    if (!confirm("Are you sure you want to announce the election schedule to all users? Emails will be sent.")) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await announceElectionSchedule(election.election_id);
+      toast.success(res.message);
+      await loadElection();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to announce");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  async function handlePause() {
+    if (!election) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await pauseElection(election.election_id);
+      toast.success(res.message);
+      await loadElection();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to pause");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  async function handleResume() {
+    if (!election) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await resumeElection(election.election_id);
+      toast.success(res.message);
+      await loadElection();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to resume");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  async function handleEmergencyStop() {
+    if (!election) return;
+    if (!confirm("EMERGENCY STOP will immediately close voting. This cannot be undone. Proceed?")) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await emergencyStopElection(election.election_id);
+      toast.success(res.message);
+      await loadElection();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to stop election");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
 
   async function handlePublishResults() {
     if (!election) return;
@@ -232,11 +296,38 @@ function Page() {
       setEditingIdVal("");
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || "Failed to set Verification ID");
+      toast.error(e.message || "Failed to set verification ID");
     } finally {
       setSavingVoterId(null);
     }
-  }
+  };
+
+  const handleFaceUpload = async (voterId: string, file: File) => {
+    setUploadingFaceId(voterId);
+    try {
+      const token = getAuthToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${API_BASE_URL}/admin/voters/${voterId}/upload-face`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Upload failed");
+      
+      toast.success(data.message || "Face enrolled successfully!");
+      await loadVoters(); // Refresh the list to show enrolled status
+    } catch (err: any) {
+      toast.error(err.message || "Failed to enroll face");
+    } finally {
+      setUploadingFaceId(null);
+    }
+  };
 
   async function handleTogglePermission(voterId: string, currentPermission: boolean) {
     setUpdatingVoterId(voterId);
@@ -455,6 +546,7 @@ function Page() {
                       <th className="p-3">Student Details</th>
                       <th className="p-3">Dept / Year</th>
                       <th className="p-3 text-center">Verification ID</th>
+                      <th className="p-3 text-center">Face ID</th>
                       <th className="p-3 text-center">Voted?</th>
                       <th className="p-3 text-center">Permission</th>
                       <th className="p-3 text-right">Action</th>
@@ -516,6 +608,42 @@ function Page() {
                               </Button>
                             </div>
                           )}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            {v.face_enrolled ? (
+                              <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium">Enrolled ✓</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="bg-destructive/15 text-destructive border-0 font-medium">Not Enrolled</Badge>
+                            )}
+                            <div>
+                              <input 
+                                type="file" 
+                                id={`face-upload-${v.voter_id}`} 
+                                className="hidden" 
+                                accept="image/*"
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    handleFaceUpload(v.voter_id, e.target.files[0]);
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`face-upload-${v.voter_id}`}>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-7 text-xs cursor-pointer"
+                                  disabled={uploadingFaceId === v.voter_id}
+                                  asChild
+                                >
+                                  <span>
+                                    {uploadingFaceId === v.voter_id ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                                    {v.face_enrolled ? "Replace" : "Upload"}
+                                  </span>
+                                </Button>
+                              </label>
+                            </div>
+                          </div>
                         </td>
                         <td className="p-3 text-center">
                           {v.has_voted
@@ -640,45 +768,103 @@ function Page() {
 
         <div className="space-y-6">
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
-            <h2 className="text-base font-semibold">Current Election Status</h2>
-            {election ? (
-              <div className="grid grid-cols-1 gap-3 text-sm">
-                <Row k="Phase" v={<Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0">{election.status || "Unknown"}</Badge>} />
-                <Row k="Voting opens" v={election.voting_start ? new Date(election.voting_start).toLocaleString() : "Not set"} />
-                <Row k="Voting closes" v={election.voting_end ? new Date(election.voting_end).toLocaleString() : "Not set"} />
-                <Row k="Approved candidates" v={election.candidates?.length ?? "3"} />
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              <RefreshCw className={`h-4 w-4 ${loadingElection ? "animate-spin text-muted-foreground" : "text-[#6C63FF]"}`} />
+              Real-Time Phase Tracker
+            </h2>
+            
+            {phaseData ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-[#1F3A6E]/5 rounded-xl border border-[#1F3A6E]/10 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-muted-foreground">Current Phase:</span>
+                    <Badge className={
+                      phaseData.is_paused ? "bg-amber-500/15 text-amber-600 border-0" :
+                      phaseData.phase === "voting_open" ? "bg-emerald-500/15 text-emerald-600 border-0" : 
+                      "bg-[#6C63FF]/15 text-[#6C63FF] border-0"
+                    }>
+                      {phaseData.is_paused ? "PAUSED" : (phaseData.phase || "Unknown").toUpperCase().replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                  
+                  {!phaseData.is_paused && phaseData.remaining_time && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-muted-foreground">Time Remaining:</span>
+                      <span className="text-sm font-mono font-bold text-[#1F3A6E]">{phaseData.remaining_time}</span>
+                    </div>
+                  )}
+                  
+                  {!phaseData.is_paused && phaseData.next_phase && (
+                    <div className="flex justify-between items-center pt-2 border-t border-[#1F3A6E]/10">
+                      <span className="text-xs font-medium text-muted-foreground">Next Phase:</span>
+                      <span className="text-xs font-medium text-muted-foreground">{phaseData.next_phase.replace(/_/g, " ")}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 pt-2">
+                  <Button 
+                    className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full"
+                    onClick={handleAnnounce}
+                    disabled={updatingStatus}
+                  >
+                    Announce Schedule
+                  </Button>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    {phaseData.is_paused ? (
+                      <Button variant="outline" onClick={handleResume} disabled={updatingStatus} className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                        Resume
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={handlePause} disabled={updatingStatus} className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                        Pause
+                      </Button>
+                    )}
+                    
+                    <Button variant="destructive" onClick={handleEmergencyStop} disabled={updatingStatus || phaseData.phase === "voting_closed" || phaseData.phase === "results_announced"}>
+                      Emergency Stop
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-sm text-muted-foreground py-4 text-center flex flex-col items-center justify-center">
                 <RefreshCw className="h-5 w-5 animate-spin text-[#6C63FF] mb-1" />
-                Loading election details...
+                Loading tracker details...
               </div>
             )}
-            <div className="flex flex-col gap-2 pt-3">
-              <Button 
-                variant="outline" 
-                onClick={handleOpenVoting} 
-                disabled={updatingStatus || !election || election.status === "VOTING_OPEN" || election.status === "CLOSED" || election.status === "RESULTS_PUBLISHED"}
-              >
-                Open Voting Now
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleCloseVoting} 
-                disabled={updatingStatus || !election || election.status !== "VOTING_OPEN"}
-              >
-                Close Voting Now
-              </Button>
-              <Button 
-                className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90" 
-                onClick={handlePublishResults} 
-                disabled={updatingStatus || !election || election.status !== "CLOSED"}
-              >
-                Initiate Result Computation
-              </Button>
+            
+            <div className="pt-4 border-t border-border mt-2">
+              <p className="text-xs text-muted-foreground font-medium mb-2">Manual Fallback Overrides</p>
+              <div className="flex flex-col gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleOpenVoting} 
+                  disabled={updatingStatus || !election || phaseData?.phase === "voting_open" || phaseData?.phase === "voting_closed"}
+                >
+                  Force Open Voting
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleCloseVoting} 
+                  disabled={updatingStatus || !election || phaseData?.phase !== "voting_open"}
+                >
+                  Force Close Voting
+                </Button>
+                <Button 
+                  className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 mt-2" 
+                  onClick={handlePublishResults} 
+                  disabled={updatingStatus || !election || phaseData?.phase !== "voting_closed"}
+                >
+                  Publish Results & Notify
+                </Button>
+              </div>
             </div>
-            <div className="bg-muted/50 rounded-lg p-3 font-mono text-xs break-all">
-              <span className="text-muted-foreground">SHA-256 Integrity Hash: </span>
+            <div className="bg-muted/50 rounded-lg p-3 font-mono text-[10px] break-all mt-4">
+              <span className="text-muted-foreground">SHA-256 Hash: </span>
               {election?.result_integrity_hash || "a3f1e9b87c4d2e1a5f6b9c8d7e2a1f4b3c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f"}
             </div>
           </div>

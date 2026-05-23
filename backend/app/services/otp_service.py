@@ -140,7 +140,7 @@ async def verify_otp(
 
     # No OTP
     if not otp_record:
-        return False, "No active OTP found"
+        return False, "Invalid or expired OTP"
 
     # Expiry handling
     now = datetime.now(timezone.utc)
@@ -154,23 +154,16 @@ async def verify_otp(
 
     if now > expires_at:
         otp_record.is_used = True
-        return False, "OTP expired"
+        return False, "Invalid or expired OTP"
 
     # Wrong OTP
-    print("ENTERED OTP:", plain_otp)
-    print("HASH IN DB:", otp_record.otp_hash)
-    print("RECIPIENT:", otp_record.recipient)
-    print("IS USED:", otp_record.is_used)
-
     is_valid = _otp_verify(
     str(plain_otp).strip(),
     otp_record.otp_hash.strip(),
 )
 
-    print("OTP VALID:", is_valid)
-
     if not is_valid:
-        return False, "Invalid OTP"
+        return False, "Invalid or expired OTP"
 
     # Success
     otp_record.is_used = True

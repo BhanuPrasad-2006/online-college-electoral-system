@@ -49,8 +49,13 @@ function Register() {
     partySymbolUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=symbol",
     manifesto: "",
     paymentScreenshotUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=payment",
-    confirm: false
+    confirm: false,
+    vicePresident: "",
+    secretary: ""
   });
+
+  const selectedPosition = positions.find((p) => p.position_id === selectedPositionId);
+  const isPresident = selectedPosition?.title?.toLowerCase() === "president";
 
   const setFormValue = (key: string, val: any) => {
     setFormData((prev) => ({ ...prev, [key]: val }));
@@ -132,7 +137,9 @@ function Register() {
         party_symbol_url: formData.partySymbolUrl,
         manifesto: formData.manifesto,
         payment_screenshot_url: formData.paymentScreenshotUrl,
-        mobile_number: formData.mobileNumber
+        mobile_number: formData.mobileNumber,
+        vice_president: isPresident ? formData.vicePresident : undefined,
+        secretary: isPresident ? formData.secretary : undefined,
       });
       toast.success("Application submitted successfully!");
       nav({ to: "/candidate/status" });
@@ -341,12 +348,42 @@ function Register() {
                     placeholder="Enter candidate contact number"
                   />
                 </Field>
+                {isPresident && (
+                  <>
+                    <Field label="Vice President Name *">
+                      <Input 
+                        type="text" 
+                        value={formData.vicePresident} 
+                        onChange={(e) => setFormValue("vicePresident", e.target.value)} 
+                        placeholder="Enter Vice President Name"
+                      />
+                    </Field>
+                    <Field label="Secretary Name *">
+                      <Input 
+                        type="text" 
+                        value={formData.secretary} 
+                        onChange={(e) => setFormValue("secretary", e.target.value)} 
+                        placeholder="Enter Secretary Name"
+                      />
+                    </Field>
+                  </>
+                )}
 
                 <Button 
                   onClick={() => {
                     if (!formData.mobileNumber) {
                       toast.error("Mobile number is required.");
                       return;
+                    }
+                    if (isPresident) {
+                      if (!formData.vicePresident?.trim()) {
+                        toast.error("Vice President name is required.");
+                        return;
+                      }
+                      if (!formData.secretary?.trim()) {
+                        toast.error("Secretary name is required.");
+                        return;
+                      }
                     }
                     setStep(4);
                   }}
@@ -379,7 +416,7 @@ function Register() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <UploadBox 
-                    label="Party Symbol Image" 
+                    label="Party Symbol Image (optional)" 
                     value={formData.partySymbolUrl ? "Symbol Uploaded" : ""} 
                     onSet={(v) => setFormValue("partySymbolUrl", "https://api.dicebear.com/7.x/identicon/svg?seed=" + v)} 
                   />
@@ -463,6 +500,12 @@ function Register() {
                 <Row k="Department" v={formData.department} />
                 <Row k="Semester" v={formData.semester} />
                 <Row k="Position" v={positions.find(p => p.position_id === selectedPositionId)?.title || "—"} />
+                {isPresident && (
+                  <>
+                    <Row k="Vice President" v={formData.vicePresident || "—"} />
+                    <Row k="Secretary" v={formData.secretary || "—"} />
+                  </>
+                )}
                 <Row k="Mobile" v={formData.mobileNumber} />
                 <Row k="Party Group" v={formData.partyName || "Independent"} />
                 <Row k="Payment Screenshot" v="Verified screenshot uploaded" />

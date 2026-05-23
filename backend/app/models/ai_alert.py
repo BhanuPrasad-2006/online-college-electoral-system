@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -25,6 +25,8 @@ class AIAlert(Base):
     description = Column(Text, nullable=False)
     ip_address  = Column(String(45), nullable=True)
     is_resolved = Column(Boolean, default=False)
+    confidence_score = Column(Float, nullable=True, default=0.0)
+    resolved_by = Column(String(100), nullable=True)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
 
     # ── Relationships ─────────────────────────────────────────

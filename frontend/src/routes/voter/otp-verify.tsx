@@ -43,7 +43,7 @@ function OtpVerify() {
     setLoading(true);
     try {
       const res = await voterLoginStep2(sessionToken, otpStr);
-      saveAuth(res.access_token, res.role, res.user_id, res.full_name, (res as any).department, (res as any).semester);
+      saveAuth(res.access_token, res.role, res.user_id, res.full_name, (res as any).department, (res as any).semester, (res as any).csrf_token);
       login("voter");
       toast.success("Verified successfully!");
       nav({ to: "/voter/dashboard" });

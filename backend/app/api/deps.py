@@ -1,6 +1,6 @@
 """API dependencies — shared dependency injection for route handlers."""
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ import jwt
 
 from app.db.session import get_db
 from app.security.jwt_service import decode_access_token
+from app.security.device_fingerprint import generate_fingerprint, validate_fingerprint
 from app.models.voter import Voter
 from app.enums.roles import UserRoleEnum
 
@@ -18,10 +19,20 @@ security_scheme = HTTPBearer()
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Extract and validate the current user from JWT token."""
+    from app.models.blacklisted_token import BlacklistedToken
+    stmt = select(BlacklistedToken).where(BlacklistedToken.token == credentials.credentials)
+    result = await db.execute(stmt)
+    if result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+        )
+
     try:
         payload = decode_access_token(credentials.credentials)
     except jwt.ExpiredSignatureError:
@@ -43,6 +54,20 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
+
+    # Double-submit CSRF verification for state-changing HTTP requests
+    if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
+        expected_csrf = payload.get("csrf_token")
+        actual_csrf = request.headers.get("x-csrf-token")
+        if not expected_csrf or expected_csrf != actual_csrf:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="CSRF token validation failed",
+            )
+
+    # Device fingerprint validation (token-to-device binding)
+    token_fp = payload.get("device_fp")
+    validate_fingerprint(request, token_fp)
 
     return {"user_id": user_id, "role": role, "email": payload.get("email")}
 

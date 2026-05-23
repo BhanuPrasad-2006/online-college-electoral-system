@@ -23,17 +23,21 @@ function Page() {
     video: approved.filter((m) => m.type === "video"),
     poster: approved.filter((m) => m.type === "poster"),
     message: approved.filter((m) => m.type === "message"),
-    manifesto: candidates.map((c) => ({
-      id: `mf-${c.id}`,
-      candidateId: c.id,
-      candidateName: c.name,
-      party: c.party,
-      type: "manifesto" as const,
-      title: `${c.name} — Manifesto`,
-      body: c.manifesto,
-      status: "Approved" as const,
-      submittedAt: "",
-    })),
+    manifesto: candidates.map((c) => {
+      const cId = c.candidate_id || c.id;
+      const cName = c.full_name || c.name || "Candidate";
+      return {
+        id: `mf-${cId}`,
+        candidateId: cId,
+        candidateName: cName,
+        party: c.party || c.party_symbol_url || "Independent",
+        type: "manifesto" as const,
+        title: `${cName} — Manifesto`,
+        body: c.manifesto,
+        status: "Approved" as const,
+        submittedAt: "",
+      };
+    }),
   };
 
   return (

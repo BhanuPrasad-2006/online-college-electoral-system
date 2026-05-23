@@ -1,7 +1,12 @@
 import { createContext, useContext } from "react";
-import { NOTIFICATIONS } from "@/lib/mock";
 
-export type NotificationItem = (typeof NOTIFICATIONS)[number];
+export type NotificationItem = {
+  id: number;
+  title: string;
+  time: string;
+  unread: boolean;
+  type: string;
+};
 
 export type NotificationContextValue = {
   notifications: NotificationItem[];
