@@ -97,6 +97,19 @@ async def voter_login_step1(
     if not voter:
         raise InvalidCredentialsError()
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if voter.lockout_until:
+        lockout_until = voter.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     if not verify_password(password, voter.password_hash):
         raise InvalidCredentialsError()
 
@@ -107,6 +120,7 @@ async def voter_login_step1(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
+        expires_in_minutes=3,
     )
 
     # Fire SMTP email sending in the background to ensure instant login response
@@ -129,6 +143,7 @@ async def voter_login_step1(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
+        expires_in_minutes=3,
     )
 
     return {
@@ -175,6 +190,19 @@ async def voter_login_step2(
     if not voter:
         raise InvalidCredentialsError("Voter not found")
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if voter.lockout_until:
+        lockout_until = voter.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     ok, msg = await verify_otp(
         db=db,
         recipient=voter.college_email,
@@ -183,7 +211,19 @@ async def voter_login_step2(
     )
 
     if not ok:
+        voter.failed_attempts = (voter.failed_attempts or 0) + 1
+        if voter.failed_attempts >= 3:
+            voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+            await db.commit()
+            raise OTPError(
+                "Account locked. Too many failed attempts. Please try again after 15 minutes."
+            )
+        await db.commit()
         raise OTPError(msg)
+
+    # Reset lockout on success
+    voter.failed_attempts = 0
+    voter.lockout_until = None
 
     voter_id_str = str(voter.voter_id)
     college_email = voter.college_email
@@ -288,12 +328,14 @@ async def candidate_login_step1(
             db=db,
             recipient=voter.college_email,
             otp_type=OTPTypeEnum.EMAIL,
+            expires_in_minutes=10,
         )
 
         sms_otp_record, sms_otp = await create_and_store_otp(
             db=db,
             recipient=candidate.mobile_number,
             otp_type=OTPTypeEnum.SMS,
+            expires_in_minutes=10,
         )
 
         # Send OTPs
@@ -324,6 +366,7 @@ async def candidate_login_step1(
             voter_id=voter_id_str,
             email=college_email,
             otp_id=otp_id_str,
+            expires_in_minutes=10,
             is_registered=True,
             mobile_number=cand_mobile,
         )
@@ -355,12 +398,14 @@ async def candidate_login_step1(
             db=db,
             recipient=voter.college_email,
             otp_type=OTPTypeEnum.EMAIL,
+            expires_in_minutes=10,
         )
 
         sms_otp_record, sms_otp = await create_and_store_otp(
             db=db,
             recipient=full_mobile,
             otp_type=OTPTypeEnum.SMS,
+            expires_in_minutes=10,
         )
 
         # Send OTPs
@@ -390,6 +435,7 @@ async def candidate_login_step1(
             voter_id=voter_id_str,
             email=college_email,
             otp_id=otp_id_str,
+            expires_in_minutes=10,
             is_registered=False,
             mobile_number=full_mobile,
         )
@@ -568,6 +614,19 @@ async def admin_login_step1(
     if not admin:
         raise InvalidCredentialsError("Invalid email or password")
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if admin.lockout_until:
+        lockout_until = admin.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     if not verify_password(password, admin.password_hash):
         raise InvalidCredentialsError("Invalid email or password")
 
@@ -576,12 +635,14 @@ async def admin_login_step1(
         db=db,
         recipient=admin.email,
         otp_type=OTPTypeEnum.EMAIL,
+        expires_in_minutes=3,
     )
 
     sms_otp_record, sms_otp = await create_and_store_otp(
         db=db,
         recipient=mobile_number,
         otp_type=OTPTypeEnum.SMS,
+        expires_in_minutes=3,
     )
 
     # 3. Trigger OTP email and SMS in the background
@@ -607,8 +668,7 @@ async def admin_login_step1(
     await db.commit()
 
     # 4. Generate OTP session token
-    from datetime import datetime, timezone
-    expire = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=3)
     payload = {
         "sub": admin_id_str,
         "email": admin_email,
@@ -653,6 +713,19 @@ async def admin_login_step2(
     if not admin:
         raise InvalidCredentialsError("Admin user not found")
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if admin.lockout_until:
+        lockout_until = admin.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     # Verify both OTPs
     email_ok, email_msg = await verify_otp(
         db=db,
@@ -662,6 +735,14 @@ async def admin_login_step2(
     )
 
     if not email_ok:
+        admin.failed_attempts = (admin.failed_attempts or 0) + 1
+        if admin.failed_attempts >= 3:
+            admin.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+            await db.commit()
+            raise OTPError(
+                "Account locked. Too many failed attempts. Please try again after 15 minutes."
+            )
+        await db.commit()
         raise OTPError(email_msg)
 
     sms_ok, sms_msg = await verify_otp(
@@ -672,7 +753,19 @@ async def admin_login_step2(
     )
 
     if not sms_ok:
+        admin.failed_attempts = (admin.failed_attempts or 0) + 1
+        if admin.failed_attempts >= 3:
+            admin.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+            await db.commit()
+            raise OTPError(
+                "Account locked. Too many failed attempts. Please try again after 15 minutes."
+            )
+        await db.commit()
         raise OTPError(sms_msg)
+
+    # Success: reset failed attempts and lockout
+    admin.failed_attempts = 0
+    admin.lockout_until = None
 
     admin_id_str = str(admin.admin_id)
     admin_email = admin.email
@@ -977,11 +1070,25 @@ async def resend_voter_otp(
     if not voter:
         raise InvalidCredentialsError("Voter profile not found")
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if voter.lockout_until:
+        lockout_until = voter.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     # Generate new OTP
     otp_record, email_otp = await create_and_store_otp(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
+        expires_in_minutes=3,
     )
 
     # Dispatch email OTP
@@ -1005,6 +1112,7 @@ async def resend_voter_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
+        expires_in_minutes=3,
     )
 
     return {
@@ -1052,12 +1160,14 @@ async def resend_candidate_otp(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
+        expires_in_minutes=10,
     )
 
     sms_otp_record, sms_otp = await create_and_store_otp(
         db=db,
         recipient=candidate.mobile_number,
         otp_type=OTPTypeEnum.SMS,
+        expires_in_minutes=10,
     )
 
     # Dispatch in background
@@ -1089,6 +1199,7 @@ async def resend_candidate_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
+        expires_in_minutes=10,
         is_registered=True,
         mobile_number=mobile_num,
     )
@@ -1133,6 +1244,7 @@ async def resend_candidate_email_otp(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
+        expires_in_minutes=10,
     )
 
     # Dispatch in background
@@ -1160,6 +1272,7 @@ async def resend_candidate_email_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
+        expires_in_minutes=10,
         is_registered=is_registered,
         mobile_number=mobile_number,
     )
@@ -1209,6 +1322,7 @@ async def resend_candidate_sms_otp(
         db=db,
         recipient=candidate.mobile_number,
         otp_type=OTPTypeEnum.SMS,
+        expires_in_minutes=10,
     )
 
     # Dispatch in background
@@ -1236,6 +1350,7 @@ async def resend_candidate_sms_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
+        expires_in_minutes=10,
         is_registered=is_registered,
         mobile_number=mobile_number,
     )

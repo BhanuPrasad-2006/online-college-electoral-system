@@ -181,8 +181,8 @@ if settings.APP_ENV == "development":
         import os
         otp_dict = {}
         
-        otp_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_otp.txt"
-        sms_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_sms_otp.txt"
+        otp_path = os.path.join(os.getcwd(), "latest_otp.txt")
+        sms_path = os.path.join(os.getcwd(), "latest_sms_otp.txt")
         
         if os.path.exists(otp_path):
             with open(otp_path, "r", encoding="utf-8") as f:

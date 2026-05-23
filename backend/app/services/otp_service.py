@@ -54,6 +54,7 @@ async def create_and_store_otp(
     db: AsyncSession,
     recipient: str,
     otp_type: OTPTypeEnum,
+    expires_in_minutes: int | None = None,
 ) -> tuple[OTPRequest, str]:
 
     """
@@ -84,9 +85,10 @@ async def create_and_store_otp(
     hashed_otp = _otp_hash(plain_otp)
 
     # Expiry
+    minutes = expires_in_minutes or settings.OTP_EXPIRE_MINUTES
     expires_at = (
         datetime.now(timezone.utc)
-        + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
+        + timedelta(minutes=minutes)
     )
 
     # Create DB record

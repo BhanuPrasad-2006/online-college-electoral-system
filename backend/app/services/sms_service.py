@@ -23,7 +23,8 @@ async def send_otp_sms(mobile_number: str, otp: str, recipient_name: str = "") -
     if settings.APP_ENV == "development":
         logger.info(f"[SMS] [DEV MODE] SMS OTP for {mobile}: {otp}")
         try:
-            otp_log_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_sms_otp.txt"
+            import os
+            otp_log_path = os.path.join(os.getcwd(), "latest_sms_otp.txt")
             with open(otp_log_path, "w", encoding="utf-8") as f:
                 f.write(f"{mobile}:{otp}")
         except Exception as e:

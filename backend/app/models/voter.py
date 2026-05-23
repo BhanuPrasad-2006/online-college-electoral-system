@@ -47,6 +47,10 @@ class Voter(Base):
 
     face_encoding = Column(Text, nullable=True)
 
+    failed_attempts = Column(Integer, default=0, nullable=False)
+
+    lockout_until = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

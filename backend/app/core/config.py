@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # OTP
-    OTP_EXPIRE_MINUTES: int = 10
+    OTP_EXPIRE_MINUTES: int = 3
     OTP_LENGTH: int = 6
 
     # Gmail SMTP
