@@ -12,6 +12,7 @@ from app.core.config import settings
 def create_access_token(
     data: dict,
     expires_delta: timedelta | None = None,
+    device_fingerprint: str | None = None,
 ) -> str:
 
     to_encode = data.copy()
@@ -23,13 +24,18 @@ def create_access_token(
         )
     )
 
-    to_encode.update({
+    payload = {
         "exp": expire,
         "type": "access",
-    })
+    }
+    payload.update(to_encode)
+
+    # Attach device fingerprint if provided
+    if device_fingerprint:
+        payload["device_fp"] = device_fingerprint
 
     encoded_jwt = jwt.encode(
-        to_encode,
+        payload,
         settings.JWT_SECRET_KEY,
         algorithm="HS256",
     )

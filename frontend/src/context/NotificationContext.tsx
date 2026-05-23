@@ -1,11 +1,21 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { NOTIFICATIONS } from "@/lib/mock";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { NotificationContext, type NotificationItem } from "@/context/NotificationStore";
+import { useNotifications as useLiveNotifications } from "@/hooks/use-election-data";
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() =>
-    NOTIFICATIONS.map((notification) => ({ ...notification })),
-  );
+  const { data: liveNotifications = [] } = useLiveNotifications();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    // Merge new notifications while keeping local 'unread' state if already marked read
+    setNotifications((prev) => {
+      const prevReadMap = new Map(prev.filter(n => !n.unread).map(n => [n.id, true]));
+      return liveNotifications.map((n: NotificationItem) => ({
+        ...n,
+        unread: prevReadMap.has(n.id) ? false : n.unread
+      }));
+    });
+  }, [liveNotifications]);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => notification.unread).length,

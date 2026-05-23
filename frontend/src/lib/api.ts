@@ -6,7 +6,10 @@ const API_HOST =
   CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
     ? "localhost"
     : CLIENT_HOST;
-const BASE = `http://${API_HOST}:8000/api/v1`;
+// Use HTTPS in production (when host is not localhost), HTTP for local dev
+const PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
+const BASE = `${PROTOCOL}://${API_HOST}:8000/api/v1`;
+export const API_BASE_URL = BASE;
 const RETRY_DELAY_MS = 350;
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -41,6 +44,7 @@ async function fetchWithRetry(input: string, init: RequestInit) {
 // ── Storage helpers ──────────────────────────────────────────
 const KEYS = {
   token:        "collegevote-token",
+  csrf:         "collegevote-csrf-token",
   role:         "collegevote-demo-auth",
   otpSession:   "collegevote-otp-session",
   otpEmail:     "collegevote-otp-email",
@@ -51,15 +55,22 @@ const KEYS = {
   semester:     "collegevote-semester",
 };
 
-export function saveAuth(token: string, role: string, userId: string, fullName: string, department?: string, semester?: string) {
+export function saveAuth(token: string, role: string, userId: string, fullName: string, department?: string, semester?: string, csrfToken?: string) {
   try {
     sessionStorage.setItem(KEYS.token,    token);
+    if (csrfToken) {
+      sessionStorage.setItem(KEYS.csrf,   csrfToken);
+    }
     sessionStorage.setItem(KEYS.role,     role);
     sessionStorage.setItem(KEYS.userId,   userId);
     sessionStorage.setItem(KEYS.fullName, fullName);
     if (department) sessionStorage.setItem(KEYS.department, department);
     if (semester) sessionStorage.setItem(KEYS.semester, semester);
   } catch { /* ignore */ }
+}
+
+export function getCsrfToken() {
+  try { return sessionStorage.getItem(KEYS.csrf) ?? ""; } catch { return ""; }
 }
 
 export function saveOtpSession(sessionToken: string, email: string, mobile?: string) {
@@ -91,9 +102,17 @@ export function getFullName() {
 // ── Generic fetch wrapper ────────────────────────────────────
 async function post<T>(path: string, body: object): Promise<T> {
   const token = getAuthToken();
+  const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) {
+    headers["X-Device-Fingerprint"] = fp;
   }
   let res: Response;
   try {
@@ -107,6 +126,12 @@ async function post<T>(path: string, body: object): Promise<T> {
   }
   const data = await res.json();
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    }
     const err = new Error(data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
@@ -120,6 +145,10 @@ async function get<T>(path: string): Promise<T> {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+  const fp_get = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp_get) {
+    headers["X-Device-Fingerprint"] = fp_get;
+  }
   let res: Response;
   try {
     res = await fetchWithRetry(`${BASE}${path}`, {
@@ -131,6 +160,12 @@ async function get<T>(path: string): Promise<T> {
   }
   const data = await res.json();
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    }
     const err = new Error(data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
@@ -140,9 +175,17 @@ async function get<T>(path: string): Promise<T> {
 
 async function put<T>(path: string, body: object): Promise<T> {
   const token = getAuthToken();
+  const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) {
+    headers["X-Device-Fingerprint"] = fp;
   }
   let res: Response;
   try {
@@ -156,6 +199,12 @@ async function put<T>(path: string, body: object): Promise<T> {
   }
   const data = await res.json();
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    }
     const err = new Error(data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
@@ -166,6 +215,18 @@ async function put<T>(path: string, body: object): Promise<T> {
 // ── Candidate Management ──────────────────────────────────────
 export async function fetchCandidates() {
   return get<any[]>("/candidates/");
+}
+
+export async function fetchDeptTurnout() {
+  return get<any[]>("/election/stats/departments");
+}
+
+export async function fetchKpi() {
+  return get<any>("/election/kpi");
+}
+
+export async function fetchNotifications() {
+  return get<any[]>("/election/notifications");
 }
 
 export async function updateCandidateStatus(candidateId: string, status: string, adminRemarks?: string) {
@@ -234,28 +295,39 @@ export async function adminLoginStep2(sessionToken: string, email_otp: string, s
 // verifyVoterId: Pre-validates verification ID against the DB before candidate selection.
 export async function verifyVoterId(verificationId: string) {
   const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
   const res = await fetch(`${BASE}/vote/verify-id`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
     body: JSON.stringify({ verification_id: verificationId }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail ?? "Failed to verify ID");
-  return data as { success: boolean; message?: string };
+  return data as { success: boolean; anti_replay_token?: string; message?: string };
 }
 
-export async function castVote(candidateId: string | null, verificationId: string) {
+export async function castVote(candidateId: string | null, verificationId: string, liveFaceImage: string, antiReplayToken?: string) {
   const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
   const res = await fetch(`${BASE}/vote/cast`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ candidate_id: candidateId, verification_id: verificationId }),
+    headers,
+    body: JSON.stringify({
+      candidate_id: candidateId,
+      verification_id: verificationId,
+      live_face_image: liveFaceImage,
+      anti_replay_token: antiReplayToken,
+    }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail ?? "Failed to cast vote");
@@ -382,6 +454,8 @@ export async function registerCandidate(
     full_name?: string;
     department?: string;
     student_id?: string;
+    vice_president?: string;
+    secretary?: string;
   }
 ) {
   return post<{ message: string; candidate_id: string; status: string }>("/candidates/register", {
@@ -417,6 +491,26 @@ export async function fetchCurrentElection() {
   return get<any>("/election/current");
 }
 
+export async function getCurrentPhase() {
+  return get<{ phase: string; next_phase: string; remaining_time: string; is_paused: boolean; auto_transition: boolean }>("/election/current-phase");
+}
+
+export async function announceElectionSchedule(electionId: string) {
+  return post<{ message: string }>(`/election/${electionId}/announce`, {});
+}
+
+export async function pauseElection(electionId: string) {
+  return post<{ message: string }>(`/election/${electionId}/pause`, {});
+}
+
+export async function resumeElection(electionId: string) {
+  return post<{ message: string }>(`/election/${electionId}/resume`, {});
+}
+
+export async function emergencyStopElection(electionId: string) {
+  return post<{ message: string }>(`/election/${electionId}/emergency-stop`, {});
+}
+
 export async function openVoting(electionId: string) {
   return post<any>(`/election/${electionId}/open-voting`, {});
 }
@@ -437,8 +531,84 @@ export async function updateElectionDates(
     registration_end: string | null;
     voting_start: string | null;
     voting_end: string | null;
-  }
+  },
 ) {
   return put<{ message: string; election: any }>(`/election/${electionId}`, details);
 }
+
+// ── Security & Fraud Monitoring Endpoints (Phase 5) ─────────────
+export async function fetchAiAlerts() {
+  return get<any[]>("/admin/ai-alerts");
+}
+
+export async function resolveAiAlert(alertId: string) {
+  return put<{ message: string; alert_id: string }>(`/admin/ai-alerts/${alertId}/resolve`, {});
+}
+
+export async function verifyLedger() {
+  return get<any>("/admin/verify-ledger");
+}
+
+export async function fetchAuditLogs() {
+  return get<any[]>("/admin/audit-logs");
+}
+
+// ── Campaign Media Endpoints ───────────────────────────────────
+export async function fetchMediaItems() {
+  return get<any[]>("/media");
+}
+
+export async function submitCampaignMedia(formData: FormData) {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const fpMedia = sessionStorage.getItem("collegevote-fingerprint");
+  if (fpMedia) {
+    headers["X-Device-Fingerprint"] = fpMedia;
+  }
+  const res = await fetch(`${API_BASE_URL}/media`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Failed to submit campaign media");
+  return data;
+}
+
+export async function reviewCampaignMedia(mediaId: string, status: string, rejectionReason?: string) {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const form = new FormData();
+  form.append("status_update", status);
+  if (rejectionReason) {
+    form.append("rejection_reason", rejectionReason);
+  }
+  const fpReview = sessionStorage.getItem("collegevote-fingerprint");
+  if (fpReview) {
+    headers["X-Device-Fingerprint"] = fpReview;
+  }
+  const res = await fetch(`${API_BASE_URL}/media/${mediaId}/status`, {
+    method: "PUT",
+    headers,
+    body: form,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Failed to review campaign media");
+  return data;
+}
+
 

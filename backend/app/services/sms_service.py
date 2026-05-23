@@ -20,14 +20,17 @@ async def send_otp_sms(mobile_number: str, otp: str, recipient_name: str = "") -
         return False
 
     # Development fallback
-    logger.info(f"[SMS] [DEV MODE] SMS OTP for {mobile}: {otp}")
-    try:
-        import os
-        otp_log_path = os.path.join(os.getcwd(), "latest_sms_otp.txt")
-        with open(otp_log_path, "w", encoding="utf-8") as f:
-            f.write(f"{mobile}:{otp}")
-    except Exception as e:
-        logger.error(f"Failed to write latest_sms_otp.txt: {e}")
+    if settings.APP_ENV == "development":
+        logger.info(f"[SMS] [DEV MODE] SMS OTP for {mobile}: {otp}")
+        try:
+            import os
+            otp_log_path = os.path.join(os.getcwd(), "latest_sms_otp.txt")
+            with open(otp_log_path, "w", encoding="utf-8") as f:
+                f.write(f"{mobile}:{otp}")
+        except Exception as e:
+            logger.error(f"Failed to write latest_sms_otp.txt: {e}")
+    else:
+        logger.info(f"SMS OTP generated for {mobile[-4:].rjust(10, '*')}")
 
     message = (
         f"Dear {recipient_name}, your OTP for College Election Portal login is "

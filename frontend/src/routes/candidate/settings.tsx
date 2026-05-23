@@ -92,10 +92,10 @@ function Page() {
       <div className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
         <h2 className="text-base font-semibold">Account</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name" value={profile.name} disabled />
-          <Field label="Email" value={profile.email} disabled />
+          <Field label="Full Name" value={profile.full_name ?? profile.name} disabled />
+          <Field label="Email" value={profile.college_email ?? profile.email} disabled />
           <Field label="Department" value={profile.department} disabled />
-          <Field label="Year" value={profile.year} disabled />
+          <Field label="Year" value={profile.semester ?? profile.year} disabled />
         </div>
       </div>
 
@@ -244,7 +244,7 @@ function Field({ label, value, type = "text", disabled = false }: { label: strin
   return (
     <div>
       <label className="text-xs text-muted-foreground">{label}</label>
-      <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" defaultValue={value} type={type} disabled={disabled} />
+      <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" value={value || ""} type={type} disabled={disabled} readOnly />
     </div>
   );
 }

@@ -21,6 +21,7 @@ EXPECTED_TABLES = [
     "ai_reports",
     "ai_alerts",
     "vote_stats",
+    "anti_replay_tokens",
 ]
 
 

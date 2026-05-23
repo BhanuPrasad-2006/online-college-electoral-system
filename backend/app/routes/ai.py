@@ -3,7 +3,7 @@ backend/app/routes/ai.py — AI Chatbot API Route
 =================================================
 Exposes:
   POST /api/v1/ai/chat   — Multi-turn conversational AI chatbot for voters.
-  GET  /api/v1/ai/chat/suggestions — Returns suggested questions.
+  GET  /api/v1/ai/chat/suggestions — Returns suggested questions grouped by category.
 
 Session-based Gemini chat history is maintained in-process using a simple
 dictionary keyed by session_id (UUID). Each session holds a Gemini Chat object
@@ -15,14 +15,29 @@ Environment variables required (set in backend/.env):
 
 import uuid
 import logging
-from typing import Dict
+from typing import Dict, Optional
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.ai.context_data import SYSTEM_INSTRUCTION, CANDIDATE_MANIFESTOS, STUDENT_CONCERNS
+from app.ai.context_data import (
+    SYSTEM_INSTRUCTION,
+    build_system_instruction,
+    format_dynamic_context,
+    CANDIDATE_MANIFESTOS,
+    STUDENT_CONCERNS,
+    VOTER_RULES,
+    CANDIDATE_RULES,
+    ELECTION_PHASES,
+    FAQ,
+)
+from app.models.election import Election
+from app.models.position import Position
+from app.services.phase_engine import PhaseEngine
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +54,9 @@ except ImportError:
     logger.warning("google-genai SDK not installed. Chatbot will use mock fallback mode.")
 
 # ── In-memory session store ────────────────────────────────────────────────────
-# Maps session_id (str) → Gemini Chat object (or None if mock mode)
+# Maps session_id (str) → {"chat": Gemini Chat object, "instruction": str}
 # NOTE: This is reset on server restart. For production, use Redis.
-_chat_sessions: Dict[str, object] = {}
+_chat_sessions: Dict[str, dict] = {}
 
 # ── Gemini client (singleton) ─────────────────────────────────────────────────
 _gemini_client = None
@@ -67,25 +82,80 @@ def _get_gemini_client():
 
 
 # ── Mock fallback responses ────────────────────────────────────────────────────
-_MOCK_RESPONSES = [
-    "I can help you compare candidates! (Running in demo mode — set GEMINI_API_KEY to activate live AI).",
-    "Based on the submitted manifestos, here's what I found... (Demo mode — configure your API key for real responses).",
-    "Great question! The candidates have different positions on this issue. (Demo mode active).",
-]
+
+def _build_mock_system_preview() -> str:
+    """Build a preview of the system knowledge for mock mode."""
+    candidate_names = list(CANDIDATE_MANIFESTOS.keys())
+    concern_names = list(STUDENT_CONCERNS.keys())
+    phase_names = [p["label"] for p in ELECTION_PHASES]
+
+    return (
+        "**Demo Mode Active** — I don't have a live Gemini API key yet.\n\n"
+        "In production, I can answer questions about:\n\n"
+        f"**Candidates:** {', '.join(candidate_names)}\n"
+        f"**Student Concerns:** {', '.join(concern_names[:4])}, and more\n"
+        f"**Election Phases:** {', '.join(phase_names)}\n\n"
+        "**Try asking me:**\n"
+        "• Compare all candidates on Wi-Fi improvements\n"
+        "• How do I register to vote?\n"
+        "• What are the top student concerns?\n"
+        "• Who is running for General Secretary?\n"
+        "• How is vote security maintained?\n\n"
+        "Set a **GEMINI_API_KEY** in your `.env` file to activate the live AI!"
+    )
+
 _mock_counter = 0
 
 def _mock_response(message: str) -> str:
     global _mock_counter
-    candidate_names = list(CANDIDATE_MANIFESTOS.keys())
-    resp = (
-        f"**Demo Mode Active** — I don't have a live Gemini API key yet.\n\n"
-        f"In production, I will answer your question: *\"{message[:80]}...\"*\n\n"
-        f"Current candidates in this election:\n"
-        + "\n".join(f"- **{n}** ({info['party']}, {info['position']})" for n, info in CANDIDATE_MANIFESTOS.items())
-        + "\n\nAsk me to compare them on topics like Wi-Fi, Placements, Sports, or Mental Health!"
-    )
+    message_lower = message.lower().strip()
+
+    # Try to simulate basic intent matching for mock mode
+    if any(w in message_lower for w in ["register", "how do i vote", "how to vote"]):
+        return (
+            "**Demo Mode** — Here's how voting registration works:\n\n"
+            "1. Log in with your student ID and college email.\n"
+            "2. Go to the registration section.\n"
+            "3. Fill in your details (department, year, mobile).\n"
+            "4. Verify your email via OTP.\n"
+            "5. Wait for admin to grant voting permission.\n\n"
+            "Set GEMINI_API_KEY for detailed live responses!"
+        )
+
+    if any(w in message_lower for w in ["manifesto", "platform", "candidate", "compare"]):
+        candidates_info = "\n".join(
+            f"• **{n}** — {info['party']} ({info['department']}, {info['year']})"
+            for n, info in CANDIDATE_MANIFESTOS.items()
+        )
+        return (
+            f"**Demo Mode** — Current candidates in this election:\n\n{candidates_info}\n\n"
+            "Ask me to compare them on topics like Wi-Fi, Placements, Sports, or Mental Health!\n"
+            "(Set GEMINI_API_KEY for live AI responses.)"
+        )
+
+    if any(w in message_lower for w in ["concern", "issue", "problem", "student"]):
+        concerns_info = "\n".join(
+            f"• **{c}** ({d['vote_count']} votes, {d['severity']} severity)"
+            for c, d in list(STUDENT_CONCERNS.items())[:5]
+        )
+        return (
+            f"**Demo Mode** — Top student concerns:\n\n{concerns_info}\n\n"
+            "Set GEMINI_API_KEY for detailed analysis!"
+        )
+
+    if any(w in message_lower for w in ["phase", "schedule", "timeline", "when"]):
+        phases_info = "\n".join(
+            f"• **{p['label']}** — {p['description'][:80]}..."
+            for p in ELECTION_PHASES
+        )
+        return (
+            f"**Demo Mode** — Election phases:\n\n{phases_info}\n\n"
+            "Set GEMINI_API_KEY for live responses with real-time phase data!"
+        )
+
+    # Default fallback
     _mock_counter += 1
-    return resp
+    return _build_mock_system_preview()
 
 
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
@@ -98,40 +168,157 @@ class ChatResponse(BaseModel):
     session_id: str
     reply: str
     is_mock: bool = False
+    query_type: str | None = None
 
 
 class SuggestionsResponse(BaseModel):
     suggestions: list[str]
+    categories: dict[str, list[str]]
 
 
-# ── Suggested questions ────────────────────────────────────────────────────────
-SUGGESTED_QUESTIONS = [
-    "Compare all candidates on Wi-Fi improvements",
-    "Which candidates address placement issues?",
-    "What are the top student concerns this election?",
-    "Tell me about Arjun Mehta's platform",
-    "Who has plans for mental health support?",
-    "Compare candidates on cafeteria improvements",
-    "What does Priya Sharma plan for hostels?",
-    "Which candidate focuses on sports facilities?",
+# ── Suggested questions (grouped by category) ─────────────────────────────────
+SUGGESTED_QUESTIONS = {
+    "Candidates & Manifestos": [
+        "Compare all candidates on Wi-Fi improvements",
+        "Tell me about Arjun Mehta's platform",
+        "Who has plans for mental health support?",
+        "Which candidate focuses on sports facilities?",
+        "Compare candidates on cafeteria improvements",
+    ],
+    "Voting Process": [
+        "How do I register to vote?",
+        "How does voting work?",
+        "Is my vote anonymous?",
+        "How is vote security maintained?",
+        "Can I change my vote after submitting?",
+    ],
+    "Election Info": [
+        "What are the top student concerns?",
+        "What is the current election phase?",
+        "Who can stand as a candidate?",
+        "What positions are available?",
+        "How are results announced?",
+    ],
+}
+
+FLAT_SUGGESTIONS = [
+    s for group in SUGGESTED_QUESTIONS.values() for s in group
 ]
+
+
+# ── Helper: Build system instruction with dynamic context ──────────────────────
+
+async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> str:
+    """Build the system instruction with live election data if available."""
+    dynamic_ctx = {}
+
+    if db is not None:
+        try:
+            # Get the most recent election
+            result = await db.execute(
+                select(Election).order_by(Election.created_at.desc()).limit(1)
+            )
+            election = result.scalars().first()
+
+            if election:
+                dynamic_ctx["election_title"] = election.title
+
+                # Get current phase
+                current_phase = PhaseEngine.get_current_phase(election)
+                dynamic_ctx["current_phase"] = current_phase
+
+                # Get time remaining
+                time_remaining = PhaseEngine.get_time_remaining(election, current_phase)
+                if time_remaining:
+                    dynamic_ctx["time_remaining"] = time_remaining
+
+                # Get positions
+                pos_result = await db.execute(
+                    select(Position.title).where(Position.election_id == election.election_id)
+                )
+                positions = pos_result.scalars().all()
+                if positions:
+                    dynamic_ctx["positions"] = list(positions)
+
+        except Exception as e:
+            logger.warning(f"Could not fetch dynamic context: {e}")
+
+    return build_system_instruction(
+        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None
+    )
+
+
+# ── Simple query type classifier ──────────────────────────────────────────────
+
+def classify_query(message: str) -> str:
+    """Simple keyword-based query type classification."""
+    msg = message.lower().strip()
+
+    # Candidate/manifesto queries
+    candidate_names = [n.lower().split()[0] for n in CANDIDATE_MANIFESTOS.keys()]
+    if any(name in msg for name in candidate_names):
+        return "manifesto"
+    if any(w in msg for w in ["manifesto", "platform", "stance", "promise", "compare", "candidate"]):
+        return "manifesto"
+
+    # Voting process
+    if any(w in msg for w in ["how to vote", "how do i vote", "cast vote", "voting process"]):
+        return "voting_process"
+    if any(w in msg for w in ["anonymous", "anonymity", "receipt", "hash"]):
+        return "security"
+
+    # Registration
+    if any(w in msg for w in ["register", "registration", "sign up", "become a voter"]):
+        return "registration"
+    if any(w in msg for w in ["apply candidate", "become candidate", "stand for"]):
+        return "candidate_info"
+
+    # Election schedule
+    if any(w in msg for w in ["phase", "schedule", "timeline", "when", "deadline"]):
+        return "election_schedule"
+
+    # Student concerns
+    if any(w in msg for w in ["concern", "issue", "problem", "student want", "students want"]):
+        return "student_concerns"
+
+    # Security
+    if any(w in msg for w in ["security", "tamper", "fraud", "safe", "secure"]):
+        return "security"
+
+    # Rules
+    if any(w in msg for w in ["rule", "eligible", "can i vote", "who can", "requirement"]):
+        return "rules"
+
+    # Results
+    if any(w in msg for w in ["result", "winner", "who won", "vote count", "tally"]):
+        return "results"
+
+    # General election queries
+    if any(w in msg for w in ["election", "vote", "college", "student"]):
+        return "voting_process"
+
+    return "voting_process"  # Default to voting process
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/chat/suggestions", response_model=SuggestionsResponse)
 async def get_suggestions():
-    """Return suggested questions for the chatbot UI."""
-    return SuggestionsResponse(suggestions=SUGGESTED_QUESTIONS)
+    """Return suggested questions for the chatbot UI, grouped by category."""
+    return SuggestionsResponse(
+        suggestions=FLAT_SUGGESTIONS,
+        categories=SUGGESTED_QUESTIONS,
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     """
     Multi-turn AI chatbot endpoint.
 
     - Creates a new Gemini chat session if session_id is None or unknown.
     - Maintains conversation history per session using Gemini's built-in chat management.
+    - Injects dynamic election context (current phase, positions, etc.) into the system instruction.
     - Falls back to mock responses if the SDK is unavailable or API key is missing.
     """
     if not request.message.strip():
@@ -139,6 +326,9 @@ async def chat(request: ChatRequest):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Message cannot be empty."
         )
+
+    # Classify the query
+    query_type = classify_query(request.message)
 
     # Resolve or create session ID
     session_id = request.session_id
@@ -154,23 +344,27 @@ async def chat(request: ChatRequest):
             session_id=session_id,
             reply=_mock_response(request.message),
             is_mock=True,
+            query_type=query_type,
         )
 
     # ── Live Gemini mode ──────────────────────────────────────────────────────
     try:
+        # Build the contextual system instruction with live election data
+        instruction = await _build_contextual_instruction(db)
+
         # Get or create a Gemini Chat session for this session_id
         if session_id not in _chat_sessions or _chat_sessions[session_id] is None:
             chat_session = client.chats.create(
                 model="gemini-2.5-flash",
                 config=genai_types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INSTRUCTION,
+                    system_instruction=instruction,
                     temperature=0.3,        # Lower = more factual, less creative
                     max_output_tokens=1024,
                 ),
             )
-            _chat_sessions[session_id] = chat_session
+            _chat_sessions[session_id] = {"chat": chat_session, "instruction": instruction}
         else:
-            chat_session = _chat_sessions[session_id]
+            chat_session = _chat_sessions[session_id]["chat"]
 
         # Send the user message and get the AI response
         response = chat_session.send_message(request.message)
@@ -180,6 +374,7 @@ async def chat(request: ChatRequest):
             session_id=session_id,
             reply=reply_text,
             is_mock=False,
+            query_type=query_type,
         )
 
     except Exception as e:
@@ -190,8 +385,10 @@ async def chat(request: ChatRequest):
             reply=(
                 "I encountered an issue reaching the AI service. Please try again in a moment.\n\n"
                 f"_(Error: {str(e)[:120]})_"
+                "\n\n💡 **Tip:** Check your GEMINI_API_KEY in the .env file."
             ),
             is_mock=True,
+            query_type=query_type,
         )
 
 

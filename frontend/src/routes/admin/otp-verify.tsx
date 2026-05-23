@@ -48,7 +48,7 @@ function AdminOtpVerify() {
       const emailOtpStr = emailOtp.join("");
       const phoneOtpStr = phoneOtp.join("");
       const res = await adminLoginStep2(sessionToken, emailOtpStr, phoneOtpStr);
-      saveAuth(res.access_token, res.role, res.user_id, res.full_name);
+      saveAuth(res.access_token, res.role, res.user_id, res.full_name, undefined, undefined, (res as any).csrf_token);
       login("admin");
       toast.success("Identity verified securely!");
       nav({ to: "/admin/dashboard" });

@@ -1,7 +1,9 @@
 import uuid
 import jwt
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Request
+from app.middleware.rate_limit import limiter
+from app.security.device_fingerprint import generate_fingerprint
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -62,7 +64,9 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
         "and returns a short-lived session token (valid 15 min) to be used in step 2."
     ),
 )
+@limiter.limit("10/minute")
 async def voter_login(
+    request: Request,
     body: VoterLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -85,10 +89,11 @@ async def voter_login(
     ),
 )
 async def voter_verify_otp(
+    request: Request,
     body: VoterOTPVerifyRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await voter_login_step2(db, body.otp_session_token, body.otp)
+    result = await voter_login_step2(db, body.otp_session_token, body.otp, device_fingerprint=generate_fingerprint(request))
     return AuthTokenResponse(**result)
 
 
@@ -235,7 +240,9 @@ async def candidate_initiate(
         "both registered email AND mobile (SMS). Returns a 15-min session token."
     ),
 )
+@limiter.limit("10/minute")
 async def candidate_login(
+    request: Request,
     body: CandidateLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -260,11 +267,12 @@ async def candidate_login(
     ),
 )
 async def candidate_verify_otp(
+    request: Request,
     body: CandidateOTPVerifyRequest,
     db: AsyncSession = Depends(get_db),
 ):
     result = await candidate_login_step2(
-        db, body.otp_session_token, body.email_otp, body.sms_otp
+        db, body.otp_session_token, body.email_otp, body.sms_otp, device_fingerprint=generate_fingerprint(request)
     )
     return AuthTokenResponse(**result)
 # ─── Admin Routes ─────────────────────────────────────────────
@@ -275,7 +283,9 @@ async def candidate_verify_otp(
     status_code=status.HTTP_200_OK,
     summary="Admin Step 1 — Email + Password + Mobile OTP dispatch",
 )
+@limiter.limit("10/minute")
 async def admin_login(
+    request: Request,
     body: AdminLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -296,11 +306,12 @@ async def admin_login(
     summary="Admin Step 2 — Verify Email OTP + SMS OTP",
 )
 async def admin_verify_otp(
+    request: Request,
     body: AdminOTPVerifyRequest,
     db: AsyncSession = Depends(get_db),
 ):
     result = await admin_login_step2(
-        db, body.otp_session_token, body.email_otp, body.sms_otp
+        db, body.otp_session_token, body.email_otp, body.sms_otp, device_fingerprint=generate_fingerprint(request)
     )
     return AuthTokenResponse(**result)
 
@@ -416,7 +427,9 @@ async def get_candidate_profile(
     status_code=status.HTTP_200_OK,
     summary="Request a password change (Step 1 — Verify current, dispatch OTP)",
 )
+@limiter.limit("10/minute")
 async def request_password_change(
+    request: Request,
     body: PasswordChangeRequest,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -464,7 +477,9 @@ async def confirm_password_change_route(
     status_code=status.HTTP_200_OK,
     summary="Request password reset (Step 1 — Verify email, dispatch OTP)",
 )
+@limiter.limit("10/minute")
 async def forgot_password_request_route(
+    request: Request,
     body: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -501,7 +516,9 @@ async def forgot_password_confirm_route(
     status_code=status.HTTP_200_OK,
     summary="Resend Voter Login OTP",
 )
+@limiter.limit("10/minute")
 async def voter_resend_otp_route(
+    request: Request,
     body: ResendOTPRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -518,7 +535,9 @@ async def voter_resend_otp_route(
     status_code=status.HTTP_200_OK,
     summary="Resend Candidate Login OTP",
 )
+@limiter.limit("10/minute")
 async def candidate_resend_otp_route(
+    request: Request,
     body: ResendOTPRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -535,7 +554,9 @@ async def candidate_resend_otp_route(
     status_code=status.HTTP_200_OK,
     summary="Resend Candidate Email OTP",
 )
+@limiter.limit("10/minute")
 async def candidate_resend_email_otp_route(
+    request: Request,
     body: ResendOTPRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -552,7 +573,9 @@ async def candidate_resend_email_otp_route(
     status_code=status.HTTP_200_OK,
     summary="Resend Candidate SMS OTP",
 )
+@limiter.limit("10/minute")
 async def candidate_resend_sms_otp_route(
+    request: Request,
     body: ResendOTPRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -561,3 +584,28 @@ async def candidate_resend_sms_otp_route(
         otp_session_token=body.otp_session_token,
     )
     return result
+
+# ─── Logout Endpoint ──────────────────────────────────────────
+
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+security_scheme = HTTPBearer()
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="Logout user and invalidate token",
+)
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    token = credentials.credentials
+    from app.models.blacklisted_token import BlacklistedToken
+    blacklisted = BlacklistedToken(token=token)
+    db.add(blacklisted)
+    try:
+        await db.commit()
+    except Exception:
+        pass
+    return {"message": "Successfully logged out"}
+

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -42,6 +42,10 @@ class Voter(Base):
     has_voted = Column(Boolean, default=False)
 
     vote_permission = Column(Boolean, default=False)
+
+    reference_image_url = Column(String(500), nullable=True)
+
+    face_encoding = Column(Text, nullable=True)
 
     failed_attempts = Column(Integer, default=0, nullable=False)
 

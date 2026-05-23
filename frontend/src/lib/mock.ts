@@ -105,20 +105,24 @@ export type MediaItem = {
   candidateId: string;
   candidateName: string;
   party: string;
-  type: "video" | "poster" | "message" | "manifesto";
+  type: "video" | "poster" | "message" | "media";
   title: string;
-  body?: string;
   url?: string;
+  uploadedFileUrl?: string;
+  externalUrl?: string;
+  body?: string;
   status: "Pending" | "Approved" | "Rejected";
   submittedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
 };
 
 export const MEDIA_ITEMS: MediaItem[] = [
   { id: "m1", candidateId: "c1", candidateName: "Priya Sharma", party: "Progressive Students Alliance", type: "video", title: "My vision for campus", url: "campaign-video.mp4", status: "Approved", submittedAt: "Oct 28" },
-  { id: "m2", candidateId: "c1", candidateName: "Priya Sharma", party: "Progressive Students Alliance", type: "poster", title: "Vote for Progress", url: "poster-1.png", status: "Approved", submittedAt: "Oct 28" },
-  { id: "m3", candidateId: "c1", candidateName: "Priya Sharma", party: "Progressive Students Alliance", type: "message", title: "A note to fellow students", body: "Together we can modernize our campus, improve placements, and put student welfare first.", status: "Approved", submittedAt: "Oct 29" },
-  { id: "m4", candidateId: "c2", candidateName: "Arjun Mehta", party: "United Campus Front", type: "video", title: "Hostel & cafeteria fixes", url: "arjun-video.mp4", status: "Pending", submittedAt: "Oct 30" },
-  { id: "m5", candidateId: "c2", candidateName: "Arjun Mehta", party: "United Campus Front", type: "poster", title: "United for Change", url: "arjun-poster.png", status: "Approved", submittedAt: "Oct 29" },
+  { id: "m2", candidateId: "c1", candidateName: "Priya Sharma", party: "Progressive Students Alliance", type: "media", title: "Vote for Progress", url: "poster-1.png", status: "Approved", submittedAt: "Oct 28" },
+  { id: "m3", candidateId: "c2", candidateName: "Arjun Mehta", party: "United Campus Front", type: "video", title: "Hostel & cafeteria fixes", url: "arjun-video.mp4", status: "Pending", submittedAt: "Oct 30" },
+  { id: "m4", candidateId: "c2", candidateName: "Arjun Mehta", party: "United Campus Front", type: "media", title: "United for Change", url: "arjun-poster.png", status: "Approved", submittedAt: "Oct 29" },
 ];
 
 export type VoterConcern = {

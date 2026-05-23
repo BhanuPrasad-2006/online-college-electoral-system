@@ -19,6 +19,8 @@ from app.routes.vote import router as vote_router
 from app.routes.candidates import router as candidates_router
 from app.routes.ai import router as ai_router
 from app.routes.election import router as election_router
+from app.routes.admin import router as admin_router
+from app.routes.media import router as media_router
 from app.utils.logger import logger
 
 
@@ -47,27 +49,27 @@ app.add_middleware(
         r"|(^http://172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$)"
     ),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "X-CSRF-Token", "x-csrf-token", "X-Device-Fingerprint"],
 )
 
-# ── Rate Limiting ─────────────────────────────────────────────
+# ── Rate Limiting (Redis-backed with in-memory fallback) ──────────────
 from app.middleware.rate_limit import limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 # ── Custom Security, Logging & JWT Middlewares ──────────────
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.request_size_limit import RequestBodySizeLimitMiddleware
 from app.middleware.audit_middleware import AuditMiddleware
 from app.middleware.jwt_middleware import JWTMiddleware
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestBodySizeLimitMiddleware)
 app.add_middleware(AuditMiddleware)
 app.add_middleware(JWTMiddleware)
-
 
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(auth_router,       prefix=settings.API_V1_PREFIX)
@@ -75,6 +77,8 @@ app.include_router(vote_router,       prefix=f"{settings.API_V1_PREFIX}/vote",  
 app.include_router(candidates_router, prefix=f"{settings.API_V1_PREFIX}/candidates", tags=["Candidates"])
 app.include_router(ai_router,         prefix=f"{settings.API_V1_PREFIX}/ai",         tags=["AI"])
 app.include_router(election_router,   prefix=f"{settings.API_V1_PREFIX}/election",   tags=["Election"])
+app.include_router(admin_router,      prefix=f"{settings.API_V1_PREFIX}/admin",      tags=["Admin"])
+app.include_router(media_router,      prefix=f"{settings.API_V1_PREFIX}/media",      tags=["Media"])
 
 
 # ── Auth Exception Handlers ──────────────────────────────────
@@ -170,32 +174,33 @@ async def startup_validation():
 
 
 # ── Dev OTP Retrieval Backdoor ─────────────────────────────────
-@app.get("/dev/latest-otp", tags=["Dev"])
-async def dev_latest_otp():
-    """Retrieve the latest OTPs generated in dev mode for automated testing."""
-    import os
-    otp_dict = {}
-    
-    otp_path = os.path.join(os.getcwd(), "latest_otp.txt")
-    sms_path = os.path.join(os.getcwd(), "latest_sms_otp.txt")
-    
-    if os.path.exists(otp_path):
-        with open(otp_path, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if ":" in content:
-                email, otp = content.split(":", 1)
-                otp_dict["email"] = email
-                otp_dict["email_otp"] = otp
-                
-    if os.path.exists(sms_path):
-        with open(sms_path, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-            if ":" in content:
-                phone, otp = content.split(":", 1)
-                otp_dict["phone"] = phone
-                otp_dict["sms_otp"] = otp
-                
-    return otp_dict
+if settings.APP_ENV == "development":
+    @app.get("/dev/latest-otp", tags=["Dev"])
+    async def dev_latest_otp():
+        """Retrieve the latest OTPs generated in dev mode for automated testing."""
+        import os
+        otp_dict = {}
+        
+        otp_path = os.path.join(os.getcwd(), "latest_otp.txt")
+        sms_path = os.path.join(os.getcwd(), "latest_sms_otp.txt")
+        
+        if os.path.exists(otp_path):
+            with open(otp_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if ":" in content:
+                    email, otp = content.split(":", 1)
+                    otp_dict["email"] = email
+                    otp_dict["email_otp"] = otp
+                    
+        if os.path.exists(sms_path):
+            with open(sms_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                if ":" in content:
+                    phone, otp = content.split(":", 1)
+                    otp_dict["phone"] = phone
+                    otp_dict["sms_otp"] = otp
+                    
+        return otp_dict
 
 
 # ── Health Check ──────────────────────────────────────────────

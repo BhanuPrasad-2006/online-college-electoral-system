@@ -74,6 +74,16 @@ class Candidate(Base):
         nullable=True,
     )
 
+    vice_president = Column(
+        String(255),
+        nullable=True,
+    )
+
+    secretary = Column(
+        String(255),
+        nullable=True,
+    )
+
     status = Column(
         PgEnum(CandidateStatusEnum, pg_type_name="candidate_status"),
         default=CandidateStatusEnum.PENDING.value,

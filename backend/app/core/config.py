@@ -27,9 +27,10 @@ class Settings(BaseSettings):
     DATABASE_POOLER_URL: str = ""
 
     # JWT
-    JWT_SECRET_KEY: str = "your-super-secret-key-change-in-production"
+    JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 5
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # OTP
     OTP_EXPIRE_MINUTES: int = 3
@@ -52,6 +53,10 @@ class Settings(BaseSettings):
     # Then paste it in backend/.env as: GEMINI_API_KEY=your_key_here
     GEMINI_API_KEY: str = ""
 
+    # AI Microservice
+    AI_SERVICE_URL: str = "http://localhost:8001"
+    AI_SERVICE_API_KEY: str = "default-ai-service-key-change-in-prod"
+
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -66,6 +71,19 @@ class Settings(BaseSettings):
         "http://localhost:8000",
         "http://127.0.0.1:8000",
     ]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, value):
+        if isinstance(value, str):
+            if value.startswith("[") and value.endswith("]"):
+                import json
+                try:
+                    return json.loads(value)
+                except Exception:
+                    pass
+            return [x.strip() for x in value.split(",") if x.strip()]
+        return value
 
     model_config = ConfigDict(
         env_file=".env",

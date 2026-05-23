@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import Webcam from "react-webcam";
 import { PageLoader } from "@/components/PageLoader";
 import { useCandidates, useVoterProfile } from "@/hooks/use-election-data";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,8 @@ function VotePage() {
   const [confirmed, setConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>("");
+  const [antiReplayToken, setAntiReplayToken] = useState<string>("");
+  const webcamRef = useRef<Webcam>(null);
 
   const { data: candidates = [], isPending } = useCandidates();
   const { data: voter, isPending: isVoterPending } = useVoterProfile();
@@ -34,10 +37,11 @@ function VotePage() {
     // JWT Session Timer
     const token = sessionStorage.getItem("collegevote-token");
     if (!token) return;
+    const jwtToken = token;
 
     function updateTimer() {
       try {
-        const base64Url = token.split(".")[1];
+        const base64Url = jwtToken.split(".")[1];
         const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
         const payload = JSON.parse(window.atob(base64));
         const exp = payload.exp;
@@ -115,6 +119,9 @@ function VotePage() {
     try {
       const res = await verifyVoterId(idToVerify);
       if (res.success) {
+        if (res.anti_replay_token) {
+          setAntiReplayToken(res.anti_replay_token);
+        }
         setVerified(true);
         toast.success("Verification successful!");
       }
@@ -134,9 +141,20 @@ function VotePage() {
   }
 
   async function handleCastVote() {
+    if (!webcamRef.current) {
+      toast.error("Please allow camera access to verify your identity.");
+      return;
+    }
+    
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) {
+      toast.error("Failed to capture face. Please make sure your camera is working.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await castVote(selected === NOTA_ID ? null : selected, verificationCode.trim());
+      await castVote(selected === NOTA_ID ? null : selected, verificationCode.trim(), imageSrc, antiReplayToken);
       setConfirmed(true);
       toast.success("Vote cast successfully!");
     } catch (e: any) {
@@ -210,7 +228,7 @@ function VotePage() {
   const selectedCandidate =
     selected === NOTA_ID
       ? null
-      : presidents.find((c) => c.candidate_id === selected);
+      : presidents.find((c) => (c.candidate_id || c.id) === selected);
 
   return (
     <div className="min-h-screen bg-background">
@@ -239,11 +257,12 @@ function VotePage() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {presidents.map((c) => {
-                const isSel = selected === c.candidate_id;
+                const cId = c.candidate_id || c.id;
+                const isSel = selected === cId;
                 return (
                   <button
-                    key={c.candidate_id}
-                    onClick={() => setSelected(c.candidate_id)}
+                    key={cId}
+                    onClick={() => setSelected(cId)}
                     className={cn(
                       "text-left bg-card rounded-2xl shadow-sm p-5 transition-all border-2",
                       isSel ? "border-[#6C63FF] ring-2 ring-[#6C63FF]/30" : "border-transparent hover:shadow-md"
@@ -254,7 +273,7 @@ function VotePage() {
                         {c.symbol ?? "🎓"}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{c.name}</p>
+                        <p className="font-semibold truncate">{c.full_name || c.name}</p>
                         <p className="text-[11px] text-muted-foreground italic truncate">{c.party}</p>
                         <p className="text-[11px] text-muted-foreground">{c.semester} Sem · {c.department}</p>
                       </div>
@@ -263,11 +282,11 @@ function VotePage() {
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Running mates</p>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Vice President</span>
-                        <span className="font-medium">{c.runningMates?.vicePresident ?? "—"}</span>
+                        <span className="font-medium">{c.vice_president ?? c.runningMates?.vicePresident ?? "—"}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Gen. Secretary</span>
-                        <span className="font-medium">{c.runningMates?.secretary ?? "—"}</span>
+                        <span className="font-medium">{c.secretary ?? c.runningMates?.secretary ?? "—"}</span>
                       </div>
                     </div>
                     <details className="mt-3 text-xs">
@@ -347,21 +366,40 @@ function VotePage() {
                     {selectedCandidate.symbol ?? "🎓"}
                   </div>
                   <div>
-                    <p className="font-semibold">{selectedCandidate.name} <span className="text-xs text-muted-foreground">— President</span></p>
+                    <p className="font-semibold">{selectedCandidate.full_name || selectedCandidate.name} <span className="text-xs text-muted-foreground">— President</span></p>
                     <p className="text-xs text-muted-foreground italic">{selectedCandidate.party}</p>
                   </div>
                 </div>
                 <div className="text-xs space-y-1 pt-2 border-t border-border">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Vice President</span><span className="font-medium">{selectedCandidate.runningMates?.vicePresident}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Gen. Secretary</span><span className="font-medium">{selectedCandidate.runningMates?.secretary}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Vice President</span><span className="font-medium">{selectedCandidate.vice_president ?? selectedCandidate.runningMates?.vicePresident ?? "—"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Gen. Secretary</span><span className="font-medium">{selectedCandidate.secretary ?? selectedCandidate.runningMates?.secretary ?? "—"}</span></div>
                 </div>
               </div>
             ) : null}
 
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex gap-3 mb-6">
               <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <p className="text-sm text-destructive">This action is permanent and cannot be reversed.</p>
+              <p className="text-sm text-destructive">This action is permanent and cannot be reversed. By proceeding, your live face will be matched against your enrolled student ID photo.</p>
             </div>
+            
+            <div className="mb-6 rounded-xl overflow-hidden border-2 border-border relative bg-muted/30">
+              <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded-md z-10 flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                Live Verification
+              </div>
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: "user" }}
+                className="w-full h-auto max-h-[300px] object-cover"
+                onUserMediaError={() => toast.error("Camera access denied or unavailable. Please enable permissions.")}
+              />
+            </div>
+            
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setReview(false)}>← Back</Button>
               <Button
@@ -369,7 +407,7 @@ function VotePage() {
                 onClick={handleCastVote}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Casting Vote..." : "Confirm & Cast My Vote"}
+                {isSubmitting ? "Verifying & Casting..." : "Capture Face & Cast Vote"}
               </Button>
             </div>
           </div>

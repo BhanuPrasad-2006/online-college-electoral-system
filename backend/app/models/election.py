@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -29,6 +29,8 @@ class Election(Base):
     )
     result_integrity_hash = Column(String(64), nullable=True)
     created_by            = Column(UUID(as_uuid=True), ForeignKey("admin_users.admin_id"), nullable=True)
+    auto_transition       = Column(Boolean, default=True, nullable=False)
+    is_paused             = Column(Boolean, default=False, nullable=False)
     created_at            = Column(DateTime(timezone=True), server_default=func.now())
 
     # ── Relationships ─────────────────────────────────────────
@@ -39,6 +41,7 @@ class Election(Base):
     concerns   = relationship("Concern",   back_populates="election")
     ai_alerts  = relationship("AIAlert",   back_populates="election")
     ai_reports = relationship("AIReport",  back_populates="election")
+    phases     = relationship("ElectionPhase", back_populates="election", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Election {self.title} [{self.status}]>"

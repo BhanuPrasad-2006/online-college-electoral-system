@@ -1,4 +1,4 @@
-"""AI proxy service — forwards requests to AI microservice."""
+"""AI proxy service — forwards requests to AI microservice with authentication."""
 
 import httpx
 from app.core.config import settings
@@ -7,33 +7,54 @@ from app.core.config import settings
 class AIProxyService:
     def __init__(self):
         self.base_url = settings.AI_SERVICE_URL
+        self.headers = {"X-API-Key": settings.AI_SERVICE_API_KEY}
 
     async def classify_concern(self, text: str) -> dict:
         """Classify concern text using AI."""
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{self.base_url}/classify", json={"text": text})
+            response = await client.post(
+                f"{self.base_url}/classify",
+                json={"text": text},
+                headers=self.headers
+            )
             return response.json()
 
     async def analyze_manifesto(self, content: str) -> dict:
         """Analyze manifesto using AI."""
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{self.base_url}/analyze-manifesto", json={"content": content})
+            response = await client.post(
+                f"{self.base_url}/analyze-manifesto",
+                json={"content": content},
+                headers=self.headers
+            )
             return response.json()
 
     async def get_recommendations(self, user_concerns: list) -> list:
         """Get candidate recommendations based on user concerns."""
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{self.base_url}/recommend", json={"concerns": user_concerns})
+            response = await client.post(
+                f"{self.base_url}/recommend",
+                json={"concerns": user_concerns},
+                headers=self.headers
+            )
             return response.json()
 
     async def detect_anomalies(self, voting_data: dict) -> list:
         """Detect voting anomalies."""
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{self.base_url}/detect-anomalies", json=voting_data)
+            response = await client.post(
+                f"{self.base_url}/detect-anomalies",
+                json=voting_data,
+                headers=self.headers
+            )
             return response.json()
 
     async def generate_report(self, election_id: str) -> dict:
         """Generate AI election analysis report."""
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{self.base_url}/generate-report", json={"election_id": election_id})
+            response = await client.post(
+                f"{self.base_url}/generate-report",
+                json={"election_id": election_id},
+                headers=self.headers
+            )
             return response.json()

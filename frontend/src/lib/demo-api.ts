@@ -5,7 +5,13 @@
  * and set DEMO_MODE to false in demo-config.ts.
  */
 import { DEMO_MODE } from "./demo-config";
-import { getAuthToken, fetchCurrentElection } from "./api";
+import { 
+  getAuthToken, 
+  fetchCurrentElection,
+  fetchMediaItems as liveFetchMediaItems,
+  submitCampaignMedia as liveSubmitCampaignMedia,
+  reviewCampaignMedia as liveReviewCampaignMedia
+} from "./api";
 import {
   AI_ALERTS,
   AUDIT_LOGS,
@@ -35,12 +41,16 @@ const LIVE_API_HOST =
   CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
     ? "localhost"
     : CLIENT_HOST;
-const LIVE_API_BASE = `http://${LIVE_API_HOST}:8000/api/v1`;
+// Use HTTPS in production (when host is not localhost), HTTP for local dev
+const LIVE_PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
+const LIVE_API_BASE = `${LIVE_PROTOCOL}://${LIVE_API_HOST}:8000/api/v1`;
 const LIVE_PROFILE_RETRY_DELAY_MS = 350;
 
 function clone<T>(data: T): T {
   return structuredClone(data);
 }
+
+let demoMediaItems = clone(MEDIA_ITEMS);
 
 async function fetchLiveProfile<T>(path: string, token: string): Promise<T> {
   const request = () =>
@@ -115,23 +125,62 @@ export async function fetchNotifications() {
 }
 
 export async function fetchMediaItems(): Promise<MediaItem[]> {
-  // return apiGet<MediaItem[]>("/media?status=approved");
-  await delay(120);
-  return clone(MEDIA_ITEMS);
+  return liveFetchMediaItems();
 }
 
-export async function fetchVoterProfile() {
+export async function submitCampaignMedia(payload: any): Promise<any> {
+  if (payload instanceof FormData) {
+    return liveSubmitCampaignMedia(payload);
+  }
+  const form = new FormData();
+  form.append("type", payload.type);
+  form.append("title", payload.title);
+  if (payload.url) form.append("external_url", payload.url);
+  if (payload.body) form.append("body", payload.body);
+  return liveSubmitCampaignMedia(form);
+}
+
+export async function reviewCampaignMedia(
+  id: string,
+  status: "Approved" | "Rejected",
+  rejectionReason?: string
+): Promise<any> {
+  return liveReviewCampaignMedia(id, status, rejectionReason);
+}
+
+export interface VoterProfile {
+  name: string;
+  email: string;
+  department: string;
+  year: string;
+  studentId: string;
+  voter_code?: string;
+  voted: boolean;
+  vote_permission: boolean;
+}
+
+export async function fetchVoterProfile(): Promise<VoterProfile> {
   const token = getAuthToken();
   if (!token) {
     await delay(90);
-    return clone(VOTER);
+    const mockVoter = clone(VOTER);
+    return {
+      ...mockVoter,
+      email: "aditya.rao@college.edu.in",
+      vote_permission: true,
+    } as VoterProfile;
   }
 
   try {
-    return await fetchLiveProfile("/auth/voter/me", token);
+    return await fetchLiveProfile<VoterProfile>("/auth/voter/me", token);
   } catch (e) {
     console.error("Voter profile fetch failed, falling back to mock:", e);
-    return clone(VOTER);
+    const mockVoter = clone(VOTER);
+    return {
+      ...mockVoter,
+      email: "aditya.rao@college.edu.in",
+      vote_permission: true,
+    } as VoterProfile;
   }
 }
 

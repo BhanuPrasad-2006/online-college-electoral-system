@@ -1,4 +1,5 @@
 import uuid
+import html
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,14 +12,19 @@ from datetime import datetime, timezone, timedelta
 from app.core.config import settings
 from app.db.session import get_db
 from app.api.deps import get_current_user
+from app.models.election import Election
 from app.models.candidate import Candidate
 from app.models.voter import Voter
 from app.models.position import Position
 from app.models.manifesto import Manifesto
+from app.models.vote import Vote
 from app.enums.candidate_status import CandidateStatusEnum
+from app.enums.election_status import ElectionStatusEnum
 from app.enums.otp_type import OTPTypeEnum
+from app.services.phase_engine import PhaseEngine
 from app.services.otp_service import create_and_store_otp, verify_otp
 from app.services.email_service import send_otp_email
+from app.utils.logger import logger
 from app.core.security import get_password_hash
 
 router = APIRouter()
@@ -59,6 +65,8 @@ class CandidateRegisterRequest(BaseModel):
     full_name: Optional[str] = None
     department: Optional[str] = None
     student_id: Optional[str] = None
+    vice_president: Optional[str] = None
+    secretary: Optional[str] = None
 
 
 
@@ -116,6 +124,8 @@ async def list_candidates(db: AsyncSession = Depends(get_db)):
             "applied_at": c.applied_at.isoformat() if c.applied_at else None,
             "admin_remarks": c.admin_remarks,
             "party_symbol_url": c.party_symbol_url,
+            "vice_president": c.vice_president or "—",
+            "secretary": c.secretary or "—",
             "manifesto": manifesto.content if manifesto else ""
         })
         
@@ -264,6 +274,15 @@ async def list_positions(db: AsyncSession = Depends(get_db)):
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = Depends(get_db)):
     """Create a new candidate application in PENDING status."""
+    
+    # Block if registration phase is not open
+    res_elec = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = res_elec.scalars().first()
+    if not election or not PhaseEngine.is_registration_allowed(election):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Candidate registration is currently closed."
+        )
     import re
     def validate_strong_password(password: str) -> bool:
         if len(password) < 8:
@@ -304,42 +323,22 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
     voter = voter_res.scalar_one_or_none()
 
     if not voter:
-        # Auto-create voter record
-        email = payload.get("email")
-        year_of_study = payload.get("year_of_study")
-        
-        if not body.new_password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password is required to create a new voter/candidate profile."
-            )
-            
-        voter = Voter(
-            voter_id=voter_uuid,
-            college_email=email,
-            mobile_number=body.mobile_number,
-            full_name=body.full_name or "New Candidate",
-            department=body.department,
-            student_id=body.student_id,
-            year_of_study=year_of_study,
-            password_hash=get_password_hash(body.new_password),
-            is_verified=True,
-            vote_permission=True
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Voter profile not found. You must be registered as a voter first."
         )
-        db.add(voter)
-        await db.flush()
-    else:
-        # Update voter details if they were empty and now provided
-        if body.full_name:
-            voter.full_name = body.full_name
-        if body.department:
-            voter.department = body.department
-        if body.student_id:
-            voter.student_id = body.student_id
-        if body.new_password:
-            voter.password_hash = get_password_hash(body.new_password)
-        db.add(voter)
-        await db.flush()
+
+    # Update voter details if they were empty and now provided
+    if body.full_name:
+        voter.full_name = html.escape(body.full_name.strip())
+    if body.department:
+        voter.department = html.escape(body.department.strip())
+    if body.student_id:
+        voter.student_id = html.escape(body.student_id.strip())
+    if body.new_password:
+        voter.password_hash = get_password_hash(body.new_password)
+    db.add(voter)
+    await db.flush()
 
     # 3. Check if candidate already exists
     cand_res = await db.execute(select(Candidate).where(Candidate.voter_id == voter_uuid))
@@ -359,9 +358,11 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
         voter_id=voter_uuid,
         election_id=position.election_id,
         position_id=pos_uuid,
-        mobile_number=body.mobile_number,
+        mobile_number=html.escape(body.mobile_number.strip()) if body.mobile_number else None,
         mobile_verified=True,
-        party_symbol_url=body.party_symbol_url,
+        party_symbol_url=html.escape(body.party_symbol_url.strip()) if body.party_symbol_url else None,
+        vice_president=html.escape(body.vice_president.strip()) if body.vice_president else None,
+        secretary=html.escape(body.secretary.strip()) if body.secretary else None,
         status=CandidateStatusEnum.PENDING.value,
         admin_remarks=None
     )
@@ -373,16 +374,17 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
         manifesto_record = Manifesto(
             candidate_id=candidate.candidate_id,
             election_id=position.election_id,
-            content=body.manifesto
+            content=html.escape(body.manifesto.strip())
         )
         db.add(manifesto_record)
 
     # 4. Create Audit Log
     from app.models.audit_log import AuditLog
+    party_name_escaped = html.escape(body.party_name.strip()) if body.party_name else 'Independent'
     audit_entry = AuditLog(
         event_type="CANDIDATE_APPLIED",
         actor_id=voter_uuid,
-        description=f"Candidate {voter.full_name} registered for position {position.title} ({body.party_name or 'Independent'})",
+        description=f"Candidate {voter.full_name} registered for position {position.title} ({party_name_escaped})",
         created_at=datetime.now(timezone.utc)
     )
     db.add(audit_entry)
@@ -467,6 +469,8 @@ async def get_candidate_me(
         "applied_at": candidate.applied_at.isoformat() if candidate.applied_at else None,
         "admin_remarks": candidate.admin_remarks,
         "party_symbol_url": candidate.party_symbol_url,
+        "vice_president": candidate.vice_president or "—",
+        "secretary": candidate.secretary or "—",
         "manifesto": manifesto.content if manifesto else ""
     }
 
