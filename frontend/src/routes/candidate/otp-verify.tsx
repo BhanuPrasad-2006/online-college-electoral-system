@@ -119,7 +119,7 @@ function Page() {
         <Section icon={<Mail className="h-4 w-4" />} title="Email OTP" subtitle={email ? `Sent to ${email.slice(0,2)}***@${email.split("@")[1]}` : "Sent to your college email"}>
           <OtpInput value={emailOtp} onChange={setEmailOtp} />
           <div className="flex items-center justify-between mt-2.5">
-            <p className="text-[11px] text-muted-foreground">Expires in <Countdown seconds={10 * 60} /></p>
+            <p className="text-[11px] text-muted-foreground">Expires in <Countdown seconds={5 * 60} /></p>
             <button
               type="button"
               disabled={emailResendIn > 0 || loading}
@@ -136,7 +136,7 @@ function Page() {
         <Section icon={<Phone className="h-4 w-4" />} title="Phone OTP" subtitle={mobile ? `Sent to +91-XXXXXX${mobile.slice(-4)}` : "Sent via SMS"}>
           <OtpInput value={phoneOtp} onChange={setPhoneOtp} />
           <div className="flex items-center justify-between mt-2.5">
-            <p className="text-[11px] text-muted-foreground">Expires in <Countdown seconds={10 * 60} /></p>
+            <p className="text-[11px] text-muted-foreground">Expires in <Countdown seconds={5 * 60} /></p>
             <button
               type="button"
               disabled={phoneResendIn > 0 || loading}
