@@ -45,10 +45,11 @@ def create_otp_session_token(
     voter_id: str,
     email: str,
     otp_id: str,
+    expires_in_minutes: int = 10,
     **kwargs,
 ) -> str:
 
-    expire = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
 
     payload = {
         "sub": voter_id,

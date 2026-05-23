@@ -93,7 +93,8 @@ async def send_otp_email(
     """
     logger.info(f"[EMAIL] [DEV MODE] Email OTP for {to_email} ({purpose}): {otp}")
     try:
-        otp_log_path = r"c:\Users\Bhanu Prasad\OneDrive\Desktop\oces\online-college-electoral-system\backend\latest_otp.txt"
+        import os
+        otp_log_path = os.path.join(os.getcwd(), "latest_otp.txt")
         with open(otp_log_path, "w", encoding="utf-8") as f:
             f.write(f"{to_email}:{otp}")
     except Exception as e:
