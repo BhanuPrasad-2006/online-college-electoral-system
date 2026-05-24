@@ -200,7 +200,14 @@ export async function fetchCandidateProfile() {
 }
 
 export async function fetchConcernCategories() {
-  // return apiGet<typeof CONCERN_CATEGORIES>("/ai/concern-categories");
+  const token = getAuthToken();
+  if (!DEMO_MODE && token) {
+    try {
+      return await fetchLiveProfile("/concerns/categories", token);
+    } catch (e) {
+      console.warn("Concern categories fetch failed, falling back to mock:", e);
+    }
+  }
   await delay(110);
   return clone(CONCERN_CATEGORIES);
 }
@@ -236,7 +243,6 @@ export async function fetchAuditLogs() {
 }
 
 export async function fetchResults() {
-  // return apiGet<typeof RESULTS>("/election/results");
   await delay(120);
   return clone(RESULTS);
 }
@@ -247,7 +253,40 @@ export async function submitConcern(_payload: {
   subject: string;
   message: string;
 }): Promise<VoterConcern> {
-  // return apiPost<VoterConcern>("/voter/concerns", payload);
+  const token = getAuthToken();
+  if (!DEMO_MODE && token) {
+    try {
+      const res = await fetch(`${LIVE_API_BASE}/concerns/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to_candidate_id: _payload.toCandidateId || null,
+          category: _payload.category || "other",
+          subject: _payload.subject,
+          message: _payload.message,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        return {
+          id: data.concern_id,
+          fromName: VOTER.name,
+          department: VOTER.department,
+          toCandidateId: _payload.toCandidateId,
+          category: data.category,
+          message: data.content,
+          submittedAt: data.submitted_at ?? "Just now",
+        } as any;
+      }
+      throw new Error(data.detail ?? `HTTP ${res.status}`);
+    } catch (e) {
+      console.warn("submitConcern fell back to mock:", e);
+    }
+  }
+
   await delay(280);
   return {
     id: `vc-${Date.now()}`,
@@ -260,11 +299,27 @@ export async function submitConcern(_payload: {
   };
 }
 
-export async function sendAiMessage(_text: string) {
-  // return apiPost<{ reply: string; source?: string }>("/voter/ai/chat", { message: text });
-  await delay(400);
-  return {
-    reply: `Based on the manifestos, Priya Sharma's plan most directly addresses "${_text.slice(0, 48)}…" with specific commitments to upgrade campus Wi-Fi, expand placement training, and improve student welfare programs.`,
-    source: "Source: Priya Sharma's manifesto — Infrastructure & Placements sections",
-  };
+export async function sendAiMessage(text: string) {
+  // Call the real backend AI chat endpoint with a one-off session
+  const token = getAuthToken();
+  try {
+    const res = await fetch(`${LIVE_API_BASE}/ai/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ session_id: null, message: text }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return { reply: data.reply, source: data.is_mock ? "(Demo mode)" : "AI Service" };
+  } catch (e) {
+    console.warn("sendAiMessage fell back to mock:", e);
+    await delay(400);
+    return {
+      reply: `Based on the manifestos, Priya Sharma's plan most directly addresses "${text.slice(0, 48)}..." with specific commitments to upgrade campus Wi-Fi, expand placement training, and improve student welfare programs.`,
+      source: "(Demo fallback)",
+    };
+  }
 }

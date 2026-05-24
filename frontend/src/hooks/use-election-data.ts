@@ -17,6 +17,7 @@ import {
   fetchNotifications,
   fetchAiAlerts,
   fetchAuditLogs,
+  fetchCandidateConcernReport,
 } from "@/lib/api";
 
 
@@ -85,4 +86,12 @@ export function useAuditLogs() {
 
 export function useResults() {
   return useQuery({ queryKey: ["results"], queryFn: fetchResults, ...demoQuery });
+}
+
+export function useCandidateConcernReport() {
+  return useQuery({
+    queryKey: ["candidate-concern-report"],
+    queryFn: fetchCandidateConcernReport,
+    ...demoQuery,
+  });
 }
