@@ -28,6 +28,21 @@ function VotePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [antiReplayToken, setAntiReplayToken] = useState<string>("");
+
+  // ── Honeypot (bot detection) fields ──────────────────────
+  const [hpField1, setHpField1] = useState("");
+  const [hpField2, setHpField2] = useState("");
+  const [hpField3, setHpField3] = useState("");
+  // Track when the review screen (with face capture) first renders
+  const reviewStartRef = useRef<number>(0);
+
+  // Record review start time for honeypot timing detection
+  useEffect(() => {
+    if (review) {
+      reviewStartRef.current = Date.now();
+    }
+  }, [review]);
+
   const webcamRef = useRef<Webcam>(null);
 
   const { data: candidates = [], isPending } = useCandidates();
@@ -152,9 +167,25 @@ function VotePage() {
       return;
     }
 
+    // Calculate elapsed time since review screen appeared (bot detection timing check)
+    const elapsedMs = reviewStartRef.current > 0
+      ? Date.now() - reviewStartRef.current
+      : 99999;
+
     setIsSubmitting(true);
     try {
-      await castVote(selected === NOTA_ID ? null : selected, verificationCode.trim(), imageSrc, antiReplayToken);
+      await castVote({
+        candidateId: selected === NOTA_ID ? null : selected,
+        verificationId: verificationCode.trim(),
+        liveFaceImage: imageSrc,
+        antiReplayToken,
+        trapData: {
+          verification_field_confirm: hpField1,
+          hidden_field_name: hpField2,
+          phone_confirm: hpField3,
+          submit_time_ms: elapsedMs,
+        },
+      });
       setConfirmed(true);
       toast.success("Vote cast successfully!");
     } catch (e: any) {
@@ -289,10 +320,14 @@ function VotePage() {
                         <span className="font-medium">{c.secretary ?? c.runningMates?.secretary ?? "—"}</span>
                       </div>
                     </div>
-                    <details className="mt-3 text-xs">
-                      <summary className="cursor-pointer font-medium text-[#6C63FF]">Read manifesto</summary>
-                      <p className="mt-2 text-muted-foreground leading-relaxed">{c.manifesto}</p>
-                    </details>
+                    {c.manifesto ? (
+                      <details className="mt-3 text-xs">
+                        <summary className="cursor-pointer font-medium text-[#6C63FF]">Read manifesto</summary>
+                        <p className="mt-2 text-muted-foreground leading-relaxed whitespace-pre-wrap">{c.manifesto}</p>
+                      </details>
+                    ) : (
+                      <p className="mt-3 text-xs text-muted-foreground italic">Manifesto not yet approved for public viewing.</p>
+                    )}
                     <div className={cn(
                       "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
                       isSel ? "bg-[#6C63FF] text-white border-[#6C63FF]" : "bg-background border-border"
@@ -348,6 +383,36 @@ function VotePage() {
 
         {review && (
           <div className="bg-card rounded-2xl shadow-sm p-6 md:p-8 max-w-2xl mx-auto">
+            {/* ── Honeypot fields (invisible to humans, traps bots) ── */}
+            <div aria-hidden="true" className="hp-field-confirm" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }}>
+              <input
+                type="text"
+                name="verification_field_confirm"
+                tabIndex={-1}
+                autoComplete="off"
+                value={hpField1}
+                onChange={(e) => setHpField1(e.target.value)}
+              />
+              <input
+                type="text"
+                name="hidden_field_name"
+                tabIndex={-1}
+                autoComplete="off"
+                value={hpField2}
+                onChange={(e) => setHpField2(e.target.value)}
+              />
+              <input
+                type="text"
+                name="phone_confirm"
+                tabIndex={-1}
+                autoComplete="off"
+                value={hpField3}
+                onChange={(e) => setHpField3(e.target.value)}
+              />
+              {/* Hidden submit button traps form-submission bots */}
+              <button type="button" tabIndex={-1} style={{ display: 'none' }} />
+            </div>
+
             <h2 className="text-xl font-bold mb-2">Review Your Selection</h2>
             <p className="text-sm text-muted-foreground mb-6">You are about to vote for:</p>
 

@@ -10,11 +10,19 @@ export interface ManifestoGoal {
   priority: 'low' | 'medium' | 'high';
 }
 
+export interface ManifestoContradiction {
+  statement_a: string;
+  statement_b: string;
+  explanation: string;
+  severity: 'minor' | 'moderate' | 'severe';
+}
+
 export interface ManifestoAnalysis {
   sentiment_score: number;
   feasibility_score: number;
   key_themes: string[];
   summary: string;
+  contradictions: ManifestoContradiction[];
 }
 
 export interface Manifesto {

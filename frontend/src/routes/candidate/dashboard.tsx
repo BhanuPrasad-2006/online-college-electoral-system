@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageLoader } from "@/components/PageLoader";
-import { useState, useEffect } from "react";
-import { useCandidateProfile, useNotifications } from "@/hooks/use-election-data";
-import { getCurrentPhase } from "@/lib/api";
+import { useCandidateProfile, useCurrentPhase } from "@/hooks/use-election-data";
+import { useNotifications } from "@/context/NotificationStore";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
@@ -12,24 +11,10 @@ import { cn } from "@/lib/utils";
 
 function Page() {
   const { data: profile, isPending: loadingProfile } = useCandidateProfile();
-  const { data: notifications = [], isPending: loadingNotifications } = useNotifications();
-  const [phaseData, setPhaseData] = useState<any>(null);
+  const { data: phaseData } = useCurrentPhase();
+  const { notifications = [] } = useNotifications();
 
-  useEffect(() => {
-    async function loadPhase() {
-      try {
-        const data = await getCurrentPhase();
-        setPhaseData(data);
-      } catch (e) {
-        console.error("Failed to fetch phase:", e);
-      }
-    }
-    loadPhase();
-    const interval = setInterval(loadPhase, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loadingProfile || loadingNotifications || !profile) return <PageLoader />;
+  if (loadingProfile || !profile) return <PageLoader />;
 
   const candidateName = profile.full_name || profile.name || "Candidate";
   const statusUpper = (profile.status || "PENDING").toUpperCase();

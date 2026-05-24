@@ -1,25 +1,46 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Megaphone } from "lucide-react";
 import { toast } from "sonner";
+import { createAnnouncement, fetchAnnouncements } from "@/lib/api";
 
 function Page() {
   const [recipients, setRecipients] = useState("All Users");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [history, setHistory] = useState([
-    { id: 1, title: "Voting opens tomorrow", recipients: "All Users", time: "2 hours ago", preview: "Cast your vote between 9 AM and 5 PM..." },
-    { id: 2, title: "Candidate review complete", recipients: "Candidates Only", time: "1 day ago", preview: "All applications have been reviewed..." },
-  ]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [sending, setSending] = useState(false);
 
-  function send() {
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await fetchAnnouncements(20);
+        setHistory(list);
+      } catch {
+        // ignore; user may not be admin yet
+      }
+    })();
+  }, []);
+
+  async function send() {
     if (!title.trim() || !body.trim()) return;
-    setHistory((h) => [{ id: Date.now(), title, recipients, time: "just now", preview: body.slice(0, 80) }, ...h]);
-    setTitle(""); setBody("");
-    toast.success("Announcement sent");
+    setSending(true);
+    try {
+      const res = await createAnnouncement({ title, body, recipients });
+      const a = res.announcement ?? null;
+      if (a) {
+        setHistory((h) => [a, ...h]);
+      }
+      setTitle(""); setBody("");
+      toast.success("Announcement sent");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to send announcement");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -47,20 +68,22 @@ function Page() {
           <label className="text-xs font-medium text-muted-foreground">Message</label>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} className="mt-1.5 w-full h-32 p-3 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         </div>
-        <Button className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={send}>Send Announcement</Button>
+        <Button className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" disabled={sending} onClick={send}>{sending ? "Sending..." : "Send Announcement"}</Button>
       </div>
 
       <div className="bg-card rounded-2xl shadow-sm p-6">
         <h2 className="text-base font-semibold mb-4">Recent Announcements</h2>
         <div className="divide-y">
           {history.map((h) => (
-            <div key={h.id} className="py-4">
+            <div key={h.announcement_id ?? h.id} className="py-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-medium text-sm">{h.title}</p>
-                <span className="text-xs text-muted-foreground">{h.time}</span>
+                <span className="text-xs text-muted-foreground">
+                  {h.created_at ? new Date(h.created_at).toLocaleString() : h.time}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">To: {h.recipients}</p>
-              <p className="text-sm mt-2 text-muted-foreground">{h.preview}</p>
+              <p className="text-sm mt-2 text-muted-foreground">{h.body ?? h.preview}</p>
             </div>
           ))}
         </div>

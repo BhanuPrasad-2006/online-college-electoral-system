@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useCallback } from "react";
-import { useCandidates, useVoterProfile, useKpi } from "@/hooks/use-election-data";
+import { useState, useEffect } from "react";
+import { useCandidates, useVoterProfile, useKpi, useCurrentPhase } from "@/hooks/use-election-data";
 import { useNotifications } from "@/context/NotificationStore";
 import { PageLoader } from "@/components/PageLoader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -10,8 +10,6 @@ import { CheckCircle2, Users, TrendingUp, AlertCircle, Bell, ChevronRight, Lock,
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { getCurrentPhase } from "@/lib/api";
-import * as api from "@/lib/api";
 // ── helpers for election phase ─────────────────────────────────
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 function fmtCountdown(ms: number) {
@@ -31,24 +29,11 @@ function VoterDash() {
   const nav = useNavigate();
   const { logout } = useAuth();
   const { data: voter, isPending } = useVoterProfile();
-  const { data: candidates = [], isPending: isCandidatesPending } = useCandidates();
+  const { data: candidates = [] } = useCandidates();
   const { data: kpi } = useKpi();
+  const { data: phaseData } = useCurrentPhase();
   const { notifications = [] } = useNotifications();
   const [timeLeft, setTimeLeft] = useState<string>("");
-
-  // ── Real-time election phase state ─────────────────────────
-  const [phaseData, setPhaseData] = useState<any>(null);
-  const loadPhase = useCallback(async () => {
-    try { setPhaseData(await getCurrentPhase()); } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    loadPhase();
-    const id = setInterval(() => {
-      loadPhase();
-    }, 15_000);
-    return () => clearInterval(id);
-  }, [loadPhase]);
 
   const isRegOpen  = phaseData?.phase === "registration_open";
   const isVoteOpen = phaseData?.phase === "voting_open";
@@ -95,7 +80,7 @@ function VoterDash() {
     return () => clearInterval(interval);
   }, [logout, nav]);
 
-  if (isPending || isCandidatesPending || !voter) return <PageLoader />;
+  if (isPending || !voter) return <PageLoader />;
   
   // Show only approved candidates
   const approvedCandidates = candidates.filter(
@@ -337,7 +322,9 @@ function VoterDash() {
                     <p className="text-xs text-muted-foreground italic truncate">{partyName}</p>
                   </div>
                 </div>
-                <p className="text-sm text-foreground/80 mt-3 line-clamp-3">{c.manifesto}</p>
+                <p className="text-sm text-foreground/80 mt-3 line-clamp-3">
+                  {c.manifesto || "Manifesto pending admin approval."}
+                </p>
               </button>
             );
           })}

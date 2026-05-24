@@ -1,13 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageLoader } from "@/components/PageLoader";
-import { useConcernCategories } from "@/hooks/use-election-data";
+import { useCandidateConcernReport } from "@/hooks/use-election-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 
 function Page() {
-  const { data: categories = [], isPending } = useConcernCategories();
+  const { data, isPending } = useCandidateConcernReport();
   if (isPending) return <PageLoader />;
+
+  const categories = data?.categories ?? [];
+  const overallRaw = data?.overall ?? { positive: 0, neutral: 0, negative: 0 };
 
   if (categories.length === 0) {
     return (
@@ -29,25 +32,12 @@ function Page() {
     );
   }
 
-  const chartData = categories.map((c) => ({
-    name: c.name.split(" ")[0],
-    Positive: c.positive,
-    Neutral: c.neutral,
-    Negative: c.negative
-  }));
-
-  const totalPositive = categories.reduce((sum, c) => sum + (c.positive / 100 * c.mentions), 0);
-  const totalNeutral = categories.reduce((sum, c) => sum + (c.neutral / 100 * c.mentions), 0);
-  const totalNegative = categories.reduce((sum, c) => sum + (c.negative / 100 * c.mentions), 0);
-  const totalMentions = totalPositive + totalNeutral + totalNegative;
-
-  const overall = totalMentions > 0 
-    ? [
-        { name: "Positive", value: Math.round((totalPositive / totalMentions) * 100) },
-        { name: "Neutral", value: Math.round((totalNeutral / totalMentions) * 100) },
-        { name: "Negative", value: Math.round((totalNegative / totalMentions) * 100) }
-      ]
-    : [];
+  const chartData = categories.map((c: any) => ({ name: c.name.split(" ")[0], Positive: c.positive, Neutral: c.neutral, Negative: c.negative }));
+  const overall = [
+    { name: "Positive", value: overallRaw.positive },
+    { name: "Neutral", value: overallRaw.neutral },
+    { name: "Negative", value: overallRaw.negative },
+  ];
 
   const COLORS = ["#22c55e", "#cbd5e1", "#ef4444"];
   const priorities = categories.filter((c) => !c.covered).slice(0, 3);

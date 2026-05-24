@@ -21,6 +21,8 @@ from app.routes.ai import router as ai_router
 from app.routes.election import router as election_router
 from app.routes.admin import router as admin_router
 from app.routes.media import router as media_router
+from app.routes.concerns import router as concerns_router
+from app.routes.announcements import router as announcements_router
 from app.utils.logger import logger
 
 
@@ -79,6 +81,8 @@ app.include_router(ai_router,         prefix=f"{settings.API_V1_PREFIX}/ai",    
 app.include_router(election_router,   prefix=f"{settings.API_V1_PREFIX}/election",   tags=["Election"])
 app.include_router(admin_router,      prefix=f"{settings.API_V1_PREFIX}/admin",      tags=["Admin"])
 app.include_router(media_router,      prefix=f"{settings.API_V1_PREFIX}/media",      tags=["Media"])
+app.include_router(concerns_router,   prefix=f"{settings.API_V1_PREFIX}/concerns",   tags=["Concerns"])
+app.include_router(announcements_router, prefix=f"{settings.API_V1_PREFIX}/announcements", tags=["Announcements"])
 
 
 # ── Auth Exception Handlers ──────────────────────────────────

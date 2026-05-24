@@ -1,15 +1,15 @@
-fastapi==0.110.0
-uvicorn[standard]==0.29.0
-scikit-learn==1.4.2
-numpy==1.26.4
-pandas==2.2.1
-transformers==4.40.0
-torch==2.2.2
-sentence-transformers==2.6.1
-nltk==3.8.1
-textblob==0.18.0
-pydantic==2.7.0
-python-dotenv==1.0.1
-httpx==0.27.0
-redis==5.0.3
-google-genai
+# AI Service Dependencies
+# Version ranges allow pip to find wheels compatible with the installed Python version.
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+scikit-learn>=1.4.2
+numpy>=1.26.4
+pandas>=2.2.1
+sentence-transformers>=2.6.1
+nltk>=3.8.1
+textblob>=0.18.0
+pydantic>=2.7.0
+python-dotenv>=1.0.1
+httpx>=0.27.0
+redis>=5.0.3
+google-genai>=0.4.0

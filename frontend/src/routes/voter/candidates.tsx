@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Search, Check, Minus, Brain } from "lucide-react";
+import { Search, Check, Minus, Brain, FileText, AlertTriangle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
@@ -21,6 +21,25 @@ export const Route = createFileRoute("/voter/candidates")({
 });
 
 const COVERAGE_CATS = ["Infrastructure", "Academics", "Welfare", "Events", "Sports", "Hostel"];
+
+interface Contradiction {
+  statement_a: string;
+  statement_b: string;
+  explanation: string;
+  severity: "minor" | "moderate" | "severe";
+}
+
+function severityColor(severity: string) {
+  if (severity === "severe") return "bg-red-100 text-red-800 border-red-200";
+  if (severity === "moderate") return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-yellow-50 text-yellow-700 border-yellow-100";
+}
+
+function severityLabel(severity: string) {
+  if (severity === "severe") return "High";
+  if (severity === "moderate") return "Medium";
+  return "Low";
+}
 
 function Page() {
   const { open: searchOpen } = Route.useSearch();
@@ -122,7 +141,32 @@ function Page() {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold mb-2">Manifesto</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{active.manifesto}</p>
+                  {active.manifesto_image_url && (
+                    <div className="mb-3 rounded-lg overflow-hidden border border-border">
+                      {active.manifesto_image_url.match(/\.pdf$/i) ? (
+                        <a
+                          href={active.manifesto_image_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-4 bg-muted/20 hover:bg-muted/40 transition-colors"
+                        >
+                          <FileText className="h-6 w-6 text-[#6C63FF]" />
+                          <span className="text-sm font-medium">View Attached PDF</span>
+                        </a>
+                      ) : (
+                        <img src={active.manifesto_image_url} alt="Manifesto media" className="w-full max-h-60 object-contain bg-muted/20" />
+                      )}
+                    </div>
+                  )}
+                  {active.manifesto ? (
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{active.manifesto}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      {active.manifesto_status === "Pending Review"
+                        ? "This manifesto is under admin review and is not visible yet."
+                        : "No approved manifesto published for this candidate yet."}
+                    </p>
+                  )}
                 </div>
                 {active.impact_statements && active.impact_statements.length > 0 && (
                   <div className="bg-[#6C63FF]/10 border border-[#6C63FF]/25 rounded-xl p-4 space-y-2">
@@ -164,6 +208,38 @@ function Page() {
                     })}
                   </div>
                 </div>
+
+                {(active as any).contradictions && (active as any).contradictions.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      <h3 className="text-sm font-semibold">Contradictions Detected</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {((active as any).contradictions as Contradiction[]).map((c: Contradiction, i: number) => (
+                        <div
+                          key={i}
+                          className={`rounded-lg border p-3 text-xs space-y-1.5 ${severityColor(c.severity)}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">
+                              {severityLabel(c.severity)} Priority
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="font-medium text-[11px]">Statement A:</p>
+                            <p className="italic">&ldquo;{c.statement_a}&rdquo;</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="font-medium text-[11px]">Statement B:</p>
+                            <p className="italic">&ldquo;{c.statement_b}&rdquo;</p>
+                          </div>
+                          <p className="text-muted-foreground mt-1">{c.explanation}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}

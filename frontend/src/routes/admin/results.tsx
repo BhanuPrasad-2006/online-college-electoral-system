@@ -1,17 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageLoader } from "@/components/PageLoader";
-import { useResults } from "@/hooks/use-election-data";
 import { Lock, Copy, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { toast } from "sonner";
+import { fetchCurrentElection, fetchElectionResults, publishResults } from "@/lib/api";
 
 function Page() {
-  const { data: results = [], isPending } = useResults();
+  const [results, setResults] = useState<any[]>([]);
   const [published, setPublished] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const hash = "a3f1e9b87c4d2e1a5f6b9c8d7e2a1f4b3c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f";
+  const [hash, setHash] = useState("");
+  const [loading, setLoading] = useState(false);
 
   if (!published && !confirm) {
     return (
@@ -23,7 +24,7 @@ function Page() {
           <div className="mx-auto h-16 w-16 rounded-full bg-muted flex items-center justify-center"><Lock className="h-8 w-8 text-muted-foreground" /></div>
           <p className="mt-4 font-semibold">Results not yet published</p>
           <p className="text-sm text-muted-foreground mt-1">Voting must close before results can be computed.</p>
-          <Button className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={() => setConfirm(true)}>Publish Results (demo)</Button>
+          <Button className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={() => setConfirm(true)}>Publish Results</Button>
         </div>
       </div>
     );
@@ -37,14 +38,36 @@ function Page() {
           <p className="text-sm text-muted-foreground mt-2">This will notify all users and cannot be undone.</p>
           <div className="flex gap-2 mt-6 justify-center">
             <Button variant="outline" onClick={() => setConfirm(false)}>Cancel</Button>
-            <Button className="bg-destructive text-white hover:bg-destructive/90" onClick={() => { setPublished(true); setConfirm(false); toast.success("Results published"); }}>Confirm Publish</Button>
+            <Button
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const election = await fetchCurrentElection();
+                  await publishResults(election.election_id);
+                  const data = await fetchElectionResults(election.election_id);
+                  setResults(data.results ?? []);
+                  setHash(data.integrity_hash ?? "");
+                  setPublished(true);
+                  setConfirm(false);
+                  toast.success("Results published");
+                } catch (e: any) {
+                  toast.error(e?.message || "Failed to publish results");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              {loading ? "Publishing..." : "Confirm Publish"}
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
-  if (isPending) return <PageLoader />;
+  if (!results.length) return <PageLoader />;
 
   return (
     <div className="space-y-6">

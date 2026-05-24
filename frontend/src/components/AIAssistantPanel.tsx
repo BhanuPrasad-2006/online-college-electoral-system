@@ -2,20 +2,20 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send, Sparkles, ShieldAlert, RotateCcw, Loader2,
   Bot, User, X, Minimize2, ChevronDown, MessageCircle,
+  BarChart3, HeartPulse, Users,
 } from "lucide-react";
-import { getAuthToken } from "@/lib/api";
+import { getAuthToken, API_BASE_URL } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Msg = {
   from: "user" | "ai";
   text: string;
   isError?: boolean;
+  isMock?: boolean;
   timestamp: Date;
 };
 
-// Use HTTPS in production (when on https), HTTP for local dev
-const API_PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
-const API_BASE = `${API_PROTOCOL}://127.0.0.1:8000/api/v1/ai`;
+const AI_BASE = `${API_BASE_URL}/ai`;
 
 // ── Minimal Markdown renderer (no extra deps) ─────────────────────────────────
 function escapeHtml(str: string): string {
@@ -28,15 +28,13 @@ function escapeHtml(str: string): string {
 }
 
 function renderMarkdown(raw: string): string {
-  // First, escape HTML entities to prevent XSS
   let escaped = escapeHtml(raw);
-  // Then apply markdown formatting on the escaped text
   let html = escaped
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 
-  html = html.replace(/((?:\|[^\n]+\|\n?)+)/g, (table) => {
+  html = html.replace(/((?:[^|\n]*\|[^\n]*\|\n?)+)/g, (table) => {
     const rows = table.trim().split("\n");
     if (rows.length < 2) return table;
     const headerCells = rows[0].split("|").filter(Boolean);
@@ -70,11 +68,35 @@ const SUGGESTIONS = [
   "Mental health support plans",
 ];
 
+// ── Quick action bubbles for enriched AI features ─────────────────────────────
+type QuickAction = {
+  label: string;
+  icon: React.ReactNode;
+  prompt: string;
+};
+const QUICK_ACTIONS: QuickAction[] = [
+  {
+    label: "Analyze Concerns",
+    icon: <HeartPulse className="h-3.5 w-3.5" />,
+    prompt: "Analyze my concerns and match to candidates",
+  },
+  {
+    label: "Election Insights",
+    icon: <BarChart3 className="h-3.5 w-3.5" />,
+    prompt: "Give me election insights and turnout analysis",
+  },
+  {
+    label: "Compare Platforms",
+    icon: <Users className="h-3.5 w-3.5" />,
+    prompt: "Compare all candidates on their key platform promises",
+  },
+];
+
 // ── Full-page embedded panel (for /voter/ai-assistant route) ──────────────────
 export function AIAssistantPanel({ compact: _compact = false }: { compact?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([{
     from: "ai",
-    text: "👋 Hi! I'm your **Election AI Assistant**.\n\nI can objectively compare candidates and explore manifestos — completely neutral.\n\nWhat would you like to know?",
+    text: "👋 Hi! I'm your **Election AI Assistant**.\n\nI can objectively compare candidates, analyze concerns, and explore manifestos — completely neutral.\n\nWhat would you like to know?",
     timestamp: new Date(),
   }]);
   const [input, setInput] = useState("");
@@ -94,16 +116,31 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
     setMsgs((p) => [...p, { from: "user", text: trimmed, timestamp: new Date() }]);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const token = getAuthToken();
+      const res = await fetch(`${AI_BASE}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ session_id: sessionId, message: trimmed }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSessionId(data.session_id);
-      setMsgs((p) => [...p, { from: "ai", text: data.reply, timestamp: new Date() }]);
-    } catch {
-      setMsgs((p) => [...p, { from: "ai", text: "⚠️ Could not reach the AI. Is the backend running?", isError: true, timestamp: new Date() }]);
+      setMsgs((p) => [...p, {
+        from: "ai",
+        text: data.reply,
+        isMock: data.is_mock,
+        timestamp: new Date(),
+      }]);
+    } catch (e: any) {
+      setMsgs((p) => [...p, {
+        from: "ai",
+        text: `⚠️ **Connection error**: ${e.message || "Could not reach the AI service. Is the backend running?"}`,
+        isError: true,
+        timestamp: new Date(),
+      }]);
     } finally {
       setLoading(false);
     }
@@ -113,12 +150,28 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">AI Assistant</h1>
-        <p className="text-sm text-muted-foreground mt-1">Neutral candidate research — Gemini 2.5 Flash</p>
+        <p className="text-sm text-muted-foreground mt-1">Neutral candidate research — Gemini 2.5 Flash + AI Microservice</p>
       </div>
       <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 text-warning-foreground shrink-0" />
         <p className="text-xs">Strictly neutral — cannot recommend or rank candidates.</p>
       </div>
+
+      {/* ── Quick action bubbles ── */}
+      <div className="flex flex-wrap gap-2">
+        {QUICK_ACTIONS.map((action) => (
+          <button
+            key={action.label}
+            onClick={() => send(action.prompt)}
+            disabled={loading}
+            className="px-3 py-2 rounded-xl bg-gradient-to-r from-[#6C63FF]/10 to-[#1F3A6E]/10 hover:from-[#6C63FF]/20 hover:to-[#1F3A6E]/20 border border-[#6C63FF]/20 text-xs font-medium flex items-center gap-1.5 transition-all disabled:opacity-50"
+          >
+            <span className="text-[#6C63FF]">{action.icon}</span>
+            {action.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap gap-2">
         {SUGGESTIONS.map((s) => (
           <button key={s} onClick={() => send(s)} disabled={loading}
@@ -127,6 +180,7 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
           </button>
         ))}
       </div>
+
       <div className="bg-card rounded-2xl border border-border/60 shadow-sm flex flex-col" style={{ minHeight: "420px", maxHeight: "60vh" }}>
         <div ref={bottomRef as any} className="flex-1 overflow-y-auto p-4 space-y-3">
           <MessageList msgs={msgs} loading={loading} />
@@ -152,12 +206,13 @@ export function FloatingChatbot() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>(SUGGESTIONS);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showQuickActions, setShowQuickActions] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/chat/suggestions`)
+    fetch(`${AI_BASE}/chat/suggestions`)
       .then((r) => r.json())
       .then((d) => d?.suggestions?.length && setSuggestions(d.suggestions.slice(0, 4)))
       .catch(() => {});
@@ -181,11 +236,12 @@ export function FloatingChatbot() {
     if (!trimmed || loading) return;
     setInput("");
     setShowSuggestions(false);
+    setShowQuickActions(false);
     setMsgs((p) => [...p, { from: "user", text: trimmed, timestamp: new Date() }]);
     setLoading(true);
     try {
       const token = getAuthToken();
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await fetch(`${AI_BASE}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -196,7 +252,12 @@ export function FloatingChatbot() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSessionId(data.session_id);
-      setMsgs((p) => [...p, { from: "ai", text: data.reply, timestamp: new Date() }]);
+      setMsgs((p) => [...p, {
+        from: "ai",
+        text: data.reply,
+        isMock: data.is_mock,
+        timestamp: new Date(),
+      }]);
     } catch (e: any) {
       setMsgs((p) => [...p, {
         from: "ai",
@@ -211,9 +272,10 @@ export function FloatingChatbot() {
   }, [loading, sessionId]);
 
   const clearChat = useCallback(() => {
-    if (sessionId) fetch(`${API_BASE}/chat/${sessionId}`, { method: "DELETE" }).catch(() => {});
+    if (sessionId) fetch(`${AI_BASE}/chat/${sessionId}`, { method: "DELETE" }).catch(() => {});
     setSessionId(null);
     setShowSuggestions(true);
+    setShowQuickActions(true);
     setMsgs([{
       from: "ai",
       text: "Chat cleared! 🔄 Ask me anything about the candidates or election.",
@@ -250,7 +312,7 @@ export function FloatingChatbot() {
               <p className="text-white font-semibold text-sm leading-tight">Election AI Assistant</p>
               <p className="text-white/60 text-[10px] flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
-                Online · Powered by Gemini 2.5 Flash
+                Online · Powered by Gemini + AI Microservice
               </p>
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
@@ -298,6 +360,22 @@ export function FloatingChatbot() {
                 style={{ minHeight: 0 }}
               >
                 <div className="p-3 space-y-3">
+                  {/* Quick action bubbles */}
+                  {showQuickActions && (
+                    <div className="flex flex-wrap gap-1.5 pb-1">
+                      {QUICK_ACTIONS.map((action) => (
+                        <button
+                          key={action.label}
+                          onClick={() => send(action.prompt)}
+                          disabled={loading}
+                          className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#6C63FF]/10 to-[#1F3A6E]/10 border border-[#6C63FF]/20 text-[10px] font-medium text-[#6C63FF] hover:from-[#6C63FF]/20 hover:to-[#1F3A6E]/20 transition-all disabled:opacity-40 flex items-center gap-1"
+                        >
+                          {action.icon} {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Suggestion chips */}
                   {showSuggestions && (
                     <div className="flex flex-wrap gap-1.5 pb-1">
@@ -355,11 +433,8 @@ export function FloatingChatbot() {
         aria-label="Toggle AI Assistant"
         title="Election AI Assistant"
       >
-        {/* Pulse ring */}
         <span className="absolute inset-0 rounded-full bg-[#6C63FF]/30 animate-ping" style={{ animationDuration: "2.5s" }} />
-        {/* Online dot */}
         <span className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-white z-10 shadow-sm" />
-        {/* Icon toggle */}
         <span className="relative z-10 transition-all duration-200">
           {open
             ? <X className="h-5 w-5" />
@@ -438,9 +513,17 @@ function MessageList({
                   ? "bg-gradient-to-br from-[#6C63FF] to-[#4F46E5] text-white rounded-br-sm shadow-md shadow-[#6C63FF]/25"
                   : m.isError
                     ? "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200/50 rounded-bl-sm"
-                    : "bg-white dark:bg-white/5 text-foreground border border-gray-100 dark:border-white/10 rounded-bl-sm shadow-sm"
+                    : m.isMock
+                      ? "bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200/50 rounded-bl-sm"
+                      : "bg-white dark:bg-white/5 text-foreground border border-gray-100 dark:border-white/10 rounded-bl-sm shadow-sm"
                 }`}
             >
+              {m.from === "ai" && m.isMock && (
+                <div className="flex items-center gap-1 mb-1">
+                  <ShieldAlert className="h-3 w-3 text-amber-500" />
+                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Demo Mode</span>
+                </div>
+              )}
               {m.from === "user" ? (
                 <p className="break-words">{m.text}</p>
               ) : (

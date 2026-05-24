@@ -1,10 +1,12 @@
 import uuid
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.db.session import get_db
 from app.api.deps import get_current_user, get_admin_user
@@ -15,9 +17,32 @@ from app.services.email_service import send_election_email
 from app.services.phase_engine import PhaseEngine
 from app.utils.logger import logger
 from app.schemas.election_schema import ElectionSaveRequest
+from app.models.vote import Vote
+from app.models.candidate import Candidate
+from app.models.position import Position
+from app.services.result_service import ResultService
+from app.security.integrity_service import IntegrityService
 
 
 router = APIRouter()
+
+_election_row_cache: dict = {"row": None, "expires_at": 0.0}
+_ELECTION_CACHE_TTL_SEC = 10.0
+
+
+async def _get_latest_election_row(db: AsyncSession) -> Election | None:
+    """Return latest election row with short TTL cache to cut repeated DB hits."""
+    now = time.time()
+    cached = _election_row_cache.get("row")
+    if cached is not None and now < _election_row_cache["expires_at"]:
+        return cached
+
+    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = result.scalars().first()
+    _election_row_cache["row"] = election
+    _election_row_cache["expires_at"] = now + _ELECTION_CACHE_TTL_SEC
+    return election
+
 
 async def notify_registration_open(election: Election):
     """Notify all voters and candidates that registration is open and provide the schedule."""
@@ -203,8 +228,7 @@ async def get_current_election(
     db: AsyncSession = Depends(get_db)
 ):
     """Fetch the current election."""
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     if not election:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -219,8 +243,7 @@ async def get_current_election_phase(
     db: AsyncSession = Depends(get_db)
 ):
     """Fetch the real-time phase of the current election."""
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     if not election:
         return {"phase": "unknown", "remaining_time": None}
         
@@ -273,6 +296,44 @@ async def get_department_stats(
     return stats
 
 
+@router.get("/stats/hourly")
+async def get_hourly_stats(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Fetch hourly vote distribution for the current election."""
+    from sqlalchemy import func as sa_func
+    
+    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = result.scalars().first()
+    if not election or not election.voting_start:
+        return []
+
+    # Query votes grouped by hour since voting started
+    # Use timestamp_utc column which exists on Vote model
+    hourly_query = select(
+        sa_func.date_trunc('hour', Vote.timestamp_utc).label('hour'),
+        sa_func.count(Vote.vote_id).label('count')
+    ).where(
+        Vote.timestamp_utc >= election.voting_start
+    ).group_by(
+        sa_func.date_trunc('hour', Vote.timestamp_utc)
+    ).order_by(
+        sa_func.date_trunc('hour', Vote.timestamp_utc)
+    )
+    
+    hourly_result = await db.execute(hourly_query)
+    rows = hourly_result.all()
+    
+    return [
+        {
+            "hour": str(row.hour),
+            "votes": row.count
+        }
+        for row in rows
+    ]
+
+
 @router.get("/kpi")
 async def get_election_kpi(
     current_user: dict = Depends(get_current_user),
@@ -312,8 +373,7 @@ async def get_notifications(
 ):
     """Fetch real-time notifications for the user."""
     # Since we don't have a dedicated notifications table, we derive some from the election phase.
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     
     notifications = []
     if election:
@@ -500,6 +560,85 @@ async def publish_results(
     asyncio.create_task(notify_results_published(election.title))
     
     return {"message": "Results successfully published", "status": election.status}
+
+
+@router.get("/{election_id}/results")
+async def get_election_results(
+    election_id: str,
+    admin: dict = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compute and return election results with integrity hash."""
+    try:
+        election_uuid = uuid.UUID(election_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid election ID format")
+
+    election_result = await db.execute(select(Election).where(Election.election_id == election_uuid))
+    election = election_result.scalar_one_or_none()
+    if not election:
+        raise HTTPException(status_code=404, detail="Election not found")
+
+    result_service = ResultService(db)
+    raw = await result_service.compute_results(str(election_uuid))
+
+    position_ids = []
+    candidate_ids = []
+    for position_id, tallies in raw.items():
+        try:
+            position_ids.append(uuid.UUID(position_id))
+        except ValueError:
+            pass
+        for entry in tallies:
+            cand_id = entry["candidate_id"]
+            if cand_id and cand_id != "NOTA":
+                try:
+                    candidate_ids.append(uuid.UUID(cand_id))
+                except ValueError:
+                    pass
+
+    position_map: dict = {}
+    if position_ids:
+        pos_res = await db.execute(select(Position).where(Position.position_id.in_(position_ids)))
+        position_map = {str(p.position_id): p for p in pos_res.scalars().all()}
+
+    candidate_map: dict = {}
+    if candidate_ids:
+        cand_res = await db.execute(
+            select(Candidate)
+            .options(joinedload(Candidate.voter))
+            .where(Candidate.candidate_id.in_(candidate_ids))
+        )
+        candidate_map = {str(c.candidate_id): c for c in cand_res.scalars().unique().all()}
+
+    formatted = []
+    for position_id, tallies in raw.items():
+        position = position_map.get(position_id)
+        position_title = position.title if position else f"Position {position_id[:8]}"
+
+        candidates_data = []
+        for entry in tallies:
+            cand_id = entry["candidate_id"]
+            name = "NOTA"
+            if cand_id and cand_id != "NOTA":
+                candidate = candidate_map.get(cand_id)
+                if candidate and candidate.voter:
+                    name = candidate.voter.full_name
+                else:
+                    name = "Unknown"
+            candidates_data.append({"name": name, "votes": entry["vote_count"]})
+
+        formatted.append({"position": position_title, "candidates": candidates_data})
+
+    integrity = IntegrityService()
+    integrity_hash = await integrity.generate_result_hash(db, str(election_uuid))
+
+    return {
+        "election_id": str(election_uuid),
+        "status": election.status,
+        "results": formatted,
+        "integrity_hash": integrity_hash,
+    }
 
 
 @router.put("/{election_id}")
