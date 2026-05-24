@@ -54,6 +54,25 @@ class TestGeminiIntegration:
             assert "feasibility_score" in analysis
             assert "key_themes" in analysis
             assert "summary" in analysis
+            assert "contradictions" in analysis
+            assert "impact_statements" in analysis
             assert isinstance(analysis["key_themes"], list)
             assert len(analysis["key_themes"]) > 0
             assert isinstance(analysis["summary"], str)
+            assert isinstance(analysis["contradictions"], list)
+            assert len(analysis["contradictions"]) == 0
+            assert isinstance(analysis["impact_statements"], list)
+            assert len(analysis["impact_statements"]) > 0
+
+    def test_manifesto_analyzer_contradiction_detection(self):
+        """Test that mock mode simulates a contradiction when conflicting terms are present."""
+        analyzer = ManifestoAnalyzer()
+        
+        with patch('ai_service.src.utils.gemini._use_mock', True):
+            # Pass conflicting promises about tickets and budget
+            analysis = analyzer.analyze("I will cut ticket prices for events and double the technical club budget.")
+            assert isinstance(analysis, dict)
+            assert len(analysis["contradictions"]) > 0
+            assert "ticket" in analysis["contradictions"][0]["promise_a"].lower()
+            assert "budget" in analysis["contradictions"][0]["promise_b"].lower()
+

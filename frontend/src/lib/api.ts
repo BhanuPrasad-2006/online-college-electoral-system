@@ -240,6 +240,10 @@ export async function fetchCandidateProfile() {
   return get<any>("/candidates/me");
 }
 
+export async function fetchConcernCategories() {
+  return get<any[]>("/ai/concern-categories");
+}
+
 
 // ── Voter Login ──────────────────────────────────────────────
 export async function voterLoginStep1(email: string, password: string) {
@@ -610,5 +614,10 @@ export async function reviewCampaignMedia(mediaId: string, status: string, rejec
   if (!res.ok) throw new Error(data.detail ?? "Failed to review campaign media");
   return data;
 }
+
+export async function updateManifesto(content: string) {
+  return put<{ message: string }>("/candidates/manifesto", { content });
+}
+
 
 

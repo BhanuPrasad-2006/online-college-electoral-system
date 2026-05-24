@@ -26,8 +26,36 @@ from app.services.otp_service import create_and_store_otp, verify_otp
 from app.services.email_service import send_otp_email
 from app.utils.logger import logger
 from app.core.security import get_password_hash
+from app.services.ai_proxy_service import AIProxyService
 
 router = APIRouter()
+
+ai_proxy = AIProxyService()
+
+async def get_manifesto_analysis_safe(content: str) -> dict:
+    """Analyze a candidate's manifesto via AI proxy, returning a safe default on failure."""
+    if not content or not content.strip():
+        return {
+            "sentiment_score": 0.5,
+            "feasibility_score": 0.5,
+            "key_themes": ["General"],
+            "summary": "",
+            "contradictions": [],
+            "impact_statements": []
+        }
+    try:
+        return await ai_proxy.analyze_manifesto(content)
+    except Exception as e:
+        logger.error(f"Failed to analyze manifesto via AI microservice: {e}")
+        return {
+            "sentiment_score": 0.5,
+            "feasibility_score": 0.5,
+            "key_themes": ["General"],
+            "summary": "AI Analysis temporarily unavailable due to system issues.",
+            "contradictions": [],
+            "impact_statements": []
+        }
+
 
 
 def _normalize_email(email: str) -> str:
@@ -112,6 +140,8 @@ async def list_candidates(db: AsyncSession = Depends(get_db)):
         man_res = await db.execute(man_query)
         manifesto = man_res.scalars().first()
 
+        analysis = await get_manifesto_analysis_safe(manifesto.content if manifesto else "")
+
         results.append({
             "candidate_id": str(c.candidate_id),
             "full_name": voter.full_name if voter else "—",
@@ -126,10 +156,18 @@ async def list_candidates(db: AsyncSession = Depends(get_db)):
             "party_symbol_url": c.party_symbol_url,
             "vice_president": c.vice_president or "—",
             "secretary": c.secretary or "—",
-            "manifesto": manifesto.content if manifesto else ""
+            "manifesto": manifesto.content if manifesto else "",
+            # AI analysis fields
+            "sentiment_score": analysis.get("sentiment_score", 0.5),
+            "feasibility_score": analysis.get("feasibility_score", 0.5),
+            "key_themes": analysis.get("key_themes", []),
+            "summary": analysis.get("summary", ""),
+            "contradictions": analysis.get("contradictions", []),
+            "impact_statements": analysis.get("impact_statements", [])
         })
         
     return results
+
 
 
 @router.post("/eligibility-check", status_code=status.HTTP_200_OK)
@@ -371,12 +409,32 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
 
     # Save manifesto if content is provided
     if body.manifesto:
+        analysis = await get_manifesto_analysis_safe(body.manifesto)
+        contradictions = analysis.get("contradictions", [])
+        if contradictions:
+            explanation_parts = []
+            for idx, c_item in enumerate(contradictions):
+                if isinstance(c_item, dict):
+                    p_a = c_item.get("promise_a", "")
+                    p_b = c_item.get("promise_b", "")
+                    exp = c_item.get("explanation", "")
+                    explanation_parts.append(f"'{p_a}' conflicts with '{p_b}'. {exp}")
+                else:
+                    explanation_parts.append(str(c_item))
+            
+            full_explanation = " ".join(explanation_parts)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Your manifesto contains conflicting promises. {full_explanation} Please adjust your platform."
+            )
+
         manifesto_record = Manifesto(
             candidate_id=candidate.candidate_id,
             election_id=position.election_id,
             content=html.escape(body.manifesto.strip())
         )
         db.add(manifesto_record)
+
 
     # 4. Create Audit Log
     from app.models.audit_log import AuditLog
@@ -457,6 +515,8 @@ async def get_candidate_me(
     man_res = await db.execute(man_query)
     manifesto = man_res.scalars().first()
 
+    analysis = await get_manifesto_analysis_safe(manifesto.content if manifesto else "")
+
     return {
         "candidate_id": str(candidate.candidate_id),
         "full_name": voter.full_name if voter else "—",
@@ -471,8 +531,16 @@ async def get_candidate_me(
         "party_symbol_url": candidate.party_symbol_url,
         "vice_president": candidate.vice_president or "—",
         "secretary": candidate.secretary or "—",
-        "manifesto": manifesto.content if manifesto else ""
+        "manifesto": manifesto.content if manifesto else "",
+        # AI analysis fields
+        "sentiment_score": analysis.get("sentiment_score", 0.5),
+        "feasibility_score": analysis.get("feasibility_score", 0.5),
+        "key_themes": analysis.get("key_themes", []),
+        "summary": analysis.get("summary", ""),
+        "contradictions": analysis.get("contradictions", []),
+        "impact_statements": analysis.get("impact_statements", [])
     }
+
 
 
 @router.put("/{candidate_id}/status", status_code=status.HTTP_200_OK)
@@ -519,3 +587,117 @@ async def update_candidate_status(
         "candidate_id": str(candidate.candidate_id),
         "status": map_db_status_to_frontend(candidate.status)
     }
+
+
+class ManifestoUpdateRequest(BaseModel):
+    content: str
+
+
+@router.put("/manifesto", status_code=status.HTTP_200_OK)
+async def update_candidate_manifesto(
+    body: ManifestoUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update candidate's manifesto and check for logical contradictions."""
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized"
+        )
+        
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+        
+    query = (
+        select(Candidate)
+        .options(
+            joinedload(Candidate.voter),
+            joinedload(Candidate.position)
+        )
+        .where(Candidate.candidate_id == user_uuid)
+    )
+    res = await db.execute(query)
+    candidate = res.scalar_one_or_none()
+    
+    if not candidate:
+        query = (
+            select(Candidate)
+            .options(
+                joinedload(Candidate.voter),
+                joinedload(Candidate.position)
+            )
+            .where(Candidate.voter_id == user_uuid)
+        )
+        res = await db.execute(query)
+        candidate = res.scalar_one_or_none()
+        
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate profile not found"
+        )
+
+    # Verify election phase - manifesto editing allowed during registration and campaign periods
+    res_elec = await db.execute(select(Election).where(Election.election_id == candidate.election_id))
+    election = res_elec.scalar_one_or_none()
+    if not election or not PhaseEngine.is_manifesto_edit_allowed(election):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Manifesto editing is only allowed during registration and campaign periods."
+        )
+
+
+    # Sanitize content input
+    content_clean = html.escape(body.content.strip())
+    if not content_clean or len(content_clean) < 20:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manifesto statement must be at least 20 characters."
+        )
+
+    # Run contradiction analysis
+    analysis = await get_manifesto_analysis_safe(body.content)
+    contradictions = analysis.get("contradictions", [])
+    if contradictions:
+        explanation_parts = []
+        for idx, c_item in enumerate(contradictions):
+            if isinstance(c_item, dict):
+                p_a = c_item.get("promise_a", "")
+                p_b = c_item.get("promise_b", "")
+                exp = c_item.get("explanation", "")
+                explanation_parts.append(f"'{p_a}' conflicts with '{p_b}'. {exp}")
+            else:
+                explanation_parts.append(str(c_item))
+        
+        full_explanation = " ".join(explanation_parts)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Your manifesto contains conflicting promises. {full_explanation} Please adjust your platform."
+        )
+
+    # Update or insert Manifesto record
+    man_query = select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id)
+    man_res = await db.execute(man_query)
+    manifesto_record = man_res.scalars().first()
+    
+    if manifesto_record:
+        manifesto_record.content = content_clean
+        manifesto_record.version += 1
+    else:
+        manifesto_record = Manifesto(
+            candidate_id=candidate.candidate_id,
+            election_id=candidate.election_id,
+            content=content_clean
+        )
+        db.add(manifesto_record)
+        
+    await db.commit()
+    return {"message": "Manifesto updated successfully"}
+

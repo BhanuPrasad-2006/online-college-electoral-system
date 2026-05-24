@@ -32,11 +32,25 @@ class ManifestoAnalysisRequest(BaseModel):
         return validate_non_empty_whitespace(v, "content")
 
 
+class ContradictionResponse(BaseModel):
+    promise_a: str
+    promise_b: str
+    explanation: str
+
+
+class ImpactStatementResponse(BaseModel):
+    promise: str
+    trade_off: str
+
+
 class ManifestoAnalysisResponse(BaseModel):
     sentiment_score: float
     feasibility_score: float
     key_themes: List[str]
     summary: str
+    contradictions: List[ContradictionResponse] = []
+    impact_statements: List[ImpactStatementResponse] = []
+
 
 
 class RecommendationRequest(BaseModel):
@@ -89,3 +103,27 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     flagged_for_neutrality: bool
+
+
+class CategoryCoverageResponse(BaseModel):
+    category_name: str
+    covered: bool
+    explanation: str
+
+
+class GapAnalysisRequest(BaseModel):
+    manifesto: str = Field(..., max_length=15000)
+    categories: List[str] = Field(default_factory=list)
+
+    @field_validator("categories")
+    @classmethod
+    def validate_categories(cls, v: List[str]) -> List[str]:
+        for i, category in enumerate(v):
+            if not category.strip():
+                raise ValueError(f"Category at index {i} cannot be empty or whitespace-only")
+        return v
+
+
+class GapAnalysisResponse(BaseModel):
+    coverages: List[CategoryCoverageResponse] = []
+

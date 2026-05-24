@@ -10,6 +10,7 @@ from src.api.schemas import (
     RecommendationRequest, RecommendationResponse,
     AnomalyRequest, AnomalyResponse,
     ChatRequest, ChatResponse,
+    GapAnalysisRequest, GapAnalysisResponse,
 )
 from src.modules.classifier import ConcernClassifier
 from src.modules.sentiment import SentimentAnalyzer
@@ -17,6 +18,7 @@ from src.modules.manifesto import ManifestoAnalyzer
 from src.modules.anomaly_detection import AnomalyDetector
 from src.modules.recommendation import RecommendationEngine
 from src.modules.chatbot import ChatbotHelper
+from src.modules.gap_analysis import ManifestoGapAnalyzer
 
 AI_SERVICE_API_KEY = os.getenv("AI_SERVICE_API_KEY", "default-ai-service-key-change-in-prod")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -36,6 +38,8 @@ manifesto_analyzer = ManifestoAnalyzer()
 anomaly_detector = AnomalyDetector()
 recommender = RecommendationEngine()
 chatbot_helper = ChatbotHelper()
+gap_analyzer = ManifestoGapAnalyzer()
+
 
 
 def sanitize_text(text: str, max_length: int = 5000) -> str:
@@ -99,3 +103,13 @@ async def chat(request: ChatRequest):
     sanitized_message = sanitize_text(request.message)
     result = chatbot_helper.ask(sanitized_message)
     return ChatResponse(**result)
+
+
+@router.post("/analyze-gaps", response_model=GapAnalysisResponse)
+async def analyze_gaps(request: GapAnalysisRequest):
+    """Perform gap analysis between a manifesto and voter concern categories."""
+    sanitized_manifesto = sanitize_text(request.manifesto, max_length=15000)
+    sanitized_categories = [sanitize_text(cat, max_length=100) for cat in request.categories]
+    result = gap_analyzer.analyze_gaps(sanitized_manifesto, sanitized_categories)
+    return GapAnalysisResponse(**result)
+

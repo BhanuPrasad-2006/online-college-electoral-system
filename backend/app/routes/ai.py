@@ -38,6 +38,12 @@ from app.ai.context_data import (
 from app.models.election import Election
 from app.models.position import Position
 from app.services.phase_engine import PhaseEngine
+from app.api.deps import get_current_user
+from app.models.candidate import Candidate
+from app.models.concern import Concern
+from app.models.manifesto import Manifesto
+from app.services.ai_proxy_service import AIProxyService
+from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -418,3 +424,143 @@ async def insights(db: AsyncSession = Depends(get_db)):
 async def detect_anomaly(db: AsyncSession = Depends(get_db)):
     """Detect voting anomalies using AI."""
     return {"message": "AI detect anomaly endpoint."}
+
+
+@router.get("/concern-categories", response_model=list[dict])
+async def get_concern_categories(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get aggregated concern categories for the logged-in candidate's election.
+    Runs gap analysis against the candidate's manifesto via the AI microservice.
+    """
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized"
+        )
+        
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+        
+    # Fetch candidate profile using user_uuid
+    query = (
+        select(Candidate)
+        .options(
+            joinedload(Candidate.voter),
+            joinedload(Candidate.position)
+        )
+        .where(Candidate.candidate_id == user_uuid)
+    )
+    res = await db.execute(query)
+    candidate = res.scalar_one_or_none()
+    
+    if not candidate:
+        query = (
+            select(Candidate)
+            .options(
+                joinedload(Candidate.voter),
+                joinedload(Candidate.position)
+            )
+            .where(Candidate.voter_id == user_uuid)
+        )
+        res = await db.execute(query)
+        candidate = res.scalar_one_or_none()
+        
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate profile not found"
+        )
+
+    # Fetch concerns for this candidate's election
+    from sqlalchemy import cast
+    from sqlalchemy.dialects.postgresql import UUID as PgUUID
+    concerns_query = select(Concern).where(cast(Concern.election_id, PgUUID) == candidate.election_id)
+    concerns_res = await db.execute(concerns_query)
+    concerns = concerns_res.scalars().all()
+
+    # If no concerns, return an empty list (DO NOT return mock data)
+    if not concerns:
+        return []
+
+    # Group concerns by category
+    from collections import defaultdict
+    category_groups = defaultdict(list)
+    for concern in concerns:
+        cat_val = concern.category.value if hasattr(concern.category, "value") else concern.category
+        if cat_val:
+            category_groups[cat_val].append(concern)
+
+    # Define display names mapping
+    DISPLAY_NAMES = {
+        "academic": "Academic",
+        "infrastructure": "Infrastructure",
+        "campus_life": "Campus Life",
+        "administration": "Administration",
+        "other": "Other"
+    }
+
+    # Prepare category details
+    categories_to_analyze = []
+    category_data = []
+
+    for cat_val, category_concerns in category_groups.items():
+        display_name = DISPLAY_NAMES.get(cat_val.lower(), cat_val.replace("_", " ").title())
+        categories_to_analyze.append(display_name)
+        
+        total_cnt = len(category_concerns)
+        pos_cnt = 0
+        neg_cnt = 0
+        neu_cnt = 0
+        for c in category_concerns:
+            s_val = c.sentiment.value if hasattr(c.sentiment, "value") else c.sentiment
+            if s_val == "positive":
+                pos_cnt += 1
+            elif s_val == "negative":
+                neg_cnt += 1
+            else:
+                neu_cnt += 1
+                
+        pos_pct = round((pos_cnt / total_cnt) * 100) if total_cnt > 0 else 0
+        neu_pct = round((neu_cnt / total_cnt) * 100) if total_cnt > 0 else 0
+        neg_pct = 100 - pos_pct - neu_pct if total_cnt > 0 else 0
+        
+        category_data.append({
+            "name": display_name,
+            "mentions": total_cnt,
+            "positive": pos_pct,
+            "neutral": neu_pct,
+            "negative": neg_pct,
+            "covered": False  # default, updated after AI analysis
+        })
+
+    # Fetch candidate's manifesto
+    manifesto_query = select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id)
+    manifesto_res = await db.execute(manifesto_query)
+    manifesto_record = manifesto_res.scalars().first()
+    manifesto_content = manifesto_record.content if manifesto_record else ""
+
+    # Call AI service for gap analysis if we have categories
+    if categories_to_analyze:
+        try:
+            ai_proxy = AIProxyService()
+            gap_response = await ai_proxy.analyze_gaps(manifesto_content, categories_to_analyze)
+            coverages = gap_response.get("coverages", [])
+            coverages_map = {item["category_name"].lower(): item["covered"] for item in coverages if isinstance(item, dict)}
+            
+            # Update covered field in category_data
+            for cat in category_data:
+                cat["covered"] = coverages_map.get(cat["name"].lower(), False)
+        except Exception as e:
+            logger.error(f"Error calling analyze_gaps in AI service: {e}")
+
+    return category_data
+

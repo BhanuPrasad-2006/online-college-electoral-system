@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Search, Check, Minus } from "lucide-react";
+import { Search, Check, Minus, Brain } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
@@ -124,6 +124,23 @@ function Page() {
                   <h3 className="text-sm font-semibold mb-2">Manifesto</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">{active.manifesto}</p>
                 </div>
+                {active.impact_statements && active.impact_statements.length > 0 && (
+                  <div className="bg-[#6C63FF]/10 border border-[#6C63FF]/25 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center gap-2 font-semibold text-xs text-[#6C63FF]">
+                      <Brain className="h-4 w-4 shrink-0" />
+                      <span>AI System Impact Notes (Public Estimates)</span>
+                    </div>
+                    <div className="text-xs space-y-2.5 text-muted-foreground">
+                      {active.impact_statements.map((imp: any, i: number) => (
+                        <div key={i} className="border-l-2 border-[#6C63FF]/30 pl-2">
+                          <p className="font-semibold text-foreground">Promise: "{imp.promise}"</p>
+                          <p className="italic mt-0.5">Estimate: {imp.trade_off}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <h3 className="text-sm font-semibold mb-3">AI Coverage Breakdown</h3>
                   <div className="space-y-2">

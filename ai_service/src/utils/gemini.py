@@ -62,14 +62,76 @@ def call_gemini(
     """
     client, use_mock = get_gemini_client()
     
+    def get_gap_analysis_mock(prompt_str: str) -> str:
+        categories = []
+        if "categories to check:" in prompt_str.lower():
+            try:
+                parts = prompt_str.lower().split("categories to check:")
+                cats_part = parts[1].strip()
+                categories = [c.strip().title() for c in cats_part.split(",") if c.strip()]
+            except Exception:
+                pass
+        if not categories:
+            categories = ["Academic", "Infrastructure", "Campus Life", "Administration", "Other"]
+        
+        coverages = []
+        manifesto_lower = prompt_str.lower().split("categories to check:")[0]
+        for cat in categories:
+            covered = False
+            cat_l = cat.lower()
+            if cat_l == "academic" and any(w in manifesto_lower for w in ["academic", "study", "library", "class", "course", "grade", "exam"]):
+                covered = True
+            elif cat_l == "infrastructure" and any(w in manifesto_lower for w in ["infrastructure", "wifi", "wi-fi", "facility", "building", "lab", "campus", "canteen", "cafeteria"]):
+                covered = True
+            elif (cat_l == "campus_life" or cat_l == "campus life") and any(w in manifesto_lower for w in ["life", "event", "sport", "club", "fest", "activity", "activities"]):
+                covered = True
+            elif cat_l == "administration" and any(w in manifesto_lower for w in ["admin", "office", "staff", "fee", "process", "rule", "management"]):
+                covered = True
+            elif cat_l == "other" and len(manifesto_lower) > 30:
+                covered = True
+            
+            if covered:
+                explanation = f"The candidate's manifesto addresses {cat.lower()} concerns with specific plans."
+            else:
+                explanation = f"No mention or clear proposal for addressing student {cat.lower()} grievances."
+            
+            coverages.append({
+                "category_name": cat,
+                "covered": covered,
+                "explanation": explanation
+            })
+        return json.dumps({"coverages": coverages})
+
     if use_mock:
         logger.info("Executing Gemini call in MOCK fallback mode.")
         if response_mime_type == "application/json" or response_schema is not None:
+            schema_name = getattr(response_schema, "__name__", "")
+            if schema_name == "ManifestoGapAnalysisResponseSchema":
+                return get_gap_analysis_mock(prompt)
+
+            prompt_lower = prompt.lower()
+            contradictions = []
+            if "ticket" in prompt_lower and "budget" in prompt_lower:
+                contradictions = [
+                    {
+                        "promise_a": "Reduce student council event ticket prices by 50%",
+                        "promise_b": "Double the budget allocated to technical clubs",
+                        "explanation": "You cannot decrease revenue while doubling expenditures without specifying an alternative funding source."
+                    }
+                ]
+            
             mock_data = {
                 "sentiment_score": 0.85,
                 "feasibility_score": 0.75,
                 "key_themes": ["Technology", "Education", "Infrastructure"],
-                "summary": "Mock summary of the manifesto: The candidate proposes upgrading academic facilities and digital learning labs."
+                "summary": "Mock summary of the manifesto: The candidate proposes upgrading academic facilities and digital learning labs.",
+                "contradictions": contradictions,
+                "impact_statements": [
+                    {
+                        "promise": "24/7 unlimited access to the college library and computer labs",
+                        "trade_off": "Implementing this requires shifting budget from student events or sports to pay for overnight security, electricity, and lab assistants."
+                    }
+                ]
             }
             return json.dumps(mock_data)
         else:
@@ -97,11 +159,28 @@ def call_gemini(
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}. Falling back to mock.")
         if response_mime_type == "application/json" or response_schema is not None:
+            schema_name = getattr(response_schema, "__name__", "")
+            if schema_name == "ManifestoGapAnalysisResponseSchema":
+                return get_gap_analysis_mock(prompt)
+
+            prompt_lower = prompt.lower()
+            contradictions = []
+            if "ticket" in prompt_lower and "budget" in prompt_lower:
+                contradictions = [
+                    {
+                        "promise_a": "Reduce student council event ticket prices by 50%",
+                        "promise_b": "Double the budget allocated to technical clubs",
+                        "explanation": "You cannot decrease revenue while doubling expenditures without specifying an alternative funding source."
+                    }
+                ]
             mock_data = {
                 "sentiment_score": 0.5,
                 "feasibility_score": 0.5,
                 "key_themes": ["General"],
-                "summary": f"Error fallback mock summary. (Exception: {str(e)[:50]})"
+                "summary": f"Error fallback mock summary. (Exception: {str(e)[:50]})",
+                "contradictions": contradictions,
+                "impact_statements": []
             }
             return json.dumps(mock_data)
         return "I encountered an error communicating with the AI service. As a fallback: Please ensure candidate guidelines and polling hours are checked on the official college election bulletin board."
+

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchConcernCategories,
   fetchElection,
   fetchHourlyVotes,
   fetchMediaItems,
@@ -17,7 +16,9 @@ import {
   fetchNotifications,
   fetchAiAlerts,
   fetchAuditLogs,
+  fetchConcernCategories,
 } from "@/lib/api";
+
 
 
 const demoQuery = {
@@ -60,7 +61,7 @@ export function useCandidateProfile() {
 }
 
 export function useConcernCategories() {
-  return useQuery({ queryKey: ["concern-categories"], queryFn: fetchConcernCategories, ...demoQuery });
+  return useQuery({ queryKey: ["concern-categories"], queryFn: fetchConcernCategories, ...liveQuery });
 }
 
 export function useVoterConcerns() {
