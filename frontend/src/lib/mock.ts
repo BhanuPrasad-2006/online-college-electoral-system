@@ -133,6 +133,11 @@ export type VoterConcern = {
   category: string;
   message: string;
   submittedAt: string;
+  attachment?: {
+    name: string;
+    url: string;
+    type: string;
+  };
 };
 
 export const VOTER_CONCERNS: VoterConcern[] = [

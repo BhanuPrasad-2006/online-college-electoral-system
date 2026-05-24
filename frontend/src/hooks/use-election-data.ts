@@ -2,9 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchConcernCategories,
   fetchElection,
-  fetchHourlyVotes,
   fetchMediaItems,
-  fetchResults,
   fetchVoterConcerns,
   fetchVoterProfile,
 } from "@/lib/demo-api";
@@ -13,27 +11,40 @@ import {
   fetchCandidates,
   fetchCandidateProfile,
   fetchDeptTurnout,
+  fetchHourlyVotes,
   fetchKpi,
   fetchNotifications,
   fetchAiAlerts,
   fetchAuditLogs,
   fetchCandidateConcernReport,
+  getCurrentPhase,
 } from "@/lib/api";
-
 
 const demoQuery = {
   retry: false,
   refetchOnWindowFocus: false,
-  staleTime: 1000 * 60 * 30,
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
 };
 
 const liveQuery = {
-  retry: 2,
-  refetchInterval: 10000, // Real-time: refetch every 10 seconds
+  retry: 1,
+  refetchOnWindowFocus: false,
+  refetchIntervalInBackground: false,
+  staleTime: 30_000,
+  refetchInterval: 60_000,
 };
 
 export function useElection() {
   return useQuery({ queryKey: ["election"], queryFn: fetchElection, ...demoQuery });
+}
+
+export function useCurrentPhase() {
+  return useQuery({
+    queryKey: ["election-phase"],
+    queryFn: getCurrentPhase,
+    ...liveQuery,
+  });
 }
 
 export function useCandidates() {
@@ -82,10 +93,6 @@ export function useAiAlerts() {
 
 export function useAuditLogs() {
   return useQuery({ queryKey: ["audit-logs"], queryFn: fetchAuditLogs, ...demoQuery });
-}
-
-export function useResults() {
-  return useQuery({ queryKey: ["results"], queryFn: fetchResults, ...demoQuery });
 }
 
 export function useCandidateConcernReport() {

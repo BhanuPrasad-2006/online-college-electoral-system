@@ -1,14 +1,13 @@
 import uuid
+import ssl
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, AsyncAdaptedQueuePool
 from sqlalchemy import text
 
 from app.core.config import settings
 
 
-# ── URL conversion ────────────────────────────────────────────
-# Supabase provides postgresql:// URLs. Convert for asyncpg.
 def _make_async_url(url: str) -> str:
     if url.startswith("postgresql+asyncpg://"):
         return url
@@ -19,27 +18,44 @@ def _make_async_url(url: str) -> str:
     return url
 
 
-import ssl
-import uuid
+def _db_url() -> str:
+    return _make_async_url(settings.DATABASE_POOLER_URL or settings.DATABASE_URL)
+
+
+def _use_null_pool(url: str) -> bool:
+    """Supabase transaction pooler (port 6543) requires NullPool on the client."""
+    return ":6543" in url or "pooler.supabase.com" in url and ":5432" not in url
+
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
-# ── Async Engine (runtime) ────────────────────────────────────
-engine = create_async_engine(
-    _make_async_url(settings.DATABASE_POOLER_URL),
-    poolclass=NullPool,
-    echo=(settings.APP_ENV == "development"),
-    connect_args={
-        "prepared_statement_cache_size": 0,
-        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4().hex}__",
-        "statement_cache_size": 0,
-        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
-        "ssl": ssl_context
-    },   # required for Supabase pgBouncer + permissive SSL
-)
+_connect_args = {
+    "prepared_statement_cache_size": 0,
+    "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4().hex}__",
+    "statement_cache_size": 0,
+    "ssl": ssl_context,
+}
 
+_db_url_resolved = _db_url()
+_engine_kwargs: dict = {
+    "echo": settings.APP_ENV == "development",
+    "connect_args": _connect_args,
+}
+
+if _use_null_pool(_db_url_resolved):
+    _engine_kwargs["poolclass"] = NullPool
+else:
+    _engine_kwargs.update(
+        poolclass=AsyncAdaptedQueuePool,
+        pool_size=25,
+        max_overflow=50,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
+
+engine = create_async_engine(_db_url_resolved, **_engine_kwargs)
 
 SessionLocal = async_sessionmaker(
     bind=engine,
@@ -48,7 +64,6 @@ SessionLocal = async_sessionmaker(
 )
 
 
-# ── FastAPI Dependency ────────────────────────────────────────
 async def get_db():
     """Yield an async session; auto-commit on success, rollback on error."""
     async with SessionLocal() as session:
@@ -60,9 +75,8 @@ async def get_db():
             raise
 
 
-# ── Health Check (async) ──────────────────────────────────────
 async def check_db_connection() -> bool:
-    """Async check — verifies Supabase is reachable."""
+    """Async check — verifies database is reachable."""
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
     return True

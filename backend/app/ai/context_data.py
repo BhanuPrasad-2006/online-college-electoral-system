@@ -494,6 +494,7 @@ QUERY_TYPE_GUIDE = {
 
 def build_system_instruction(
     dynamic_context: Optional[dict] = None,
+    candidate_data: Optional[dict] = None,
 ) -> str:
     """
     Constructs the complete Gemini system instruction from the structured
@@ -503,10 +504,19 @@ def build_system_instruction(
     Args:
         dynamic_context: Optional dict with real-time data like current phase,
                          election dates, actual vote counts, etc.
+        candidate_data: Optional dict of real candidate manifesto data fetched
+                        from the database. If provided, replaces the hardcoded
+                        CANDIDATE_MANIFESTOS. Structure:
+                        {"Full Name": {"position": str, "department": str,
+                         "year": str, "party": str,
+                         "manifesto_content": str | None,
+                         "image_url": str | None}}
 
     Returns:
         A complete system instruction string.
     """
+    # Use DB-fetched candidate data if provided, otherwise fall back to hardcoded
+    manifestos_source = candidate_data if candidate_data is not None else CANDIDATE_MANIFESTOS
     lines = [
         "You are the official **AI Election Assistant** for a College Online Voting System.",
         "Your ONLY purpose is to help student voters make informed, unbiased decisions by providing",
@@ -618,16 +628,34 @@ def build_system_instruction(
     lines.append("║              CANDIDATE MANIFESTO DATA                      ║")
     lines.append("╚══════════════════════════════════════════════════════════════╝")
 
-    for name, info in CANDIDATE_MANIFESTOS.items():
+    for name, info in manifestos_source.items():
         lines.append(f"\n  ── **{name}** ──")
         lines.append(f"  Position: {info['position']}")
         lines.append(f"  Department: {info['department']} | Year: {info['year']} | Party: {info['party']}")
-        lines.append(f"  **Platform Positions:**")
-        for topic, stance in info["platforms"].items():
-            if stance:
-                lines.append(f"    ✅ [{topic}]: {stance}")
-            else:
-                lines.append(f"    ❌ [{topic}]: NOT ADDRESSED — This candidate has not submitted any stance on this topic.")
+
+        # Handle both hardcoded CANDIDATE_MANIFESTOS (with 'platforms' dict)
+        # and DB-fetched data (with 'manifesto_content' string)
+        if "platforms" in info and info["platforms"]:
+            lines.append(f"  **Platform Positions:**")
+            for topic, stance in info["platforms"].items():
+                if stance:
+                    lines.append(f"    ✅ [{topic}]: {stance}")
+                else:
+                    lines.append(f"    ❌ [{topic}]: NOT ADDRESSED — This candidate has not submitted any stance on this topic.")
+        elif "manifesto_content" in info and info["manifesto_content"]:
+            lines.append(f"  **Manifesto Content:**")
+            # Truncate very long manifestos to avoid overflowing the token limit
+            content = info["manifesto_content"]
+            if len(content) > 2000:
+                content = content[:2000] + "\n    [...truncated, full manifesto available on the candidate's profile page...]"
+            for line in content.strip().split("\n"):
+                lines.append(f"    {line.strip()}")
+        else:
+            lines.append(f"  **Platform Positions:**  _Manifesto not yet submitted._")
+
+        # Include manifesto image URL if available
+        if info.get("image_url"):
+            lines.append(f"  Manifesto image: {info['image_url']}")
 
     lines.append("")
     lines.append("╔══════════════════════════════════════════════════════════════╗")

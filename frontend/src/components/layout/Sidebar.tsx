@@ -10,6 +10,7 @@ import {
   FileEdit,
   Brain,
   GraduationCap,
+  Layers,
   ListChecks,
   Megaphone,
   Shield,
@@ -20,6 +21,7 @@ import {
   MessageSquarePlus,
   ShieldCheck,
   Lock,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
@@ -60,7 +62,9 @@ const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/media", label: "Content Approval", icon: ShieldCheck },
   { to: "/admin/election", label: "Election Control", icon: Cog },
   { to: "/admin/ai-monitoring", label: "AI Monitoring", icon: Activity },
-  { to: "/admin/results", label: "Results", icon: BarChart2 },
+  { to: "/admin/concerns-clusters", label: "Concerns Clusters", icon: Layers },
+  { to: "/admin/campus-report", label: "Campus Report", icon: BarChart2 },
+  { to: "/admin/results", label: "Results", icon: TrendingUp },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
   { to: "/admin/announcements", label: "Announcements", icon: Megaphone },
 ];

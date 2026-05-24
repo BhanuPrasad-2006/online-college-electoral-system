@@ -1,10 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Bold, Italic, List, Heading, Check, X, AlertCircle } from "lucide-react";
+import { Brain, Bold, Italic, List, Heading, Check, X, AlertCircle, Upload, Image, FileText, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { fetchCandidateProfile, getAuthToken, API_BASE_URL, saveManifesto } from "@/lib/api";
+import { fetchCandidateProfile, saveManifesto, uploadManifestoMedia, analyzeAndStoreManifesto } from "@/lib/api";
+
+interface Contradiction {
+  statement_a: string;
+  statement_b: string;
+  explanation: string;
+  severity: "minor" | "moderate" | "severe";
+}
+
+function severityColor(severity: string) {
+  if (severity === "severe") return "bg-red-100 text-red-800 border-red-200";
+  if (severity === "moderate") return "bg-amber-100 text-amber-800 border-amber-200";
+  return "bg-yellow-50 text-yellow-700 border-yellow-100";
+}
+
+function severityLabel(severity: string) {
+  if (severity === "severe") return "High";
+  if (severity === "moderate") return "Medium";
+  return "Low";
+}
 
 function statusBadgeClass(status: string) {
   if (status === "Approved") return "bg-success text-white";
@@ -20,9 +39,16 @@ function Page() {
   const [candidateStatus, setCandidateStatus] = useState("");
   const [cats, setCats] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
   const [overall, setOverall] = useState(0);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [manifestoImageUrl, setManifestoImageUrl] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -34,6 +60,7 @@ function Page() {
         setManifestoStatus(me.manifesto_status || "Not Submitted");
         setAdminRemarks(me.manifesto_admin_remarks ?? null);
         setCandidateStatus(me.status || "");
+        setManifestoImageUrl(me.manifesto_image_url || null);
       } catch {
         // ignore
       }
@@ -43,26 +70,65 @@ function Page() {
 
   async function analyze() {
     try {
-      const token = getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/ai/analyze-manifesto`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ session_id: null, message: text }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? "Analysis failed");
+      const data = await analyzeAndStoreManifesto(text);
 
       const themes: string[] = Array.isArray(data.key_themes) ? data.key_themes : [];
       setCats(themes.slice(0, 6).map((t) => ({ name: t, coverage: 100, covered: true })));
       setSuggestions(themes.slice(0, 3).map((t) => `Add: ${t} Plan`));
       const score = typeof data.feasibility_score === "number" ? data.feasibility_score : 0;
       setOverall(Math.max(0, Math.min(100, Math.round(score * 100))));
+
+      const raw = Array.isArray(data.contradictions) ? data.contradictions : [];
+      setContradictions(raw as Contradiction[]);
+
+      toast.success("Analysis saved to your manifesto");
     } catch (e: any) {
       toast.error(e?.message || "Could not analyze manifesto");
     }
+  }
+
+  async function uploadImage() {
+    const file = selectedImage || fileInputRef.current?.files?.[0];
+    if (!file) {
+      toast.error("Please select an image or PDF to upload");
+      return;
+    }
+    setImageUploading(true);
+    try {
+      const result = await uploadManifestoMedia(file);
+      setManifestoImageUrl(result.url);
+      setImageRemoved(false);
+      toast.success("Media uploaded successfully");
+      setSelectedImage(null);
+      setImagePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to upload media");
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedImage(file);
+    // Show preview for images
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => setImagePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreview(null);
+    }
+  }
+
+  function removeImage() {
+    setManifestoImageUrl(null);
+    setSelectedImage(null);
+    setImagePreview(null);
+    setImageRemoved(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function persist(submit: boolean) {
@@ -77,7 +143,10 @@ function Page() {
     if (submit) setSubmitting(true);
     else setSaving(true);
     try {
-      const res = await saveManifesto(text, submit);
+      // If image was explicitly removed, pass empty string to clear it in DB
+      const imageUrlToSave = imageRemoved ? "" : (manifestoImageUrl ?? undefined);
+      const res = await saveManifesto(text, submit, imageUrlToSave);
+      setImageRemoved(false);
       setManifestoStatus(res.manifesto_status);
       if (submit) {
         setAdminRemarks(null);
@@ -146,7 +215,75 @@ function Page() {
                 <I className="h-4 w-4" />
               </button>
             ))}
+            <div className="ml-auto flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={isLocked}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isLocked}
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs gap-1"
+              >
+                <Image className="h-3.5 w-3.5" />
+                {manifestoImageUrl ? "Change" : "Add Image"}
+              </Button>
+            </div>
           </div>
+
+          {/* Image preview / upload area */}
+          {(imagePreview || manifestoImageUrl) && (
+            <div className="relative mb-3 rounded-lg overflow-hidden border border-border bg-muted/30">
+              <img
+                src={imagePreview || manifestoImageUrl || ""}
+                alt="Manifesto media preview"
+                className="w-full max-h-48 object-contain"
+              />
+              <div className="absolute top-2 right-2 flex gap-1">
+                {imagePreview && !manifestoImageUrl && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 text-xs gap-1"
+                    disabled={imageUploading}
+                    onClick={uploadImage}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {imageUploading ? "Uploading..." : "Upload to Supabase"}
+                  </Button>
+                )}
+                {!isLocked && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-8 w-8 p-0"
+                    onClick={removeImage}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {manifestoImageUrl && !imagePreview && (
+            <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground bg-muted/20 rounded-lg px-3 py-2">
+              <Image className="h-3.5 w-3.5" />
+              <span className="truncate flex-1">{manifestoImageUrl.split("/").pop()}</span>
+              {!isLocked && (
+                <button onClick={removeImage} className="text-destructive hover:underline">
+                  Remove
+                </button>
+              )}
+            </div>
+          )}
+
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -209,6 +346,38 @@ function Page() {
               ))}
             </div>
           </div>
+
+          {contradictions.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <h3 className="text-sm font-semibold">Contradictions Detected</h3>
+              </div>
+              <div className="space-y-2">
+                {contradictions.map((c, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg border p-3 text-xs space-y-1.5 ${severityColor(c.severity)}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-auto">
+                        {severityLabel(c.severity)} Priority
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-medium text-[11px]">Statement A:</p>
+                      <p className="italic">&ldquo;{c.statement_a}&rdquo;</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-medium text-[11px]">Statement B:</p>
+                      <p className="italic">&ldquo;{c.statement_b}&rdquo;</p>
+                    </div>
+                    <p className="text-muted-foreground mt-1">{c.explanation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </aside>
       </div>
     </div>

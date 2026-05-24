@@ -23,6 +23,16 @@ function Login() {
   const { role, isAuthed, authReady } = useAuth();
   
   useEffect(() => {
+    if (typeof window !== "undefined" && !sessionStorage.getItem("collegevote-fingerprint")) {
+      import("@/lib/device-fingerprint").then((mod) =>
+        mod.getDeviceFingerprint().then((fp) =>
+          sessionStorage.setItem("collegevote-fingerprint", fp)
+        )
+      );
+    }
+  }, []);
+
+  useEffect(() => {
     if (authReady && isAuthed && role) {
       const roleDashboard =
         role === "voter"

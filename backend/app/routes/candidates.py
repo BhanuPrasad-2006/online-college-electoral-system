@@ -1,7 +1,8 @@
 import uuid
+import os
 import html
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -28,6 +29,10 @@ from app.services.otp_service import create_and_store_otp, verify_otp
 from app.services.email_service import send_otp_email
 from app.utils.logger import logger
 from app.core.security import get_password_hash
+from app.services.supabase_storage import (
+    SupabaseStorageError,
+    upload_manifesto_media,
+)
 
 router = APIRouter()
 
@@ -73,7 +78,17 @@ class CandidateRegisterRequest(BaseModel):
 
 class ManifestoUpdateRequest(BaseModel):
     manifesto: str
+    submit: Optional[bool] = False
+    image_url: Optional[str] = None
 
+
+class ManifestoReviewRequest(BaseModel):
+    status: str
+    admin_remarks: Optional[str] = None
+
+
+class AnalyzeManifestoRequest(BaseModel):
+    content: str
 
 
 def map_db_status_to_frontend(db_status) -> str:
@@ -158,6 +173,27 @@ async def list_candidates(
         manifesto = manifesto_map.get(c.candidate_id)
         man_status = _manifesto_status_raw(manifesto)
 
+        # Parse stored AI contradictions, if available
+        contradictions = []
+        if manifesto and manifesto.ai_analysis:
+            import json
+            try:
+                parsed = json.loads(manifesto.ai_analysis)
+                raw = parsed.get("contradictions", [])
+                if isinstance(raw, list):
+                    contradictions = [
+                        {
+                            "statement_a": c.get("statement_a", ""),
+                            "statement_b": c.get("statement_b", ""),
+                            "explanation": c.get("explanation", ""),
+                            "severity": c.get("severity", "minor"),
+                        }
+                        for c in raw
+                        if isinstance(c, dict) and "statement_a" in c and "statement_b" in c
+                    ]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         results.append({
             "candidate_id": str(c.candidate_id),
             "full_name": voter.full_name if voter else "—",
@@ -174,6 +210,8 @@ async def list_candidates(
             "secretary": c.secretary or "—",
             "manifesto": _manifesto_content_for_role(manifesto, hide_from_voters=not is_admin),
             "manifesto_status": map_manifesto_status_to_frontend(man_status),
+            "manifesto_image_url": manifesto.image_url if manifesto and _manifesto_status_raw(manifesto) == ManifestoStatusEnum.APPROVED.value else None,
+            "contradictions": contradictions,
         })
 
     return results
@@ -520,9 +558,130 @@ async def get_candidate_me(
         "vice_president": candidate.vice_president or "—",
         "secretary": candidate.secretary or "—",
         "manifesto": manifesto.content if manifesto else "",
+        "manifesto_image_url": manifesto.image_url if manifesto else None,
         "manifesto_status": map_manifesto_status_to_frontend(_manifesto_status_raw(manifesto)),
         "manifesto_admin_remarks": manifesto.admin_remarks if manifesto else None,
     }
+
+
+# ── Manifesto file upload constants ────────────────────────
+MAX_MANIFESTO_FILE_SIZE = 10 * 1024 * 1024
+
+ALLOWED_MANIFESTO_MIMETYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "application/pdf",
+}
+
+ALLOWED_MANIFESTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"}
+
+
+@router.post("/me/manifesto/upload", status_code=status.HTTP_200_OK)
+async def upload_manifesto_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_candidate_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a manifesto image/PDF to Supabase Storage.
+    Returns the public URL to include when saving the manifesto.
+    """
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    # Resolve candidate_id
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID format")
+
+    cand_res = await db.execute(select(Candidate).where(Candidate.voter_id == user_uuid))
+    candidate = cand_res.scalar_one_or_none()
+    if not candidate:
+        cand_res = await db.execute(select(Candidate).where(Candidate.candidate_id == user_uuid))
+        candidate = cand_res.scalar_one_or_none()
+
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
+
+    candidate_id = str(candidate.candidate_id)
+
+    # Validate file presence
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No file provided.",
+        )
+
+    # Validate extension
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_MANIFESTO_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file extension '{ext}'. Allowed: {', '.join(sorted(ALLOWED_MANIFESTO_EXTENSIONS))}",
+        )
+
+    # Validate MIME type
+    if file.content_type not in ALLOWED_MANIFESTO_MIMETYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type '{file.content_type}'. Allowed images (JPEG, PNG, GIF, WebP) and PDF.",
+        )
+
+    # Read file data
+    file_data = await file.read()
+    if len(file_data) > MAX_MANIFESTO_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File exceeds maximum allowed size of 10MB.",
+        )
+
+    # Check for malicious content
+    suspicious_signatures = [b"<script", b"<?php", b"<% ", b"exec(", b"eval("]
+    for sig in suspicious_signatures:
+        if sig in file_data[:4096]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security rejection: File contains disallowed content.",
+            )
+
+    # Upload to Supabase (or local fallback)
+    supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)
+    if supabase_enabled:
+        try:
+            uploaded = await upload_manifesto_media(
+                candidate_id=candidate_id,
+                filename=file.filename,
+                content_type=file.content_type,
+                data=file_data,
+            )
+            return {"url": uploaded.public_url, "path": uploaded.path}
+        except SupabaseStorageError as exc:
+            logger.error(f"Supabase manifesto upload failed: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upload file. Please try again.",
+            )
+    else:
+        # Local fallback for development
+        upload_dir = "uploads/manifestos"
+        os.makedirs(upload_dir, exist_ok=True)
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        file_path = os.path.join(upload_dir, unique_name)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(file_data)
+            local_url = f"/{upload_dir}/{unique_name}"
+            return {"url": local_url, "path": local_url}
+        except Exception as e:
+            logger.error(f"Failed to save manifesto file locally: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save uploaded file.",
+            )
 
 
 @router.put("/me/manifesto", status_code=status.HTTP_200_OK)
@@ -575,6 +734,8 @@ async def update_my_manifesto(
         manifesto.content = clean
         manifesto.version = (manifesto.version or 1) + 1
         manifesto.status = new_status
+        if body.image_url is not None:
+            manifesto.image_url = body.image_url or None
         if body.submit:
             manifesto.submitted_at = datetime.now(timezone.utc)
             manifesto.admin_remarks = None
@@ -584,6 +745,7 @@ async def update_my_manifesto(
             candidate_id=candidate.candidate_id,
             election_id=position.election_id,
             content=clean,
+            image_url=body.image_url,
             version=1,
             status=new_status,
             submitted_at=datetime.now(timezone.utc) if body.submit else None,
@@ -594,6 +756,19 @@ async def update_my_manifesto(
     await db.refresh(manifesto)
 
     if body.submit:
+        # ── Auto-analyze manifesto for contradictions on submission ──────────
+        try:
+            from app.services.ai_proxy_service import AIProxyService
+            proxy = AIProxyService()
+            analysis = await proxy.analyze_manifesto(clean)
+            import json
+            manifesto.ai_analysis = json.dumps(analysis)
+            db.add(manifesto)
+            await db.commit()
+        except Exception as exc:
+            # Non-blocking — don't fail submission if analysis fails
+            from app.utils.logger import logger as __log
+            __log.warning(f"Auto-analysis failed for manifesto {manifesto.manifesto_id}: {exc}")
         return {
             "message": "Manifesto submitted for admin approval",
             "manifesto_status": map_manifesto_status_to_frontend(_manifesto_status_raw(manifesto)),
@@ -602,6 +777,66 @@ async def update_my_manifesto(
         "message": "Manifesto draft saved",
         "manifesto_status": map_manifesto_status_to_frontend(_manifesto_status_raw(manifesto)),
     }
+
+
+@router.post("/me/manifesto/analyze", status_code=status.HTTP_200_OK)
+async def analyze_my_manifesto(
+    body: AnalyzeManifestoRequest,
+    current_user: dict = Depends(get_candidate_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Analyze the current manifesto text via AI, store the result in the database,
+    and return the analysis (contradictions, feasibility, themes, etc.).
+    Uses the text sent in the request body (not the saved DB content)
+    so unsaved edits are included.
+    """
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID format")
+
+    cand_res = await db.execute(select(Candidate).where(Candidate.voter_id == user_uuid))
+    candidate = cand_res.scalar_one_or_none()
+    if not candidate:
+        cand_res = await db.execute(select(Candidate).where(Candidate.candidate_id == user_uuid))
+        candidate = cand_res.scalar_one_or_none()
+
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
+
+    if not (body.content or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manifesto content cannot be empty.",
+        )
+
+    from app.services.ai_proxy_service import AIProxyService
+    proxy = AIProxyService()
+    try:
+        import json
+        analysis = await proxy.analyze_manifesto(body.content)
+
+        # Save analysis to the candidate's manifesto record if it exists
+        man_res = await db.execute(select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id))
+        manifesto = man_res.scalars().first()
+        if manifesto:
+            manifesto.ai_analysis = json.dumps(analysis)
+            db.add(manifesto)
+            await db.commit()
+
+        return analysis
+    except Exception as exc:
+        from app.utils.logger import logger as __log
+        __log.warning(f"AI analysis failed for candidate {candidate.candidate_id}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"AI analysis failed: {str(exc)[:200]}",
+        )
 
 
 @router.get("/admin/manifestos", status_code=status.HTTP_200_OK)
@@ -626,6 +861,38 @@ async def list_manifestos_for_admin(
 
     items = []
     for manifesto, candidate, voter, position in rows:
+        # Parse stored AI analysis
+        ai_flags = {
+            "contradictions": [],
+            "feasibility_score": None,
+            "sentiment_score": None,
+            "key_themes": [],
+            "summary": None,
+        }
+        if manifesto and manifesto.ai_analysis:
+            import json
+            try:
+                parsed = json.loads(manifesto.ai_analysis)
+                if isinstance(parsed, dict):
+                    raw_c = parsed.get("contradictions", [])
+                    if isinstance(raw_c, list):
+                        ai_flags["contradictions"] = [
+                            {
+                                "statement_a": c.get("statement_a", ""),
+                                "statement_b": c.get("statement_b", ""),
+                                "explanation": c.get("explanation", ""),
+                                "severity": c.get("severity", "minor"),
+                            }
+                            for c in raw_c
+                            if isinstance(c, dict) and "statement_a" in c
+                        ]
+                    ai_flags["feasibility_score"] = parsed.get("feasibility_score")
+                    ai_flags["sentiment_score"] = parsed.get("sentiment_score")
+                    ai_flags["key_themes"] = parsed.get("key_themes", [])
+                    ai_flags["summary"] = parsed.get("summary")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         items.append({
             "manifesto_id": str(manifesto.manifesto_id),
             "candidate_id": str(candidate.candidate_id),
@@ -635,9 +902,11 @@ async def list_manifestos_for_admin(
             "candidate_status": map_db_status_to_frontend(candidate.status),
             "manifesto_status": map_manifesto_status_to_frontend(_manifesto_status_raw(manifesto)),
             "content": manifesto.content,
+            "image_url": manifesto.image_url,
             "admin_remarks": manifesto.admin_remarks,
             "submitted_at": manifesto.submitted_at.isoformat() if manifesto.submitted_at else None,
             "reviewed_at": manifesto.reviewed_at.isoformat() if manifesto.reviewed_at else None,
+            "ai_analysis": ai_flags,
         })
     return items
 

@@ -10,6 +10,7 @@ const API_HOST =
 const PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
 const BASE = `${PROTOCOL}://${API_HOST}:8000/api/v1`;
 export const API_BASE_URL = BASE;
+export const API_ORIGIN = `${PROTOCOL}://${API_HOST}:8000`;
 const RETRY_DELAY_MS = 150;
 const REQUEST_TIMEOUT_MS = 20_000;
 
@@ -112,6 +113,12 @@ export function getAuthToken() {
 
 export function getFullName() {
   try { return sessionStorage.getItem(KEYS.fullName) ?? ""; } catch { return ""; }
+}
+
+export function resolveApiAssetUrl(path?: string | null) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 // ── Generic fetch wrapper ────────────────────────────────────
@@ -259,11 +266,9 @@ export async function fetchCandidateProfile() {
   return get<any>("/candidates/me");
 }
 
-export async function saveManifesto(manifesto: string, submit = false) {
-  return put<{ message: string; manifesto_status: string }>("/candidates/me/manifesto", {
-    manifesto,
-    submit,
-  });
+export async function saveManifesto(manifesto: string, submit = false, imageUrl?: string | null) {
+  const body: Record<string, any> = { manifesto, submit, image_url: imageUrl ?? null };
+  return put<{ message: string; manifesto_status: string }>("/candidates/me/manifesto", body);
 }
 
 export async function fetchManifestosForAdmin(statusFilter?: string) {
@@ -353,7 +358,18 @@ export async function verifyVoterId(verificationId: string) {
   return data as { success: boolean; anti_replay_token?: string; message?: string };
 }
 
-export async function castVote(candidateId: string | null, verificationId: string, liveFaceImage: string, antiReplayToken?: string) {
+export async function castVote(params: {
+  candidateId: string | null;
+  verificationId: string;
+  liveFaceImage: string;
+  antiReplayToken?: string;
+  trapData?: {
+    verification_field_confirm?: string;
+    hidden_field_name?: string;
+    phone_confirm?: string;
+    submit_time_ms?: number;
+  };
+}) {
   const token = getAuthToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -365,10 +381,14 @@ export async function castVote(candidateId: string | null, verificationId: strin
     method: "POST",
     headers,
     body: JSON.stringify({
-      candidate_id: candidateId,
-      verification_id: verificationId,
-      live_face_image: liveFaceImage,
-      anti_replay_token: antiReplayToken,
+      candidate_id: params.candidateId,
+      verification_id: params.verificationId,
+      live_face_image: params.liveFaceImage,
+      anti_replay_token: params.antiReplayToken,
+      verification_field_confirm: params.trapData?.verification_field_confirm ?? "",
+      hidden_field_name: params.trapData?.hidden_field_name ?? "",
+      phone_confirm: params.trapData?.phone_confirm ?? "",
+      submit_time_ms: params.trapData?.submit_time_ms ?? null,
     }),
   });
   const data = await res.json();
@@ -595,6 +615,63 @@ export async function fetchAuditLogs() {
   return get<any[]>("/admin/audit-logs");
 }
 
+// ── AI Admin Features (Features #3, #9) ────────────────────────
+export async function fetchIpClusters() {
+  return get<{ clusters: { subnet: string; sessions: number; flagged: boolean }[]; total_unique_ips: number }>("/admin/ip-clusters");
+}
+
+export async function clusterConcerns() {
+  return post<{ message: string; clustered: number; groups: number }>("/admin/cluster-concerns", {});
+}
+
+export async function fetchCampusReport() {
+  return get<{
+    generated_at: string;
+    total_concerns: number;
+    total_clusters: number;
+    unclustered_count: number;
+    category_distribution: Record<string, number>;
+    sentiment_summary: { positive: number; neutral: number; negative: number };
+    avg_priority: number;
+    date_range: { earliest: string | null; latest: string | null };
+    top_clusters: {
+      cluster_id: string | null;
+      is_unclustered: boolean;
+      size: number;
+      category: string;
+      representative_texts: string[];
+    }[];
+    executive_summary: string;
+    key_findings: string[];
+    trend_analysis: string;
+    suggested_actions: string[];
+  }>("/admin/campus-report");
+}
+
+export async function fetchClusteredConcerns() {
+  return get<{
+    clusters: {
+      cluster_id: string | null;
+      is_unclustered: boolean;
+      size: number;
+      representative_texts: string[];
+      category_distribution: Record<string, number>;
+      sentiment_breakdown: { positive: number; neutral: number; negative: number };
+      concerns: {
+        concern_id: string;
+        content: string;
+        category: string;
+        sentiment: string;
+        priority: number;
+        submitted_at: string | null;
+      }[];
+    }[];
+    total_concerns: number;
+    total_clusters: number;
+    unclustered_count: number;
+  }>("/admin/clustered-concerns");
+}
+
 export async function fetchCandidateConcernReport() {
   return get<{ categories: any[]; overall: { positive: number; neutral: number; negative: number } }>(
     "/concerns/candidate-report"
@@ -604,6 +681,57 @@ export async function fetchCandidateConcernReport() {
 // ── Announcements (Admin) ────────────────────────────────────
 export async function fetchAnnouncements(limit = 20) {
   return get<any[]>(`/announcements/?limit=${limit}`);
+}
+
+// ── Manifesto AI Analysis ────────────────────────────────────
+export async function analyzeAndStoreManifesto(content: string): Promise<any> {
+  return post<any>("/candidates/me/manifesto/analyze", { content });
+}
+
+
+// ── Manifesto Media Upload ───────────────────────────────────
+export async function uploadManifestoMedia(file: File): Promise<{ url: string }> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+  const res = await fetch(`${BASE}/candidates/me/manifesto/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Failed to upload manifesto file");
+  return data;
+}
+
+
+// ── Concern Attachment Upload ─────────────────────────────────
+export async function uploadConcernAttachment(file: File): Promise<{ url: string }> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+
+  const res = await fetch(`${BASE}/concerns/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Failed to upload attachment");
+  return data;
 }
 
 export async function createAnnouncement(payload: { title: string; body: string; recipients: string }) {

@@ -17,6 +17,7 @@ from app.models.audit_log import AuditLog
 from app.models.blacklisted_token import BlacklistedToken
 from app.models.anti_replay_token import AntiReplayToken
 from app.models.campaign_media import CampaignMedia
+from app.models.announcement import Announcement
 
 __all__ = [
     "Voter",
@@ -36,4 +37,5 @@ __all__ = [
     "BlacklistedToken",
     "AntiReplayToken",
     "CampaignMedia",
+    "Announcement",
 ]

@@ -1,429 +1,290 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef } from "react";
-import { 
-  Play, 
-  Image as ImageIcon, 
-  MessageSquare, 
-  Upload, 
-  AlertCircle, 
-  CheckCircle2, 
-  Clock, 
-  XCircle, 
-  ExternalLink,
-  Lock,
-  Plus
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Film, Image as ImageIcon, Link as LinkIcon, Play, Upload } from "lucide-react";
 import { PageLoader } from "@/components/PageLoader";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useCandidateProfile, useMediaItems } from "@/hooks/use-election-data";
-import { submitCampaignMedia } from "@/lib/demo-api"; // delegates to live api
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCandidateProfile, useCandidates, useMediaItems } from "@/hooks/use-election-data";
+import { resolveApiAssetUrl } from "@/lib/api";
+import { submitCampaignMedia } from "@/lib/demo-api";
 import { toast } from "sonner";
 
-function Page() {
-  const { data: profile, isPending: loadingProfile } = useCandidateProfile();
-  const { data: mediaItems = [], isPending: loadingMedia, refetch } = useMediaItems();
-  
-  const [activeTab, setActiveTab] = useState("all");
-  const [submitting, setSubmitting] = useState(false);
-  const [showUploadForm, setShowUploadForm] = useState(false);
+export const Route = createFileRoute("/candidate/media")({ component: Page });
 
-  // Form states
-  const [mediaType, setMediaType] = useState<"video" | "poster" | "message">("poster");
+function Page() {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: profile, isPending: loadingProfile } = useCandidateProfile();
+  const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
+  const { data: mediaItems = [], isPending: loadingMedia } = useMediaItems();
+
+  const [type, setType] = useState<"poster" | "video">("poster");
   const [title, setTitle] = useState("");
   const [externalUrl, setExternalUrl] = useState("");
-  const [body, setBody] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [tab, setTab] = useState<"all" | "poster" | "video">("all");
 
-  if (loadingProfile || loadingMedia) return <PageLoader />;
+  if (loadingProfile || loadingCandidates || loadingMedia) {
+    return <PageLoader />;
+  }
 
-  const candidateStatus = profile?.status?.toUpperCase() || "PENDING";
-  const isApproved = candidateStatus === "APPROVED";
+  const candidateStatus = String(profile?.status || "PENDING").toUpperCase();
+  const isApprovedCandidate = candidateStatus === "APPROVED";
+  const profileName = profile?.full_name || profile?.name || "";
+  const candidateRecord = candidates.find((candidate: any) => {
+    const candidateId = candidate.candidate_id || candidate.id;
+    const candidateName = candidate.full_name || candidate.name;
+    return candidateId === profile?.candidate_id || candidateName === profileName;
+  });
 
-  // Filter candidate's own media
-  const myMedia = mediaItems.filter(
-    (item) => item.candidateId === profile?.candidate_id
-  );
+  const candidateId = profile?.candidate_id || candidateRecord?.candidate_id || candidateRecord?.id || "";
+  const candidateName = profileName || candidateRecord?.full_name || candidateRecord?.name || "Candidate";
+  const candidateParty = profile?.party_symbol_url || candidateRecord?.party || candidateRecord?.party_symbol_url || "Independent";
 
-  const filteredMedia = activeTab === "all" 
-    ? myMedia 
-    : myMedia.filter((item) => item.type === activeTab);
+  const mySubmissions = mediaItems.filter((item: any) => {
+    if (candidateId && item.candidateId === candidateId) return true;
+    return item.candidateName === candidateName;
+  });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      
-      // Perform client-side validation
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      if (mediaType === "poster") {
-        if (ext !== "png" && ext !== "jpg" && ext !== "jpeg") {
-          toast.error("Invalid file format. Only PNG, JPG, and JPEG images are allowed.");
-          return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-          toast.error("Image size exceeds the 5MB limit.");
-          return;
-        }
-      } else if (mediaType === "video") {
-        if (ext !== "mp4") {
-          toast.error("Invalid file format. Only MP4 videos are allowed.");
-          return;
-        }
-        if (file.size > 20 * 1024 * 1024) {
-          toast.error("Video size exceeds the 20MB limit.");
-          return;
-        }
+  const visibleSubmissions =
+    tab === "all" ? mySubmissions : mySubmissions.filter((item: any) => item.type === tab);
+
+  function resetForm() {
+    setTitle("");
+    setExternalUrl("");
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0];
+    if (!nextFile) return;
+
+    const extension = nextFile.name.split(".").pop()?.toLowerCase();
+    if (type === "poster") {
+      if (!["png", "jpg", "jpeg"].includes(extension || "")) {
+        toast.error("Media must be PNG, JPG, or JPEG.");
+        return;
       }
-
-      setSelectedFile(file);
-      toast.success(`Selected file: ${file.name}`);
+      if (nextFile.size > 5 * 1024 * 1024) {
+        toast.error("Media file must be 5MB or smaller.");
+        return;
+      }
+    } else {
+      if (extension !== "mp4") {
+        toast.error("Video must be an MP4 file.");
+        return;
+      }
+      if (nextFile.size > 20 * 1024 * 1024) {
+        toast.error("Video file must be 20MB or smaller.");
+        return;
+      }
     }
-  };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    setSelectedFile(nextFile);
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+
     if (!title.trim()) {
-      toast.error("Please enter a title.");
+      toast.error("Title is required.");
       return;
     }
 
-    if (mediaType !== "message" && !selectedFile && !externalUrl.trim()) {
-      toast.error("Please select a file to upload or enter an external URL.");
-      return;
-    }
-
-    if (mediaType === "message" && !body.trim()) {
-      toast.error("Please write a campaign message.");
+    if (!selectedFile && !externalUrl.trim()) {
+      toast.error("Upload a file or provide a media URL.");
       return;
     }
 
     setSubmitting(true);
-    const form = new FormData();
-    form.append("type", mediaType);
-    form.append("title", title.trim());
-    if (externalUrl.trim()) form.append("external_url", externalUrl.trim());
-    if (body.trim()) form.append("body", body.trim());
-    if (selectedFile) form.append("file", selectedFile);
-
     try {
+      const form = new FormData();
+      form.append("type", type);
+      form.append("title", title.trim());
+      if (externalUrl.trim()) {
+        form.append("external_url", externalUrl.trim());
+      }
+      if (selectedFile) {
+        form.append("file", selectedFile);
+      }
+
       await submitCampaignMedia(form);
-      toast.success("Campaign media submitted successfully! Pending admin approval.");
-      
-      // Reset form
-      setTitle("");
-      setExternalUrl("");
-      setBody("");
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setShowUploadForm(false);
-      
-      // Refresh items list
-      refetch();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to submit campaign media.");
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
+      resetForm();
+      toast.success("Submitted to admin for approval.");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to submit campaign media.");
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // If candidate is not approved, show locked screen
-  if (!isApproved) {
-    return (
-      <div className="space-y-6 max-w-3xl">
-        <div>
-          <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media</h1>
-          <p className="text-sm text-muted-foreground mt-1">Upload and manage materials for your campaign.</p>
-        </div>
-        <div className="bg-card border border-border rounded-2xl p-8 text-center flex flex-col items-center justify-center space-y-4">
-          <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center text-muted-foreground">
-            <Lock className="h-8 w-8" />
-          </div>
-          <h2 className="text-lg font-semibold">Access Locked</h2>
-          <p className="text-sm text-muted-foreground max-w-md">
-            The Campaign Media tab will activate once your candidacy is approved by the admin. 
-            Voters can only see approved media materials from approved candidates.
-          </p>
-          <div className="bg-muted/40 text-xs px-4 py-2.5 rounded-lg border border-dashed text-muted-foreground capitalize">
-            Current Application Status: <strong>{profile?.status || "Pending Review"}</strong>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media</h1>
-          <p className="text-sm text-muted-foreground mt-1">Submit posters, campaign videos, or textual vision statements for voters to see.</p>
-        </div>
-        {!showUploadForm && (
-          <Button 
-            onClick={() => setShowUploadForm(true)}
-            className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" /> New Campaign Material
-          </Button>
-        )}
+      <div>
+        <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Candidates can submit media or video here. Admin approval is required before voters can see it.
+        </p>
       </div>
 
-      {showUploadForm && (
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden p-6 max-w-2xl animate-in fade-in-50 duration-200">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-base font-semibold">Upload Campaign Material</h2>
-            <Button variant="ghost" size="sm" onClick={() => setShowUploadForm(false)}>Cancel</Button>
+      {!isApprovedCandidate ? (
+        <div className="bg-card rounded-2xl border border-border p-6 text-sm text-muted-foreground">
+          Your candidacy is currently <span className="font-semibold text-foreground">{profile?.status || "Pending"}</span>.
+          Media submissions open after admin approval of the candidate profile.
+        </div>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+          <div className="bg-card rounded-2xl border border-border p-5 md:p-6">
+            <h2 className="text-base font-semibold">Submit New Media</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Choose either media or video. The submission goes to admin first.
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Type</label>
+                <div className="mt-1.5 grid grid-cols-2 gap-2">
+                  <Button type="button" variant={type === "poster" ? "default" : "outline"} onClick={() => setType("poster")}>
+                    <ImageIcon className="h-4 w-4 mr-2" /> Media
+                  </Button>
+                  <Button type="button" variant={type === "video" ? "default" : "outline"} onClick={() => setType("video")}>
+                    <Play className="h-4 w-4 mr-2" /> Video
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Title</label>
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1.5" maxLength={120} />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Upload {type === "poster" ? "media" : "video"} file
+                </label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-1.5 flex min-h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-border px-4 text-center"
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="mt-2 text-sm font-medium">{selectedFile ? selectedFile.name : "Choose file"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {type === "poster" ? "PNG/JPG up to 5MB" : "MP4 up to 20MB"}
+                  </p>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept={type === "poster" ? "image/png,image/jpeg" : "video/mp4"}
+                  onChange={handleFileChange}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">External URL</label>
+                <Input
+                  value={externalUrl}
+                  onChange={(event) => setExternalUrl(event.target.value)}
+                  className="mt-1.5"
+                  placeholder="Optional link if you are not uploading a file"
+                />
+              </div>
+
+              <Button type="submit" disabled={submitting} className="w-full bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
+                {submitting ? "Submitting..." : "Submit for Approval"}
+              </Button>
+            </form>
           </div>
 
-          <form onSubmit={handleFormSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground">Media Type</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: "poster", label: "Poster / Image", icon: ImageIcon },
-                  { value: "video", label: "Campaign Video", icon: Play },
-                  { value: "message", label: "Message / Text", icon: MessageSquare }
-                ].map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => {
-                      setMediaType(item.value as any);
-                      setSelectedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-2 p-3.5 rounded-xl border text-xs font-medium transition-all duration-200",
-                      mediaType === item.value 
-                        ? "bg-[#1F3A6E]/10 border-[#1F3A6E] text-[#1f3a6e]" 
-                        : "border-border hover:bg-muted/40 text-muted-foreground"
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-base font-semibold">My Submissions</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Submitted by {candidateName}. Pending items are visible to admin, approved items are visible to voters.
+              </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground">Material Title *</label>
-              <Input 
-                value={title} 
-                onChange={(e) => setTitle(e.target.value)} 
-                placeholder="e.g. My manifesto highlights, Message on Student Welfare, etc." 
-                required
-              />
-            </div>
+            <Tabs value={tab} onValueChange={(value) => setTab(value as "all" | "poster" | "video")}>
+              <TabsList>
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="poster">Media</TabsTrigger>
+                <TabsTrigger value="video">Video</TabsTrigger>
+              </TabsList>
 
-            {mediaType !== "message" && (
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">
-                    Upload file ({mediaType === "poster" ? "PNG/JPEG, max 5MB" : "MP4, max 20MB"})
-                  </label>
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-border hover:border-primary/50 rounded-xl p-6 text-center cursor-pointer transition-all duration-200 hover:bg-muted/10"
-                  >
-                    <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-                    {selectedFile ? (
-                      <div className="text-sm font-medium text-success flex items-center justify-center gap-1.5">
-                        <CheckCircle2 className="h-4 w-4" /> {selectedFile.name}
+              <TabsContent value={tab} className="mt-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {visibleSubmissions.map((item: any) => {
+                    const assetUrl = resolveApiAssetUrl(item.uploadedFileUrl || item.externalUrl || item.url);
+                    const isVideo = item.type === "video";
+                    const badgeClass =
+                      item.status === "Approved"
+                        ? "bg-success text-white"
+                        : item.status === "Rejected"
+                          ? "bg-destructive text-white"
+                          : "bg-warning text-warning-foreground";
+
+                    return (
+                      <div key={item.id} className="bg-card rounded-2xl border border-border overflow-hidden">
+                        <div className="aspect-[16/10] bg-muted flex items-center justify-center overflow-hidden">
+                          {assetUrl ? (
+                            isVideo ? (
+                              <video src={assetUrl} controls className="h-full w-full object-cover" />
+                            ) : (
+                              <img src={assetUrl} alt={item.title} className="h-full w-full object-cover" />
+                            )
+                          ) : (
+                            <Film className="h-10 w-10 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="p-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-sm">{item.title}</p>
+                            <Badge className={badgeClass}>{item.status}</Badge>
+                          </div>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {item.type === "poster" ? "Media" : "Video"} • {formatSubmittedAt(item.submittedAt)}
+                          </p>
+                          {assetUrl ? (
+                            <a href={assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]">
+                              <LinkIcon className="h-3.5 w-3.5" />
+                              Open submission
+                            </a>
+                          ) : null}
+                          {item.rejectionReason ? (
+                            <p className="mt-3 text-xs text-destructive">Rejected: {item.rejectionReason}</p>
+                          ) : null}
+                        </div>
                       </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-semibold">Click to browse media files</p>
-                        <p className="text-xs text-muted-foreground mt-1">Or drag & drop your files here</p>
-                      </div>
-                    )}
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleFileChange} 
-                      className="hidden" 
-                      accept={mediaType === "poster" ? "image/png, image/jpeg" : "video/mp4"}
-                    />
-                  </div>
+                    );
+                  })}
+
+                  {visibleSubmissions.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border p-8 text-sm text-muted-foreground">
+                      No submissions found yet.
+                    </div>
+                  ) : null}
                 </div>
-
-                <div className="text-center text-xs text-muted-foreground font-semibold">
-                  — OR —
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">External Media URL</label>
-                  <Input 
-                    value={externalUrl} 
-                    onChange={(e) => setExternalUrl(e.target.value)} 
-                    placeholder="e.g. https://www.youtube.com/watch?v=... or https://linktoimage.com/my-poster.png"
-                  />
-                  <p className="text-[10px] text-muted-foreground italic">Use this if your file size exceeds local server limits.</p>
-                </div>
-              </div>
-            )}
-
-            {mediaType === "message" && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Write Message *</label>
-                <textarea 
-                  value={body} 
-                  onChange={(e) => setBody(e.target.value)} 
-                  placeholder="Express your vision, describe campaign details, or publish a status update to your voters..."
-                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[140px]"
-                  required
-                />
-              </div>
-            )}
-
-            {mediaType !== "message" && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">Description / Message Body (optional)</label>
-                <textarea 
-                  value={body} 
-                  onChange={(e) => setBody(e.target.value)} 
-                  placeholder="Provide any accompanying description or additional text for this media..."
-                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[80px]"
-                />
-              </div>
-            )}
-
-            <div className="flex gap-3 justify-end pt-3 border-t">
-              <Button type="button" variant="outline" onClick={() => setShowUploadForm(false)}>Cancel</Button>
-              <Button 
-                type="submit" 
-                disabled={submitting}
-                className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
-              >
-                {submitting ? "Uploading..." : "Submit Campaign Material"}
-              </Button>
-            </div>
-          </form>
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
       )}
-
-      {/* Submitted List */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold">Your Submissions</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Voters will only see campaign media items that have been approved by the admin.</p>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="poster">Posters</TabsTrigger>
-            <TabsTrigger value="video">Videos</TabsTrigger>
-            <TabsTrigger value="message">Messages</TabsTrigger>
-          </TabsList>
-
-          <div className="mt-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {filteredMedia.map((m) => {
-                const Icon = m.type === "video" ? Play : m.type === "poster" ? ImageIcon : MessageSquare;
-                
-                // Color badges depending on status
-                const isApproved = m.status === "Approved";
-                const isRejected = m.status === "Rejected";
-                const isPending = m.status === "Pending";
-
-                return (
-                  <div key={m.id} className="bg-card rounded-2xl border border-border shadow-sm flex flex-col justify-between overflow-hidden">
-                    <div>
-                      {/* Media preview area */}
-                      {m.type === "poster" && (m.uploadedFileUrl || m.externalUrl) && (
-                        <div className="aspect-[16/10] bg-muted relative overflow-hidden flex items-center justify-center">
-                          <img 
-                            src={m.uploadedFileUrl || m.externalUrl} 
-                            alt={m.title}
-                            className="object-cover h-full w-full"
-                            onError={(e) => {
-                              // If image fails, show placeholder icon
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/5">
-                            <ImageIcon className="h-10 w-10 text-white/50" />
-                          </div>
-                        </div>
-                      )}
-
-                      {m.type === "video" && (
-                        <div className="aspect-[16/10] bg-black/90 flex flex-col items-center justify-center p-4 relative">
-                          <Play className="h-10 w-10 text-white/60 mb-2" />
-                          <span className="text-[10px] text-white/60 truncate max-w-full">
-                            {m.uploadedFileUrl || m.externalUrl}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="p-5 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold">
-                            <Icon className="h-3.5 w-3.5" />
-                            <span className="capitalize">{m.type}</span>
-                          </span>
-                          <span className={cn(
-                            "flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium",
-                            isApproved && "bg-success/15 text-success",
-                            isPending && "bg-warning/15 text-warning-foreground",
-                            isRejected && "bg-destructive/15 text-destructive"
-                          )}>
-                            {isApproved && <CheckCircle2 className="h-3 w-3" />}
-                            {isPending && <Clock className="h-3 w-3" />}
-                            {isRejected && <XCircle className="h-3 w-3" />}
-                            {m.status}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h3 className="font-semibold text-sm leading-snug">{m.title}</h3>
-                          {m.body && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3 leading-relaxed">{m.body}</p>}
-                        </div>
-
-                        {(m.uploadedFileUrl || m.externalUrl) && (
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#6C63FF] font-medium pt-1">
-                            <ExternalLink className="h-3 w-3" />
-                            <a 
-                              href={m.uploadedFileUrl || m.externalUrl} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              className="hover:underline truncate max-w-[200px]"
-                            >
-                              View Submission Link
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {isRejected && m.rejectionReason && (
-                      <div className="mx-5 mb-5 p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex gap-2 items-start text-xs text-destructive animate-in slide-in-from-top-1 duration-200">
-                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-semibold">Rejection Feedback:</span>
-                          <p className="mt-0.5 font-medium">{m.rejectionReason}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {filteredMedia.length === 0 && (
-                <div className="col-span-full border border-dashed rounded-2xl p-8 text-center text-muted-foreground text-sm">
-                  No campaign media items found for this tab.
-                </div>
-              )}
-            </div>
-          </div>
-        </Tabs>
-      </div>
     </div>
   );
 }
 
-export const Route = createFileRoute("/candidate/media")({ component: Page });
+function formatSubmittedAt(value?: string) {
+  if (!value) return "Just now";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}

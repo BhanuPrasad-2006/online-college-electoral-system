@@ -83,6 +83,7 @@ class ConcernService:
             "concern_id": concern.concern_id,
             "content": concern.content,
             "category": concern.category.value if concern.category else "other",
+            "attachment_url": concern.attachment_url,
             "submitted_at": concern.submitted_at.isoformat() if concern.submitted_at else None,
         }
 
@@ -119,6 +120,7 @@ class ConcernService:
                     "content": c.content,
                     "category": c.category.value if c.category else "other",
                     "priority": c.priority,
+                    "attachment_url": c.attachment_url,
                     "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
                 }
                 for c in concerns

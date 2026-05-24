@@ -6,8 +6,11 @@ export const getRouter = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,
+        retry: 1,
         refetchOnWindowFocus: false,
+        staleTime: 30_000,
+        gcTime: 1000 * 60 * 10,
+        refetchIntervalInBackground: false,
       },
     },
   });
@@ -16,7 +19,7 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    defaultPreloadStaleTime: 30_000,
   });
 
   return router;

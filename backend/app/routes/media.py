@@ -15,6 +15,8 @@ from app.models.campaign_media import CampaignMedia
 from app.models.candidate import Candidate
 from app.models.voter import Voter
 from app.enums.roles import UserRoleEnum
+from app.core.config import settings
+from app.services.supabase_storage import SupabaseStorageError, upload_campaign_media
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -248,22 +250,39 @@ async def submit_media(
                     detail="Security rejection: File contains disallowed scripts or code signatures."
                 )
 
-        # Save file
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        unique_name = f"media_{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_name)
-        
-        try:
-            with open(file_path, "wb") as f:
-                f.write(file_data)
-        except Exception as e:
-            logger.error(f"Failed to write campaign media file: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save uploaded file on the server."
-            )
-            
-        uploaded_url = f"/{UPLOAD_DIR}/{unique_name}"
+        supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)
+        if supabase_enabled:
+            try:
+                uploaded = await upload_campaign_media(
+                    candidate_id=str(candidate.candidate_id),
+                    media_type=media_type,
+                    filename=filename,
+                    content_type=content_type,
+                    data=file_data,
+                )
+                uploaded_url = uploaded.public_url
+            except SupabaseStorageError as exc:
+                logger.error(f"Supabase upload failed: {exc}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=str(exc),
+                )
+        else:
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
+            unique_name = f"media_{uuid.uuid4()}{file_ext}"
+            file_path = os.path.join(UPLOAD_DIR, unique_name)
+
+            try:
+                with open(file_path, "wb") as f:
+                    f.write(file_data)
+            except Exception as e:
+                logger.error(f"Failed to write campaign media file: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to save uploaded file on the server."
+                )
+
+            uploaded_url = f"/{UPLOAD_DIR}/{unique_name}"
 
     elif media_type in ["video", "poster"] and not external_url:
         raise HTTPException(

@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +25,24 @@ from app.security.integrity_service import IntegrityService
 
 
 router = APIRouter()
+
+_election_row_cache: dict = {"row": None, "expires_at": 0.0}
+_ELECTION_CACHE_TTL_SEC = 10.0
+
+
+async def _get_latest_election_row(db: AsyncSession) -> Election | None:
+    """Return latest election row with short TTL cache to cut repeated DB hits."""
+    now = time.time()
+    cached = _election_row_cache.get("row")
+    if cached is not None and now < _election_row_cache["expires_at"]:
+        return cached
+
+    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = result.scalars().first()
+    _election_row_cache["row"] = election
+    _election_row_cache["expires_at"] = now + _ELECTION_CACHE_TTL_SEC
+    return election
+
 
 async def notify_registration_open(election: Election):
     """Notify all voters and candidates that registration is open and provide the schedule."""
@@ -209,8 +228,7 @@ async def get_current_election(
     db: AsyncSession = Depends(get_db)
 ):
     """Fetch the current election."""
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     if not election:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -225,8 +243,7 @@ async def get_current_election_phase(
     db: AsyncSession = Depends(get_db)
 ):
     """Fetch the real-time phase of the current election."""
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     if not election:
         return {"phase": "unknown", "remaining_time": None}
         
@@ -356,8 +373,7 @@ async def get_notifications(
 ):
     """Fetch real-time notifications for the user."""
     # Since we don't have a dedicated notifications table, we derive some from the election phase.
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     
     notifications = []
     if election:
@@ -566,10 +582,38 @@ async def get_election_results(
     result_service = ResultService(db)
     raw = await result_service.compute_results(str(election_uuid))
 
+    position_ids = []
+    candidate_ids = []
+    for position_id, tallies in raw.items():
+        try:
+            position_ids.append(uuid.UUID(position_id))
+        except ValueError:
+            pass
+        for entry in tallies:
+            cand_id = entry["candidate_id"]
+            if cand_id and cand_id != "NOTA":
+                try:
+                    candidate_ids.append(uuid.UUID(cand_id))
+                except ValueError:
+                    pass
+
+    position_map: dict = {}
+    if position_ids:
+        pos_res = await db.execute(select(Position).where(Position.position_id.in_(position_ids)))
+        position_map = {str(p.position_id): p for p in pos_res.scalars().all()}
+
+    candidate_map: dict = {}
+    if candidate_ids:
+        cand_res = await db.execute(
+            select(Candidate)
+            .options(joinedload(Candidate.voter))
+            .where(Candidate.candidate_id.in_(candidate_ids))
+        )
+        candidate_map = {str(c.candidate_id): c for c in cand_res.scalars().unique().all()}
+
     formatted = []
     for position_id, tallies in raw.items():
-        pos_res = await db.execute(select(Position).where(Position.position_id == uuid.UUID(position_id)))
-        position = pos_res.scalar_one_or_none()
+        position = position_map.get(position_id)
         position_title = position.title if position else f"Position {position_id[:8]}"
 
         candidates_data = []
@@ -577,16 +621,10 @@ async def get_election_results(
             cand_id = entry["candidate_id"]
             name = "NOTA"
             if cand_id and cand_id != "NOTA":
-                try:
-                    cand_res = await db.execute(
-                        select(Candidate)
-                        .options(joinedload(Candidate.voter))
-                        .where(Candidate.candidate_id == uuid.UUID(cand_id))
-                    )
-                    candidate = cand_res.scalar_one_or_none()
-                    if candidate and candidate.voter:
-                        name = candidate.voter.full_name
-                except ValueError:
+                candidate = candidate_map.get(cand_id)
+                if candidate and candidate.voter:
+                    name = candidate.voter.full_name
+                else:
                     name = "Unknown"
             candidates_data.append({"name": name, "votes": entry["vote_count"]})
 

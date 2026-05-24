@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/election_db"
     DATABASE_POOLER_URL: str = ""
 
+    # Supabase Storage
+    SUPABASE_URL: str = ""
+    NEXT_PUBLIC_SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "campaign-media"
+
     # JWT
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
@@ -84,6 +90,17 @@ class Settings(BaseSettings):
                     pass
             return [x.strip() for x in value.split(",") if x.strip()]
         return value
+
+    @field_validator("SUPABASE_URL", mode="before")
+    @classmethod
+    def parse_supabase_url(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @property
+    def supabase_project_url(self) -> str:
+        return (self.SUPABASE_URL or self.NEXT_PUBLIC_SUPABASE_URL).rstrip("/")
 
     model_config = ConfigDict(
         env_file=".env",

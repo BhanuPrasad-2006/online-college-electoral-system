@@ -1,102 +1,106 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { Link as LinkIcon, Play } from "lucide-react";
 import { PageLoader } from "@/components/PageLoader";
-import { useCandidates, useMediaItems } from "@/hooks/use-election-data";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Play, Image as ImageIcon, MessageSquare, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useMediaItems } from "@/hooks/use-election-data";
+import { resolveApiAssetUrl } from "@/lib/api";
 
 export const Route = createFileRoute("/voter/media")({ component: Page });
 
 function Page() {
-  const { data: mediaItems = [], isPending: loadingMedia } = useMediaItems();
-  const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
-  const [tab, setTab] = useState("all");
+  const { data: mediaItems = [], isPending } = useMediaItems();
+  const [tab, setTab] = useState<"all" | "poster" | "video">("all");
 
-  if (loadingMedia || loadingCandidates) return <PageLoader />;
+  if (isPending) {
+    return <PageLoader />;
+  }
 
-  const approved = mediaItems.filter((m) => m.status === "Approved");
-
+  const approvedItems = mediaItems.filter((item: any) => item.status === "Approved" && ["poster", "video"].includes(item.type));
   const groups = {
-    all: approved,
-    video: approved.filter((m) => m.type === "video"),
-    poster: approved.filter((m) => m.type === "poster"),
-    message: approved.filter((m) => m.type === "message"),
-    manifesto: candidates.map((c) => {
-      const cId = c.candidate_id || c.id;
-      const cName = c.full_name || c.name || "Candidate";
-      return {
-        id: `mf-${cId}`,
-        candidateId: cId,
-        candidateName: cName,
-        party: c.party || c.party_symbol_url || "Independent",
-        type: "manifesto" as const,
-        title: `${cName} — Manifesto`,
-        body: c.manifesto,
-        status: "Approved" as const,
-        submittedAt: "",
-      };
-    }),
+    all: approvedItems,
+    poster: approvedItems.filter((item: any) => item.type === "poster"),
+    video: approvedItems.filter((item: any) => item.type === "video"),
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-[28px] font-bold">Campaign Gallery</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manifestos, videos, posters, and messages from candidates.</p>
+        <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Voters only see media and videos that were approved by admin.
+        </p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex-wrap h-auto">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as "all" | "poster" | "video")}>
+        <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="manifesto">Manifestos</TabsTrigger>
-          <TabsTrigger value="video">Videos</TabsTrigger>
-          <TabsTrigger value="poster">Posters</TabsTrigger>
-          <TabsTrigger value="message">Messages</TabsTrigger>
+          <TabsTrigger value="poster">Media</TabsTrigger>
+          <TabsTrigger value="video">Video</TabsTrigger>
         </TabsList>
 
-        {(["all", "manifesto", "video", "poster", "message"] as const).map((k) => (
-          <TabsContent key={k} value={k} className="mt-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {groups[k].map((m) => <MediaCard key={m.id} m={m} />)}
-            </div>
-          </TabsContent>
-        ))}
+        <TabsContent value={tab} className="mt-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {groups[tab].map((item: any) => (
+              <MediaCard key={item.id} item={item} />
+            ))}
+
+            {groups[tab].length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border p-8 text-sm text-muted-foreground">
+                No approved campaign media is available yet.
+              </div>
+            ) : null}
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function MediaCard({ m }: { m: any }) {
-  const initials = m.candidateName.split(" ").map((n: string) => n[0]).join("");
-  const Icon = m.type === "video" ? Play : m.type === "poster" ? ImageIcon : m.type === "message" ? MessageSquare : FileText;
-  const tone = m.type === "video" ? "bg-destructive/10 text-destructive" : m.type === "poster" ? "bg-warning/20 text-warning-foreground" : m.type === "message" ? "bg-[#6C63FF]/10 text-[#6C63FF]" : "bg-success/15 text-success";
+function MediaCard({ item }: { item: any }) {
+  const assetUrl = resolveApiAssetUrl(item.uploadedFileUrl || item.externalUrl || item.url);
+  const initials = String(item.candidateName || "C")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2);
 
   return (
-    <div className="bg-card rounded-2xl shadow-sm overflow-hidden">
-      {m.type === "video" && (
-        <div className="aspect-video bg-muted flex items-center justify-center">
-          <div className="h-14 w-14 rounded-full bg-background/90 flex items-center justify-center"><Play className="h-6 w-6 text-foreground ml-0.5" /></div>
-        </div>
-      )}
-      {m.type === "poster" && (
-        <div className="aspect-[4/5] bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/30 flex items-center justify-center">
-          <ImageIcon className="h-16 w-16 text-foreground/40" />
-        </div>
-      )}
+    <div className="bg-card rounded-2xl border border-border overflow-hidden">
+      <div className="aspect-[16/10] bg-muted flex items-center justify-center overflow-hidden">
+        {assetUrl ? (
+          item.type === "video" ? (
+            <video src={assetUrl} controls className="h-full w-full object-cover" />
+          ) : (
+            <img src={assetUrl} alt={item.title} className="h-full w-full object-cover" />
+          )
+        ) : (
+          <Play className="h-8 w-8 text-muted-foreground" />
+        )}
+      </div>
+
       <div className="p-5">
         <div className="flex items-center gap-2 mb-3">
-          <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${tone}`}><Icon className="h-4 w-4" /></span>
-          <Badge variant="outline" className="capitalize text-[11px]">{m.type}</Badge>
+          <Badge variant="outline">{item.type === "poster" ? "Media" : "Video"}</Badge>
         </div>
-        <p className="font-semibold text-sm">{m.title}</p>
-        {m.body && <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed line-clamp-4">{m.body}</p>}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t">
-          <Avatar className="h-7 w-7"><AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] text-[10px] font-semibold">{initials}</AvatarFallback></Avatar>
+        <p className="font-semibold text-sm">{item.title}</p>
+
+        {assetUrl ? (
+          <a href={assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]">
+            <LinkIcon className="h-3.5 w-3.5" />
+            Open media
+          </a>
+        ) : null}
+
+        <div className="mt-4 flex items-center gap-2 border-t pt-3">
+          <Avatar className="h-7 w-7">
+            <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] text-[10px] font-semibold">{initials}</AvatarFallback>
+          </Avatar>
           <div className="min-w-0">
-            <p className="text-xs font-medium truncate">{m.candidateName}</p>
-            <p className="text-[10px] text-muted-foreground italic truncate">{m.party}</p>
+            <p className="text-xs font-medium truncate">{item.candidateName}</p>
+            <p className="text-[10px] text-muted-foreground italic truncate">{item.party}</p>
           </div>
         </div>
       </div>

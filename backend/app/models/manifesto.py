@@ -24,6 +24,8 @@ class Manifesto(Base):
     reviewed_at   = Column(DateTime(timezone=True), nullable=True)
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
+    # JSON string of AI analysis (contradictions, feasibility, themes, etc.)
+    ai_analysis  = Column(Text, nullable=True)
 
     # ── Relationships ─────────────────────────────────────────
     candidate = relationship("Candidate")

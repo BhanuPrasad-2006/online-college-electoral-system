@@ -534,7 +534,7 @@ async def analyze_manifesto(request: ChatRequest):
         return result
     except Exception as e:
         logger.warning(f"AI Proxy analyze-manifesto failed: {e}")
-        return {"sentiment_score": 0.0, "feasibility_score": 0.0, "key_themes": [], "summary": "Analysis unavailable"}
+        return {"sentiment_score": 0.0, "feasibility_score": 0.0, "key_themes": [], "summary": "Analysis unavailable", "contradictions": []}
 
 
 @router.post("/analyze-pipeline")
