@@ -122,7 +122,15 @@ function Page() {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold mb-2">Manifesto</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{active.manifesto}</p>
+                  {active.manifesto ? (
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{active.manifesto}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      {active.manifesto_status === "Pending Review"
+                        ? "This manifesto is under admin review and is not visible yet."
+                        : "No approved manifesto published for this candidate yet."}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold mb-3">AI Coverage Breakdown</h3>

@@ -10,7 +10,8 @@ const API_HOST =
 const PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
 const BASE = `${PROTOCOL}://${API_HOST}:8000/api/v1`;
 export const API_BASE_URL = BASE;
-const RETRY_DELAY_MS = 350;
+const RETRY_DELAY_MS = 150;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -23,18 +24,32 @@ function normalizeFetchError(error: unknown) {
   return error instanceof Error ? error : new Error("Request failed");
 }
 
+async function fetchWithTimeout(input: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: init.signal ?? controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function fetchWithRetry(input: string, init: RequestInit) {
   try {
-    return await fetch(input, init);
+    return await fetchWithTimeout(input, init);
   } catch (error) {
-    if (!(error instanceof TypeError)) {
+    if (!(error instanceof TypeError) && !(error instanceof DOMException)) {
       throw normalizeFetchError(error);
     }
-
+    if ((init.method ?? "GET").toUpperCase() !== "GET") {
+      throw normalizeFetchError(error);
+    }
     await delay(RETRY_DELAY_MS);
-
     try {
-      return await fetch(input, init);
+      return await fetchWithTimeout(input, init);
     } catch (retryError) {
       throw normalizeFetchError(retryError);
     }
@@ -221,6 +236,10 @@ export async function fetchDeptTurnout() {
   return get<any[]>("/election/stats/departments");
 }
 
+export async function fetchHourlyVotes() {
+  return get<any[]>("/election/stats/hourly");
+}
+
 export async function fetchKpi() {
   return get<any>("/election/kpi");
 }
@@ -238,6 +257,29 @@ export async function updateCandidateStatus(candidateId: string, status: string,
 
 export async function fetchCandidateProfile() {
   return get<any>("/candidates/me");
+}
+
+export async function saveManifesto(manifesto: string, submit = false) {
+  return put<{ message: string; manifesto_status: string }>("/candidates/me/manifesto", {
+    manifesto,
+    submit,
+  });
+}
+
+export async function fetchManifestosForAdmin(statusFilter?: string) {
+  const q = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+  return get<any[]>(`/candidates/admin/manifestos${q}`);
+}
+
+export async function reviewManifesto(
+  manifestoId: string,
+  status: "approved" | "rejected",
+  adminRemarks?: string,
+) {
+  return put<{ message: string }>(`/candidates/admin/manifestos/${manifestoId}/review`, {
+    status,
+    admin_remarks: adminRemarks,
+  });
 }
 
 
@@ -551,6 +593,62 @@ export async function verifyLedger() {
 
 export async function fetchAuditLogs() {
   return get<any[]>("/admin/audit-logs");
+}
+
+export async function fetchCandidateConcernReport() {
+  return get<{ categories: any[]; overall: { positive: number; neutral: number; negative: number } }>(
+    "/concerns/candidate-report"
+  );
+}
+
+// ── Announcements (Admin) ────────────────────────────────────
+export async function fetchAnnouncements(limit = 20) {
+  return get<any[]>(`/announcements/?limit=${limit}`);
+}
+
+export async function createAnnouncement(payload: { title: string; body: string; recipients: string }) {
+  return post<any>("/announcements/", payload);
+}
+
+export async function deleteAnnouncement(announcementId: string) {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Accept": "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) {
+    headers["X-Device-Fingerprint"] = fp;
+  }
+  let res: Response;
+  try {
+    res = await fetchWithRetry(`${BASE}/announcements/${announcementId}`, {
+      method: "DELETE",
+      headers,
+    });
+  } catch (error) {
+    throw normalizeFetchError(error);
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    }
+    throw new Error(data.detail ?? "Request failed");
+  }
+  return data as any;
+}
+
+// ── Results (Admin) ──────────────────────────────────────────
+export async function fetchElectionResults(electionId: string) {
+  return get<any>(`/election/${electionId}/results`);
 }
 
 // ── Campaign Media Endpoints ───────────────────────────────────

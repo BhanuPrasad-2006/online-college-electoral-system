@@ -6,6 +6,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+from app.enums.manifesto_status import ManifestoStatusEnum
 
 
 class Manifesto(Base):
@@ -18,6 +19,9 @@ class Manifesto(Base):
     content      = Column(Text, nullable=False, default="")
     image_url    = Column(String(500), nullable=True)
     version      = Column(Integer, default=1)
+    status       = Column(String(20), default=ManifestoStatusEnum.DRAFT.value, nullable=False)
+    admin_remarks = Column(String(500), nullable=True)
+    reviewed_at   = Column(DateTime(timezone=True), nullable=True)
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
 

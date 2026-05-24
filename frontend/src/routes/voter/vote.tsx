@@ -289,10 +289,14 @@ function VotePage() {
                         <span className="font-medium">{c.secretary ?? c.runningMates?.secretary ?? "—"}</span>
                       </div>
                     </div>
-                    <details className="mt-3 text-xs">
-                      <summary className="cursor-pointer font-medium text-[#6C63FF]">Read manifesto</summary>
-                      <p className="mt-2 text-muted-foreground leading-relaxed">{c.manifesto}</p>
-                    </details>
+                    {c.manifesto ? (
+                      <details className="mt-3 text-xs">
+                        <summary className="cursor-pointer font-medium text-[#6C63FF]">Read manifesto</summary>
+                        <p className="mt-2 text-muted-foreground leading-relaxed whitespace-pre-wrap">{c.manifesto}</p>
+                      </details>
+                    ) : (
+                      <p className="mt-3 text-xs text-muted-foreground italic">Manifesto not yet approved for public viewing.</p>
+                    )}
                     <div className={cn(
                       "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
                       isSel ? "bg-[#6C63FF] text-white border-[#6C63FF]" : "bg-background border-border"

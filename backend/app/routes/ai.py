@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -37,6 +37,10 @@ from app.ai.context_data import (
 )
 from app.models.election import Election
 from app.models.position import Position
+from app.models.candidate import Candidate
+from app.models.manifesto import Manifesto
+from app.models.voter import Voter
+from app.enums.candidate_status import CandidateStatusEnum
 from app.services.phase_engine import PhaseEngine
 
 logger = logging.getLogger(__name__)
@@ -176,14 +180,51 @@ class SuggestionsResponse(BaseModel):
     categories: dict[str, list[str]]
 
 
+# ── Simple inline text classifier for local fallback (no external deps) ────────
+_CONCERN_KEYWORDS = {
+    "infrastructure": ["wifi", "internet", "network", "infrastructure", "building", "lab", "equipment", "computer", "electricity", "power"],
+    "academic": ["exam", "syllabus", "curriculum", "faculty", "teacher", "lecture", "class", "course", "grade", "assignment"],
+    "campus_life": ["hostel", "sports", "cafeteria", "food", "canteen", "event", "festival", "club", "activity", "gym"],
+    "administration": ["fee", "scholarship", "admission", "document", "office", "administration", "policy", "rule", "complaint", "helpdesk"],
+    "other": ["other", "general", "misc", "suggestion", "feedback"],
+}
+
+
+def _classify_text(text: str) -> str:
+    """Simple keyword-based text classification (no external dependencies)."""
+    text_lower = text.lower()
+    scores = {}
+    for category, keywords in _CONCERN_KEYWORDS.items():
+        scores[category] = sum(1 for kw in keywords if kw in text_lower)
+    if max(scores.values()) == 0:
+        return "other"
+    return max(scores, key=scores.get)
+
+
+_POSITIVE_WORDS = {"good", "great", "excellent", "amazing", "wonderful", "fantastic", "happy", "satisfied", "love", "best"}
+_NEGATIVE_WORDS = {"bad", "poor", "terrible", "awful", "horrible", "worst", "angry", "frustrated", "slow", "disappointed", "hate", "waste"}
+
+
+def _analyze_sentiment(text: str) -> float:
+    """Simple keyword-based sentiment analysis."""
+    text_lower = text.lower()
+    words = set(text_lower.split())
+    pos_count = len(words & _POSITIVE_WORDS)
+    neg_count = len(words & _NEGATIVE_WORDS)
+    total = pos_count + neg_count
+    if total == 0:
+        return 0.0
+    return round((pos_count - neg_count) / total, 2)
+
+
 # ── Suggested questions (grouped by category) ─────────────────────────────────
 SUGGESTED_QUESTIONS = {
     "Candidates & Manifestos": [
-        "Compare all candidates on Wi-Fi improvements",
-        "Tell me about Arjun Mehta's platform",
-        "Who has plans for mental health support?",
-        "Which candidate focuses on sports facilities?",
-        "Compare candidates on cafeteria improvements",
+        "Compare all candidates on their manifestos",
+        "What are the main promises from each candidate?",
+        "Who has plans for campus Wi-Fi improvements?",
+        "Which candidate focuses on student welfare?",
+        "Compare candidates on academic and infrastructure issues",
     ],
     "Voting Process": [
         "How do I register to vote?",
@@ -209,8 +250,9 @@ FLAT_SUGGESTIONS = [
 # ── Helper: Build system instruction with dynamic context ──────────────────────
 
 async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> str:
-    """Build the system instruction with live election data if available."""
+    """Build the system instruction with live election data and real DB candidates."""
     dynamic_ctx = {}
+    candidate_data = None
 
     if db is not None:
         try:
@@ -240,11 +282,52 @@ async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> st
                 if positions:
                     dynamic_ctx["positions"] = list(positions)
 
+            # ── Fetch real approved candidates with manifestos ──────────────
+            # Query: Candidate (APPROVED) → Voter (name, dept, year) → Manifesto (content)
+            candidate_rows = await db.execute(
+                select(
+                    Candidate,
+                    Voter.full_name,
+                    Voter.department,
+                    Voter.year_of_study,
+                    Position.title.label("position_title"),
+                    Manifesto.content.label("manifesto_content"),
+                    Manifesto.image_url,
+                )
+                .join(Voter, Candidate.voter_id == Voter.voter_id)
+                .join(Position, Candidate.position_id == Position.position_id)
+                .outerjoin(
+                    Manifesto,
+                    and_(
+                        Candidate.candidate_id == Manifesto.candidate_id,
+                        Manifesto.status == "approved",
+                    ),
+                )
+                .where(Candidate.status == CandidateStatusEnum.APPROVED)
+            )
+            rows = candidate_rows.all()
+
+            if rows:
+                candidate_data = {}
+                for row in rows:
+                    full_name = row.full_name
+                    if full_name not in candidate_data:
+                        candidate_data[full_name] = {
+                            "position": row.position_title or "Unknown Position",
+                            "department": row.department or "Unknown Department",
+                            "year": f"{row.year_of_study or '?'} Year",
+                            "party": "Independent",  # Will be updated if party data is available
+                            "manifesto_content": row.manifesto_content,
+                            "image_url": row.image_url,
+                        }
+                logger.info(f"Fetched {len(candidate_data)} real candidates from DB for AI context.")
+
         except Exception as e:
             logger.warning(f"Could not fetch dynamic context: {e}")
 
     return build_system_instruction(
-        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None
+        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None,
+        candidate_data=candidate_data,
     )
 
 
@@ -255,10 +338,10 @@ def classify_query(message: str) -> str:
     msg = message.lower().strip()
 
     # Candidate/manifesto queries
-    candidate_names = [n.lower().split()[0] for n in CANDIDATE_MANIFESTOS.keys()]
-    if any(name in msg for name in candidate_names):
-        return "manifesto"
+    # (Candidate name detection is handled by Gemini's NLP; keyword-based fallback here)
     if any(w in msg for w in ["manifesto", "platform", "stance", "promise", "compare", "candidate"]):
+        return "manifesto"
+    if any(w in msg for w in ["platforms", "running for", "tell me about"]):
         return "manifesto"
 
     # Voting process
@@ -402,19 +485,77 @@ async def clear_session(session_id: str):
 
 # ── Legacy stub endpoints (kept for backward compatibility) ────────────────────
 
-@router.post("/analyze")
-async def analyze(db: AsyncSession = Depends(get_db)):
-    """Analyze election data using AI."""
-    return {"message": "AI analyze endpoint — use /chat for the chatbot."}
+@router.post("/classify")
+async def classify_concern(request: ChatRequest):
+    """Classify a student concern via the AI microservice."""
+    from app.services.ai_proxy_service import AIProxyService
+    proxy = AIProxyService()
+    try:
+        result = await proxy.classify_concern(request.message)
+        logger.info(f"AI Proxy classify response: {result}")
+        return result
+    except Exception as e:
+        logger.warning(f"AI Proxy classify failed, using local fallback: {e}")
+        category = _classify_text(request.message)
+        score = _analyze_sentiment(request.message)
+        return {"category": category, "confidence": 0.75, "sentiment_score": score}
 
 
-@router.get("/insights")
-async def insights(db: AsyncSession = Depends(get_db)):
-    """Retrieve AI-generated insights for the election."""
-    return {"message": "AI insights endpoint — use /chat for the chatbot."}
+@router.post("/recommend")
+async def get_recommendations(request: ChatRequest):
+    """Get AI candidate recommendations based on a concern description."""
+    from app.services.ai_proxy_service import AIProxyService
+    proxy = AIProxyService()
+    try:
+        result = await proxy.get_recommendations([request.message])
+        return {"recommendations": result}
+    except Exception as e:
+        logger.warning(f"AI Proxy recommend failed: {e}")
+        # Return inline fallback with keyword-based matching
+        theme = _classify_text(request.message)
+        return {
+            "recommendations": [{
+                "candidate_id": "fallback",
+                "match_score": 0.5,
+                "matching_themes": [theme],
+                "explanation": f"AI microservice unavailable. Based on keyword analysis, this concern relates to '{theme}'."
+            }],
+            "note": "Local fallback used"
+        }
 
 
-@router.post("/detect-anomaly")
-async def detect_anomaly(db: AsyncSession = Depends(get_db)):
-    """Detect voting anomalies using AI."""
-    return {"message": "AI detect anomaly endpoint."}
+@router.post("/analyze-manifesto")
+async def analyze_manifesto(request: ChatRequest):
+    """Analyze a candidate manifesto via the AI microservice."""
+    from app.services.ai_proxy_service import AIProxyService
+    proxy = AIProxyService()
+    try:
+        result = await proxy.analyze_manifesto(request.message)
+        return result
+    except Exception as e:
+        logger.warning(f"AI Proxy analyze-manifesto failed: {e}")
+        return {"sentiment_score": 0.0, "feasibility_score": 0.0, "key_themes": [], "summary": "Analysis unavailable"}
+
+
+@router.post("/analyze-pipeline")
+async def run_pipeline(request: ChatRequest):
+    """End-to-end analysis: classify -> sentiment -> recommend."""
+    from app.services.ai_proxy_service import AIProxyService
+    proxy = AIProxyService()
+    text = request.message
+    try:
+        classification = await proxy.classify_concern(text)
+        recommendations = await proxy.get_recommendations([text])
+        return {
+            "classification": classification,
+            "recommendations": recommendations,
+        }
+    except Exception as e:
+        logger.warning(f"AI Proxy pipeline failed, using local fallback: {e}")
+        category = _classify_text(text)
+        score = _analyze_sentiment(text)
+        return {
+            "classification": {"category": category, "confidence": 0.75, "sentiment_score": score},
+            "recommendations": [],
+            "note": "Local fallback used"
+        }

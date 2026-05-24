@@ -56,6 +56,7 @@ const CANDIDATE_LINKS: SidebarLink[] = [
 const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: Shield },
   { to: "/admin/candidates", label: "Manage Candidates", icon: Users },
+  { to: "/admin/manifestos", label: "Manifesto Approval", icon: FileEdit },
   { to: "/admin/media", label: "Content Approval", icon: ShieldCheck },
   { to: "/admin/election", label: "Election Control", icon: Cog },
   { to: "/admin/ai-monitoring", label: "AI Monitoring", icon: Activity },
