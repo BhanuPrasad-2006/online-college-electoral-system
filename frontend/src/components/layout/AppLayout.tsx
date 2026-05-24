@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { FloatingChatbot } from "@/components/AIAssistantPanel";
 import { PageLoader } from "@/components/PageLoader";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 const AUTH_PATHS = new Set([
   "/",
@@ -53,6 +54,7 @@ export function AppLayout() {
   }
 
   return (
+    <NotificationProvider>
     <div className="min-h-screen mesh-bg">
       {/* Floating election countdown island */}
       <ElectionIsland />
@@ -88,5 +90,6 @@ export function AppLayout() {
       {/* Floating AI chatbot widget — fixed bottom-right, voter only */}
       {kind === "voter" && <FloatingChatbot />}
     </div>
+    </NotificationProvider>
   );
 }

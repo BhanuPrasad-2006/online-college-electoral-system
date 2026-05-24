@@ -210,10 +210,20 @@ function Page() {
               </div>
 
               <div className="space-y-1 bg-muted/20 border border-border/40 p-4 rounded-xl">
-                <span className="text-xs font-semibold text-foreground">Candidate Manifesto</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-foreground">Candidate Manifesto</span>
+                  {previewCandidate.manifesto_status && (
+                    <Badge variant="outline" className="text-[10px]">{previewCandidate.manifesto_status}</Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground italic leading-relaxed mt-1 whitespace-pre-wrap">
                   "{previewCandidate.manifesto || "No manifesto submitted."}"
                 </p>
+                {previewCandidate.manifesto_status === "Pending Review" && (
+                  <p className="text-[10px] text-warning-foreground mt-2">
+                    Approve this manifesto under Admin → Manifesto Approval.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end pt-2">

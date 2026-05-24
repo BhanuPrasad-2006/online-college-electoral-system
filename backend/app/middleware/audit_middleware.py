@@ -2,6 +2,7 @@
 
 import re
 import json
+import asyncio
 from fastapi import Request
 from starlette.types import ASGIApp, Scope, Receive, Send, Message
 import structlog
@@ -10,6 +11,24 @@ from app.db.session import SessionLocal
 from app.middleware.rate_limit import get_client_ip
 
 logger = structlog.get_logger()
+
+# Hot paths: skip DB audit writes (still log to stdout) to keep login/navigation fast
+AUDIT_SKIP_PATH_PREFIXES = (
+    "/api/v1/auth/voter/login",
+    "/api/v1/auth/voter/verify-otp",
+    "/api/v1/auth/voter/resend-otp",
+    "/api/v1/auth/candidate/login",
+    "/api/v1/auth/candidate/verify-otp",
+    "/api/v1/auth/candidate/resend-otp",
+    "/api/v1/auth/candidate/resend-email-otp",
+    "/api/v1/auth/candidate/resend-sms-otp",
+    "/api/v1/auth/admin/login",
+    "/api/v1/auth/admin/verify-otp",
+    "/api/v1/election/current",
+    "/api/v1/election/current-phase",
+    "/api/v1/election/notifications",
+    "/api/v1/election/kpi",
+)
 
 SENSITIVE_KEYS = {
     "password", "pass", "pwd", "otp", "code", "token", "jwt",
@@ -103,15 +122,28 @@ class AuditMiddleware:
         try:
             await self.app(scope, wrapped_receive, wrapped_send)
         except Exception as exc:
-            # Ensure log is written on crash
-            await self._persist_log(request, body_chunks, 500)
+            path = request.url.path
+            skip_db = any(path.startswith(p) for p in AUDIT_SKIP_PATH_PREFIXES)
+            asyncio.create_task(
+                self._persist_log(request, body_chunks, 500, skip_db=skip_db)
+            )
             raise exc
 
         # Check if we should audit log this request
         if method in ["POST", "PUT", "DELETE", "PATCH"] or status_code[0] >= 400:
-            await self._persist_log(request, body_chunks, status_code[0])
+            path = request.url.path
+            skip_db = any(path.startswith(p) for p in AUDIT_SKIP_PATH_PREFIXES)
+            asyncio.create_task(
+                self._persist_log(request, body_chunks, status_code[0], skip_db=skip_db)
+            )
 
-    async def _persist_log(self, request: Request, body_chunks: list[bytes], status_code: int):
+    async def _persist_log(
+        self,
+        request: Request,
+        body_chunks: list[bytes],
+        status_code: int,
+        skip_db: bool = False,
+    ):
         body_bytes = b"".join(body_chunks)
         body_str = body_bytes.decode("utf-8", errors="ignore")
         
@@ -141,14 +173,17 @@ class AuditMiddleware:
             status_code=status_code
         )
 
-        # Write to Database
+        if skip_db:
+            return
+
+        # Write to Database (background task — does not block HTTP response)
         try:
             event_type = f"HTTP_{request.method}"
             if status_code >= 400:
                 event_type = f"HTTP_{request.method}_ERROR"
-                
+
             description = f"Path: {sanitized_path} | Status: {status_code} | Body: {sanitized_body}"
-            
+
             async with SessionLocal() as db:
                 from app.security.audit_service import AuditService
                 audit_service = AuditService(db)
@@ -156,7 +191,8 @@ class AuditMiddleware:
                     event_type=event_type[:80],
                     actor_id=actor_id,
                     description=description,
-                    ip_address=ip_address
+                    ip_address=ip_address,
                 )
+                await db.commit()
         except Exception as e:
             logger.error("Failed to write audit log to database", error=str(e))

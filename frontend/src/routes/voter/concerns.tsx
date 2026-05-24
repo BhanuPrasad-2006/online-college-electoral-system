@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { submitConcern } from "@/lib/demo-api";
 import type { VoterConcern } from "@/lib/mock";
 import { PageLoader } from "@/components/PageLoader";
@@ -24,6 +24,7 @@ function Page() {
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState<VoterConcern[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachment, setAttachment] = useState<{ name: string; url: string; type: string } | null>(null);
 
   if (loadingCandidates || loadingConcerns) return <PageLoader />;
@@ -37,12 +38,31 @@ function Page() {
     }
     setSubmitting(true);
     try {
-      const created = await submitConcern({ toCandidateId: candidateId, category, subject, message });
-      // Attach the local attachment details to render dynamically
+      // Get the file from the input for Supabase upload
+      const fileObj: File | undefined =
+        attachment && fileInputRef.current?.files?.[0]
+          ? fileInputRef.current.files[0]
+          : undefined;
+
+      const created = await submitConcern({
+        toCandidateId: candidateId,
+        category,
+        subject,
+        message,
+        attachmentFile: fileObj,
+      });
+
+      // If live API returned a real URL, use it; otherwise fall back to blob URL
+      const liveAttachment = created.attachment;
       const withAttachment = {
         ...created,
-        attachment: attachment ? { name: attachment.name, url: attachment.url, type: attachment.type } : undefined
+        attachment: liveAttachment?.url?.startsWith("http")
+          ? liveAttachment
+          : attachment
+            ? { name: attachment.name, url: attachment.url, type: attachment.type }
+            : undefined,
       };
+
       setSent((s) => [withAttachment, ...s.length ? s : initialConcerns]);
       setCategory("");
       setSubject("");
@@ -127,6 +147,7 @@ function Page() {
             </Button>
             <input
               id="file-upload"
+              ref={fileInputRef}
               type="file"
               accept="image/*,video/*"
               className="hidden"

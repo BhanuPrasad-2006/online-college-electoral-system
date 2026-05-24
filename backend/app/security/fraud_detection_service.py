@@ -1,13 +1,16 @@
 """Fraud detection service — AI-powered fraud detection orchestrator."""
 
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.ai_alert import AIAlert
+from app.models.admin_user import AdminUser
 from app.enums.alert_type import AlertTypeEnum
 from app.enums.alert_severity import AlertSeverityEnum
 from app.security.honeypot import HoneypotService
 from app.security.anomaly_service import AnomalyService
+from app.services.email_service import send_election_email
 from app.utils.logger import logger
 
 
@@ -134,6 +137,9 @@ class FraudDetectionService:
                 logger.error(f"Error committing AI alerts: {e}")
                 await db_session.rollback()
 
+            # ── Notify all admins via email on honeypot/bot detection ──
+            await self._notify_admins(db_session, reasons, ip_address, severity, confidence)
+
         return {
             "is_suspicious": is_suspicious,
             "confidence": confidence,
@@ -163,6 +169,67 @@ class FraudDetectionService:
             }
             for a in alerts
         ]
+
+    async def _notify_admins(self, db_session: AsyncSession, reasons: list, ip_address: str, severity: AlertSeverityEnum, confidence: float):
+        """Send email notification to all admin users when a honeypot/bot alert is triggered."""
+        try:
+            result = await db_session.execute(select(AdminUser))
+            admins = result.scalars().all()
+            if not admins:
+                logger.warning("No admin users found to send honeypot alert email.")
+                return
+
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            reasons_html = "<ul>" + "".join(f"<li>{r}</li>" for r in reasons) + "</ul>"
+            severity_icon = "🔴" if severity in (AlertSeverityEnum.HIGH, AlertSeverityEnum.CRITICAL) else "🟡"
+            confidence_pct = f"{confidence * 100:.0f}%"
+
+            subject = f"{severity_icon} Bot/Honeypot Alert — College Election System"
+
+            html_body = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 560px; margin: auto; padding: 24px;">
+                <div style="background: #dc2626; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h2 style="color: white; margin: 0;">🚨 Fraud Alert — Bot Detection</h2>
+                </div>
+                <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+                    <p style="color: #374151; font-size: 16px;">
+                        The honeypot system has detected automated/bot activity during vote submission.
+                    </p>
+                    <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0; border-radius: 0 6px 6px 0;">
+                        <p style="color: #991b1b; margin: 0 0 8px 0; font-weight: bold;">Alert Details</p>
+                        <table style="font-size: 13px; color: #374151; border-collapse: collapse; width: 100%;">
+                            <tr><td style="padding: 4px 8px; font-weight: 600;">Severity:</td><td style="padding: 4px 8px;">{severity.value if hasattr(severity, 'value') else severity}</td></tr>
+                            <tr><td style="padding: 4px 8px; font-weight: 600;">Confidence:</td><td style="padding: 4px 8px;">{confidence_pct}</td></tr>
+                            <tr><td style="padding: 4px 8px; font-weight: 600; vertical-align: top;">Reasons:</td><td style="padding: 4px 8px;">{reasons_html}</td></tr>
+                            <tr><td style="padding: 4px 8px; font-weight: 600;">IP Address:</td><td style="padding: 4px 8px; font-family: monospace;">{ip_address or 'Unknown'}</td></tr>
+                            <tr><td style="padding: 4px 8px; font-weight: 600;">Timestamp:</td><td style="padding: 4px 8px;">{timestamp}</td></tr>
+                        </table>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                    <p style="color: #6b7280; font-size: 13px; text-align: center;">
+                        📋 This alert is also visible in the AI Monitoring dashboard under Behavioral Alerts.<br>
+                        Please investigate the IP address and take appropriate action.
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+
+            for admin in admins:
+                try:
+                    await send_election_email(
+                        to_email=admin.email,
+                        recipient_name=admin.full_name,
+                        subject=subject,
+                        html_body=html_body,
+                    )
+                    logger.info(f"Honeypot alert email sent to admin {admin.email}")
+                except Exception as e:
+                    logger.error(f"Failed to send honeypot alert email to admin {admin.email}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error sending honeypot admin notifications: {e}")
 
     async def resolve_alert(self, db_session: AsyncSession, alert_id: str, resolver_id: str):
         """Mark a fraud alert as resolved."""

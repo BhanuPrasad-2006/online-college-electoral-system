@@ -1,18 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageLoader } from "@/components/PageLoader";
 import { useAiAlerts, useHourlyVotes } from "@/hooks/use-election-data";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, Legend } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { resolveAiAlert, verifyLedger } from "@/lib/api";
+import { resolveAiAlert, verifyLedger, fetchIpClusters, clusterConcerns } from "@/lib/api";
+import { toast } from "sonner";
 
 function Page() {
+  const queryClient = useQueryClient();
   const { data: hourlyVotes = [], isPending: loadingVotes } = useHourlyVotes();
   const { data: alerts = [], isPending: loadingAlerts, refetch: refetchAlerts } = useAiAlerts();
+  const { data: ipData, isPending: loadingIps } = useQuery({
+    queryKey: ["admin-ip-clusters"],
+    queryFn: fetchIpClusters,
+    refetchInterval: 30_000,
+  });
   
   const [verifying, setVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<any>(null);
+  const [clustering, setClustering] = useState(false);
 
   const handleResolveAlert = async (alertId: string) => {
     try {
@@ -172,7 +181,12 @@ function Page() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card rounded-2xl shadow-sm p-5 border">
-          <h2 className="text-base font-semibold mb-4">IP Clustering Analysis</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold">IP Clustering Analysis</h2>
+            <span className="text-xs text-muted-foreground">
+              {ipData ? `${ipData.total_unique_ips} unique IPs` : ""}
+            </span>
+          </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-muted-foreground border-b">
@@ -182,23 +196,46 @@ function Page() {
               </tr>
             </thead>
             <tbody>
-              {[
-                { sub: "192.168.10.x/24", n: 47, flag: true },
-                { sub: "192.168.11.x/24", n: 22, flag: false },
-                { sub: "172.20.5.x/24", n: 14, flag: false },
-              ].map((r) => (
-                <tr key={r.sub} className={r.flag ? "bg-destructive/5" : ""}>
-                  <td className="p-2 font-mono text-xs">{r.sub}</td>
-                  <td className="p-2">{r.n}</td>
-                  <td className="p-2">{r.flag ? <Badge className="bg-destructive text-white">Flagged</Badge> : <Badge variant="outline">Normal</Badge>}</td>
-                </tr>
-              ))}
+              {loadingIps ? (
+                <tr><td colSpan={3} className="p-4 text-center text-muted-foreground">Loading...</td></tr>
+              ) : !ipData || ipData.clusters.length === 0 ? (
+                <tr><td colSpan={3} className="p-4 text-center text-muted-foreground">No IP data yet. Activity will appear here once users interact with the system.</td></tr>
+              ) : (
+                ipData.clusters.map((r) => (
+                  <tr key={r.subnet} className={r.flagged ? "bg-destructive/5" : ""}>
+                    <td className="p-2 font-mono text-xs">{r.subnet}</td>
+                    <td className="p-2">{r.sessions}</td>
+                    <td className="p-2">{r.flagged ? <Badge className="bg-destructive text-white">Flagged</Badge> : <Badge variant="outline">Normal</Badge>}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
-          </table>
+          </table>    
         </div>
 
         <div className="bg-card rounded-2xl shadow-sm p-5 border">
-          <h2 className="text-base font-semibold mb-4">Behavioral & Honeypot Alerts</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold">Behavioral & Honeypot Alerts</h2>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={clustering}
+              onClick={async () => {
+                setClustering(true);
+                try {
+                  const res = await clusterConcerns();
+                  toast.success(`Clustered ${res.clustered} concerns into ${res.groups} groups`);
+                  queryClient.invalidateQueries({ queryKey: ["admin-concerns"] });
+                } catch (e: any) {
+                  toast.error(e?.message || "Clustering failed");
+                } finally {
+                  setClustering(false);
+                }
+              }}
+            >
+              {clustering ? "Clustering..." : "Cluster Concerns"}
+            </Button>
+          </div>
           <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
             {unresolvedAlerts.length === 0 && (
               <div className="text-center py-8 text-sm text-muted-foreground border border-dashed rounded-lg">

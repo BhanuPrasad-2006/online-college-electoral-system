@@ -33,10 +33,13 @@ import { Route as CandidateAiReportRouteImport } from './routes/candidate/ai-rep
 import { Route as AdminResultsRouteImport } from './routes/admin/results'
 import { Route as AdminOtpVerifyRouteImport } from './routes/admin/otp-verify'
 import { Route as AdminMediaRouteImport } from './routes/admin/media'
+import { Route as AdminManifestosRouteImport } from './routes/admin/manifestos'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminElectionRouteImport } from './routes/admin/election'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminConcernsClustersRouteImport } from './routes/admin/concerns-clusters'
 import { Route as AdminCandidatesRouteImport } from './routes/admin/candidates'
+import { Route as AdminCampusReportRouteImport } from './routes/admin/campus-report'
 import { Route as AdminAuditLogsRouteImport } from './routes/admin/audit-logs'
 import { Route as AdminAnnouncementsRouteImport } from './routes/admin/announcements'
 import { Route as AdminAiMonitoringRouteImport } from './routes/admin/ai-monitoring'
@@ -161,6 +164,11 @@ const AdminMediaRoute = AdminMediaRouteImport.update({
   path: '/admin/media',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminManifestosRoute = AdminManifestosRouteImport.update({
+  id: '/admin/manifestos',
+  path: '/admin/manifestos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
@@ -176,9 +184,19 @@ const AdminDashboardRoute = AdminDashboardRouteImport.update({
   path: '/admin/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminConcernsClustersRoute = AdminConcernsClustersRouteImport.update({
+  id: '/admin/concerns-clusters',
+  path: '/admin/concerns-clusters',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminCandidatesRoute = AdminCandidatesRouteImport.update({
   id: '/admin/candidates',
   path: '/admin/candidates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminCampusReportRoute = AdminCampusReportRouteImport.update({
+  id: '/admin/campus-report',
+  path: '/admin/campus-report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminAuditLogsRoute = AdminAuditLogsRouteImport.update({
@@ -202,10 +220,13 @@ export interface FileRoutesByFullPath {
   '/admin/ai-monitoring': typeof AdminAiMonitoringRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
+  '/admin/campus-report': typeof AdminCampusReportRoute
   '/admin/candidates': typeof AdminCandidatesRoute
+  '/admin/concerns-clusters': typeof AdminConcernsClustersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/election': typeof AdminElectionRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/manifestos': typeof AdminManifestosRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
@@ -235,10 +256,13 @@ export interface FileRoutesByTo {
   '/admin/ai-monitoring': typeof AdminAiMonitoringRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
+  '/admin/campus-report': typeof AdminCampusReportRoute
   '/admin/candidates': typeof AdminCandidatesRoute
+  '/admin/concerns-clusters': typeof AdminConcernsClustersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/election': typeof AdminElectionRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/manifestos': typeof AdminManifestosRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
@@ -269,10 +293,13 @@ export interface FileRoutesById {
   '/admin/ai-monitoring': typeof AdminAiMonitoringRoute
   '/admin/announcements': typeof AdminAnnouncementsRoute
   '/admin/audit-logs': typeof AdminAuditLogsRoute
+  '/admin/campus-report': typeof AdminCampusReportRoute
   '/admin/candidates': typeof AdminCandidatesRoute
+  '/admin/concerns-clusters': typeof AdminConcernsClustersRoute
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/election': typeof AdminElectionRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/manifestos': typeof AdminManifestosRoute
   '/admin/media': typeof AdminMediaRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
@@ -304,10 +331,13 @@ export interface FileRouteTypes {
     | '/admin/ai-monitoring'
     | '/admin/announcements'
     | '/admin/audit-logs'
+    | '/admin/campus-report'
     | '/admin/candidates'
+    | '/admin/concerns-clusters'
     | '/admin/dashboard'
     | '/admin/election'
     | '/admin/login'
+    | '/admin/manifestos'
     | '/admin/media'
     | '/admin/otp-verify'
     | '/admin/results'
@@ -337,10 +367,13 @@ export interface FileRouteTypes {
     | '/admin/ai-monitoring'
     | '/admin/announcements'
     | '/admin/audit-logs'
+    | '/admin/campus-report'
     | '/admin/candidates'
+    | '/admin/concerns-clusters'
     | '/admin/dashboard'
     | '/admin/election'
     | '/admin/login'
+    | '/admin/manifestos'
     | '/admin/media'
     | '/admin/otp-verify'
     | '/admin/results'
@@ -370,10 +403,13 @@ export interface FileRouteTypes {
     | '/admin/ai-monitoring'
     | '/admin/announcements'
     | '/admin/audit-logs'
+    | '/admin/campus-report'
     | '/admin/candidates'
+    | '/admin/concerns-clusters'
     | '/admin/dashboard'
     | '/admin/election'
     | '/admin/login'
+    | '/admin/manifestos'
     | '/admin/media'
     | '/admin/otp-verify'
     | '/admin/results'
@@ -404,10 +440,13 @@ export interface RootRouteChildren {
   AdminAiMonitoringRoute: typeof AdminAiMonitoringRoute
   AdminAnnouncementsRoute: typeof AdminAnnouncementsRoute
   AdminAuditLogsRoute: typeof AdminAuditLogsRoute
+  AdminCampusReportRoute: typeof AdminCampusReportRoute
   AdminCandidatesRoute: typeof AdminCandidatesRoute
+  AdminConcernsClustersRoute: typeof AdminConcernsClustersRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
   AdminElectionRoute: typeof AdminElectionRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  AdminManifestosRoute: typeof AdminManifestosRoute
   AdminMediaRoute: typeof AdminMediaRoute
   AdminOtpVerifyRoute: typeof AdminOtpVerifyRoute
   AdminResultsRoute: typeof AdminResultsRoute
@@ -603,6 +642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMediaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/manifestos': {
+      id: '/admin/manifestos'
+      path: '/admin/manifestos'
+      fullPath: '/admin/manifestos'
+      preLoaderRoute: typeof AdminManifestosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/admin/login'
@@ -624,11 +670,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/concerns-clusters': {
+      id: '/admin/concerns-clusters'
+      path: '/admin/concerns-clusters'
+      fullPath: '/admin/concerns-clusters'
+      preLoaderRoute: typeof AdminConcernsClustersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/candidates': {
       id: '/admin/candidates'
       path: '/admin/candidates'
       fullPath: '/admin/candidates'
       preLoaderRoute: typeof AdminCandidatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/campus-report': {
+      id: '/admin/campus-report'
+      path: '/admin/campus-report'
+      fullPath: '/admin/campus-report'
+      preLoaderRoute: typeof AdminCampusReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/audit-logs': {
@@ -660,10 +720,13 @@ const rootRouteChildren: RootRouteChildren = {
   AdminAiMonitoringRoute: AdminAiMonitoringRoute,
   AdminAnnouncementsRoute: AdminAnnouncementsRoute,
   AdminAuditLogsRoute: AdminAuditLogsRoute,
+  AdminCampusReportRoute: AdminCampusReportRoute,
   AdminCandidatesRoute: AdminCandidatesRoute,
+  AdminConcernsClustersRoute: AdminConcernsClustersRoute,
   AdminDashboardRoute: AdminDashboardRoute,
   AdminElectionRoute: AdminElectionRoute,
   AdminLoginRoute: AdminLoginRoute,
+  AdminManifestosRoute: AdminManifestosRoute,
   AdminMediaRoute: AdminMediaRoute,
   AdminOtpVerifyRoute: AdminOtpVerifyRoute,
   AdminResultsRoute: AdminResultsRoute,

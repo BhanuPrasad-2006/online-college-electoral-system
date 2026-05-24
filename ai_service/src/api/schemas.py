@@ -32,15 +32,31 @@ class ManifestoAnalysisRequest(BaseModel):
         return validate_non_empty_whitespace(v, "content")
 
 
+class ManifestoContradiction(BaseModel):
+    statement_a: str
+    statement_b: str
+    explanation: str
+    severity: str  # 'minor', 'moderate', or 'severe'
+
+
 class ManifestoAnalysisResponse(BaseModel):
     sentiment_score: float
     feasibility_score: float
     key_themes: List[str]
     summary: str
+    contradictions: List[ManifestoContradiction] = []
+
+
+class CandidateInfo(BaseModel):
+    """Candidate information for recommendation matching."""
+    id: str
+    name: str
+    manifesto: str
 
 
 class RecommendationRequest(BaseModel):
     concerns: List[str] = Field(..., min_length=1)
+    candidates: Optional[List[CandidateInfo]] = Field(None, description="Optional candidate list. If omitted, demo placeholders are used.")
 
     @field_validator("concerns")
     @classmethod
@@ -86,6 +102,36 @@ class ChatRequest(BaseModel):
         return validate_non_empty_whitespace(v, "message")
 
 
+class ClusterItem(BaseModel):
+    cluster_id: int
+    label: str
+    size: int
+    concerns: List[str]
+
+
+class ClusterRequest(BaseModel):
+    texts: List[str] = Field(..., min_length=1, description="List of concern texts to cluster")
+
+
+class ClusterResponse(BaseModel):
+    clusters: List[ClusterItem]
+    num_clusters: int
+    unclustered: List[str] = []
+
+
 class ChatResponse(BaseModel):
     response: str
     flagged_for_neutrality: bool
+
+
+class CampusReportRequest(BaseModel):
+    """Request to generate a 'State of the Campus' report from aggregated concern data."""
+    data: dict
+
+
+class CampusReportResponse(BaseModel):
+    """Generated campus report with executive summary, findings, trends, and actions."""
+    executive_summary: str
+    key_findings: list[str]
+    trend_analysis: str
+    suggested_actions: list[str]

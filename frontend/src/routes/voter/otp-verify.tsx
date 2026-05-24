@@ -102,7 +102,7 @@ function OtpVerify() {
         )}
 
         <p className="text-xs text-muted-foreground text-center mt-4">
-          OTP expires in <Countdown seconds={180} />
+          OTP expires in <Countdown seconds={5 * 60} />
         </p>
 
         <Button

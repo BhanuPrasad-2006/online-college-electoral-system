@@ -1,0 +1,94 @@
+import uuid
+from dataclasses import dataclass
+
+import httpx
+
+from app.core.config import settings
+
+
+@dataclass
+class UploadedStorageObject:
+    path: str
+    public_url: str
+
+
+class SupabaseStorageError(Exception):
+    pass
+
+
+def _get_supabase_url() -> str:
+    url = settings.supabase_project_url
+    if not url:
+        raise SupabaseStorageError("Supabase Storage is not configured. Set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL.")
+    if not settings.SUPABASE_SERVICE_ROLE_KEY:
+        raise SupabaseStorageError("Supabase service role key is missing. Set SUPABASE_SERVICE_ROLE_KEY.")
+    return url
+
+
+async def _do_upload(
+    *,
+    object_path: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> UploadedStorageObject:
+    """Core upload logic — upload bytes to Supabase and return the public URL."""
+    base_url = _get_supabase_url()
+    upload_url = f"{base_url}/storage/v1/object/{settings.SUPABASE_STORAGE_BUCKET}/{object_path}"
+
+    headers = {
+        "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": content_type or "application/octet-stream",
+        "x-upsert": "false",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(upload_url, headers=headers, content=data)
+
+    if response.status_code >= 400:
+        detail = response.text.strip() or f"HTTP {response.status_code}"
+        raise SupabaseStorageError(f"Supabase upload failed: {detail}")
+
+    public_url = f"{base_url}/storage/v1/object/public/{settings.SUPABASE_STORAGE_BUCKET}/{object_path}"
+    return UploadedStorageObject(path=object_path, public_url=public_url)
+
+
+async def upload_campaign_media(
+    *,
+    candidate_id: str,
+    media_type: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> UploadedStorageObject:
+    base_url = _get_supabase_url()
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    object_path = f"candidate/{candidate_id}/{media_type}/{uuid.uuid4().hex}.{extension}"
+    return await _do_upload(object_path=object_path, filename=filename, content_type=content_type, data=data)
+
+
+async def upload_concern_attachment(
+    *,
+    voter_id: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> UploadedStorageObject:
+    """Upload a concern attachment (image/video) to Supabase Storage."""
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    object_path = f"concerns/{voter_id}/{uuid.uuid4().hex}.{extension}"
+    return await _do_upload(object_path=object_path, filename=filename, content_type=content_type, data=data)
+
+
+async def upload_manifesto_media(
+    *,
+    candidate_id: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> UploadedStorageObject:
+    """Upload a manifesto image/document to Supabase Storage."""
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    object_path = f"manifestos/{candidate_id}/{uuid.uuid4().hex}.{extension}"
+    return await _do_upload(object_path=object_path, filename=filename, content_type=content_type, data=data)

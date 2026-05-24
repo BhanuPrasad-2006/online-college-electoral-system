@@ -1,281 +1,184 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import type { MediaItem } from "@/lib/mock";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link as LinkIcon, Play, X } from "lucide-react";
 import { PageLoader } from "@/components/PageLoader";
-import { useMediaItems } from "@/hooks/use-election-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { 
-  Play, 
-  Image as ImageIcon, 
-  MessageSquare, 
-  FileText, 
-  Check, 
-  X, 
-  ExternalLink,
-  AlertCircle
-} from "lucide-react";
-import { reviewCampaignMedia } from "@/lib/demo-api"; // delegates to live api
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { resolveApiAssetUrl } from "@/lib/api";
+import { reviewCampaignMedia } from "@/lib/demo-api";
+import { useMediaItems } from "@/hooks/use-election-data";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/media")({ component: Page });
 
 function Page() {
-  const { data: media = [], isPending, refetch } = useMediaItems();
-  const [items, setItems] = useState<MediaItem[]>([]);
-  
-  // Moderation state
-  const [rejectionMediaId, setRejectionMediaId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { data: items = [], isPending } = useMediaItems();
+  const [tab, setTab] = useState<"pending" | "approved" | "rejected">("pending");
+  const [decisionLoading, setDecisionLoading] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
-  const [deciding, setDeciding] = useState(false);
 
-  useEffect(() => {
-    if (media.length) setItems(media);
-  }, [media]);
-
-  if (isPending && !items.length) return <PageLoader />;
-
-  async function handleApprove(mediaId: string) {
-    try {
-      setDeciding(true);
-      await reviewCampaignMedia(mediaId, "Approved");
-      toast.success("Approved — visible to voters");
-      refetch();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to approve media");
-    } finally {
-      setDeciding(false);
-    }
+  if (isPending) {
+    return <PageLoader />;
   }
 
-  async function handleRejectSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!rejectionMediaId) return;
-    if (!rejectionReason.trim()) {
-      toast.error("Please enter a reason for rejection.");
-      return;
-    }
+  const pending = items.filter((item: any) => item.status === "Pending");
+  const approved = items.filter((item: any) => item.status === "Approved");
+  const rejected = items.filter((item: any) => item.status === "Rejected");
+  const groups = { pending, approved, rejected };
+
+  async function handleDecision(id: string, status: "Approved" | "Rejected", reason?: string) {
+    setDecisionLoading(id);
     try {
-      setDeciding(true);
-      await reviewCampaignMedia(rejectionMediaId, "Rejected", rejectionReason.trim());
-      toast.success("Rejected successfully.");
-      setRejectionMediaId(null);
+      await reviewCampaignMedia(id, status, reason);
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
+      toast.success(status === "Approved" ? "Approved. Voters can now see this item." : "Submission rejected.");
+      setRejectingId(null);
       setRejectionReason("");
-      refetch();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reject media");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update campaign media.");
     } finally {
-      setDeciding(false);
+      setDecisionLoading(null);
     }
   }
-
-  const pending = items.filter((m) => m.status === "Pending");
-  const approved = items.filter((m) => m.status === "Approved");
-  const rejected = items.filter((m) => m.status === "Rejected");
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl md:text-[28px] font-bold">Approve Campaign Content</h1>
-        <p className="text-sm text-muted-foreground mt-1">Review manifestos, videos, posters, and messages before they appear to voters.</p>
+        <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media Approval</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Candidate submissions arrive here first. Approve to publish for voters, or reject with a reason.
+        </p>
       </div>
 
-      <Tabs defaultValue="pending">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as "pending" | "approved" | "rejected")}>
         <TabsList>
           <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
           <TabsTrigger value="approved">Approved ({approved.length})</TabsTrigger>
           <TabsTrigger value="rejected">Rejected ({rejected.length})</TabsTrigger>
         </TabsList>
 
-        {(["pending", "approved", "rejected"] as const).map((k) => {
-          const list = k === "pending" ? pending : k === "approved" ? approved : rejected;
-          return (
-            <TabsContent key={k} value={k} className="mt-5">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {list.map((m) => (
-                  <Row 
-                    key={m.id} 
-                    m={m} 
-                    onApprove={handleApprove} 
-                    onRejectInit={(id) => setRejectionMediaId(id)}
-                    disabled={deciding} 
-                  />
-                ))}
-                {list.length === 0 && <p className="text-sm text-muted-foreground">Nothing here.</p>}
+        <TabsContent value={tab} className="mt-5">
+          <div className="grid gap-4 lg:grid-cols-2">
+            {groups[tab].map((item: any) => {
+              const assetUrl = resolveApiAssetUrl(item.uploadedFileUrl || item.externalUrl || item.url);
+              const isVideo = item.type === "video";
+
+              return (
+                <div key={item.id} className="bg-card rounded-2xl border border-border overflow-hidden">
+                  <div className="aspect-[16/9] bg-muted flex items-center justify-center overflow-hidden">
+                    {assetUrl ? (
+                      isVideo ? (
+                        <video src={assetUrl} controls className="h-full w-full object-cover" />
+                      ) : (
+                        <img src={assetUrl} alt={item.title} className="h-full w-full object-cover" />
+                      )
+                    ) : (
+                      <Play className="h-8 w-8 text-muted-foreground" />
+                    )}
+                  </div>
+
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{item.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {item.candidateName} • {item.type === "poster" ? "Media" : "Video"}
+                        </p>
+                      </div>
+                      <Badge variant="outline">{item.status}</Badge>
+                    </div>
+
+                    <p className="mt-3 text-xs text-muted-foreground">{formatSubmittedAt(item.submittedAt)}</p>
+
+                    {assetUrl ? (
+                      <a href={assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]">
+                        <LinkIcon className="h-3.5 w-3.5" />
+                        Open media
+                      </a>
+                    ) : null}
+
+                    {item.rejectionReason ? (
+                      <p className="mt-3 text-xs text-destructive">Reason: {item.rejectionReason}</p>
+                    ) : null}
+
+                    {item.status === "Pending" ? (
+                      <div className="mt-4 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={decisionLoading === item.id}
+                          onClick={() => {
+                            setRejectingId(item.id);
+                            setRejectionReason(item.rejectionReason || "");
+                          }}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-success text-white hover:bg-success/90"
+                          disabled={decisionLoading === item.id}
+                          onClick={() => handleDecision(item.id, "Approved")}
+                        >
+                          Approve
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+
+            {groups[tab].length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border p-8 text-sm text-muted-foreground">
+                No items in this queue.
               </div>
-            </TabsContent>
-          );
-        })}
+            ) : null}
+          </div>
+        </TabsContent>
       </Tabs>
 
-      {/* Rejection Modal overlay */}
-      {rejectionMediaId && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl border border-border shadow-lg max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
-            <div>
-              <h3 className="font-semibold text-lg">Reason for Rejection</h3>
-              <p className="text-xs text-muted-foreground mt-1">Please provide feedback or specific reasons why this campaign material is rejected. This will be shown to the candidate.</p>
+      {rejectingId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">Reject Submission</h2>
+              <button type="button" onClick={() => setRejectingId(null)}>
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            
-            <form onSubmit={handleRejectSubmit} className="space-y-4">
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="e.g. Disallowed language, copyrighted material, or incorrect file format..."
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[100px]"
-                required
-              />
-              
-              <div className="flex gap-2 justify-end">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    setRejectionMediaId(null);
-                    setRejectionReason("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={deciding}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/95"
-                >
-                  Confirm Rejection
-                </Button>
-              </div>
-            </form>
+            <p className="mt-2 text-xs text-muted-foreground">This reason will be shown back to the candidate.</p>
+            <textarea
+              value={rejectionReason}
+              onChange={(event) => setRejectionReason(event.target.value)}
+              className="mt-4 min-h-28 w-full rounded-lg border border-border bg-transparent p-3 text-sm"
+              placeholder="Enter rejection reason"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRejectingId(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-destructive text-white hover:bg-destructive/90"
+                disabled={decisionLoading === rejectingId}
+                onClick={() => handleDecision(rejectingId, "Rejected", rejectionReason.trim())}
+              >
+                Confirm Reject
+              </Button>
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function Row({ 
-  m, 
-  onApprove, 
-  onRejectInit,
-  disabled 
-}: { 
-  m: any; 
-  onApprove: (id: string) => void; 
-  onRejectInit: (id: string) => void;
-  disabled: boolean;
-}) {
-  const Icon = m.type === "video" ? Play : m.type === "poster" ? ImageIcon : m.type === "message" ? MessageSquare : FileText;
-  
-  const isApproved = m.status === "Approved";
-  const isRejected = m.status === "Rejected";
-  const isPending = m.status === "Pending";
-
-  const tone = isApproved 
-    ? "bg-success/15 text-success border-success/20" 
-    : isRejected 
-    ? "bg-destructive/15 text-destructive border-destructive/20" 
-    : "bg-warning/15 text-warning-foreground border-warning/20";
-    
-  return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm flex flex-col justify-between overflow-hidden">
-      <div>
-        {/* Media Asset Preview */}
-        {m.type === "poster" && (m.uploadedFileUrl || m.externalUrl) && (
-          <div className="aspect-[16/8] bg-muted relative overflow-hidden flex items-center justify-center border-b border-border">
-            <img 
-              src={m.uploadedFileUrl || m.externalUrl} 
-              alt={m.title}
-              className="object-cover h-full w-full"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/5">
-              <ImageIcon className="h-8 w-8 text-white/50" />
-            </div>
-          </div>
-        )}
-
-        {m.type === "video" && (
-          <div className="aspect-[16/8] bg-black/95 flex flex-col items-center justify-center p-4 border-b border-border relative">
-            <Play className="h-8 w-8 text-white/60 mb-1" />
-            <span className="text-[10px] text-white/50 truncate max-w-full font-mono">
-              {m.uploadedFileUrl || m.externalUrl}
-            </span>
-          </div>
-        )}
-
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="h-10 w-10 rounded-xl bg-[#6C63FF]/10 text-[#6C63FF] flex items-center justify-center shrink-0">
-                <Icon className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="font-semibold truncate text-sm leading-snug">{m.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{m.candidateName} · <span className="italic">{m.party}</span></p>
-              </div>
-            </div>
-            <Badge variant="outline" className={`capitalize shrink-0 text-[10px] px-2 py-0.5 rounded-full ${tone}`}>
-              {m.status}
-            </Badge>
-          </div>
-
-          {m.body && <p className="text-xs text-foreground/80 leading-relaxed bg-muted/30 rounded-xl p-3.5 border border-border/40 mt-3 whitespace-pre-wrap">{m.body}</p>}
-          
-          {(m.uploadedFileUrl || m.externalUrl) && (
-            <div className="flex items-center gap-1.5 text-[11px] text-[#6C63FF] font-medium mt-3">
-              <ExternalLink className="h-3.5 w-3.5" />
-              <a 
-                href={m.uploadedFileUrl || m.externalUrl} 
-                target="_blank" 
-                rel="noreferrer"
-                className="hover:underline truncate max-w-[300px]"
-              >
-                Open Media Attachment Link
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="px-5 pb-5 pt-3 border-t border-border/55 flex items-center justify-between mt-auto">
-        <p className="text-[10px] text-muted-foreground capitalize">{m.type} · Submitted {m.submittedAt}</p>
-        
-        {isPending && (
-          <div className="flex gap-2">
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => onRejectInit(m.id)}
-              disabled={disabled}
-              className="text-xs h-8"
-            >
-              <X className="h-3.5 w-3.5 mr-1 text-destructive" /> Reject
-            </Button>
-            <Button 
-              size="sm" 
-              onClick={() => onApprove(m.id)}
-              disabled={disabled}
-              className="bg-success text-white hover:bg-success/90 text-xs h-8"
-            >
-              <Check className="h-3.5 w-3.5 mr-1" /> Approve
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {isRejected && m.rejectionReason && (
-        <div className="mx-5 mb-5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex gap-2 items-start text-xs text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold text-[11px]">Rejection Reason:</span>
-            <p className="mt-0.5">{m.rejectionReason}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function formatSubmittedAt(value?: string) {
+  if (!value) return "Just now";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }

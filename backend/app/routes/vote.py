@@ -175,26 +175,56 @@ async def cast_vote(
     voter_token_hash = hashlib.sha256(random_token.encode("utf-8")).hexdigest()
 
     from datetime import datetime
-    from sqlalchemy import func
+    from sqlalchemy import func, text
     from app.services.ledger_service import calculate_vote_hash, append_to_secure_vault
 
-    # Determine next sequence and previous hash
-    seq_query = select(func.max(Vote.ledger_sequence))
-    seq_result = await db.execute(seq_query)
-    max_seq = seq_result.scalar() or 0
-    next_seq = max_seq + 1
+    # ═══════════════════════════════════════════════════════════
+    # CRITICAL SECTION — row lock + atomic sequence
+    # ═══════════════════════════════════════════════════════════
 
+    # 1. Lock the voter row to prevent double-voting under concurrency
+    lock_query = select(Voter).where(Voter.voter_id == voter_id).with_for_update()
+    lock_result = await db.execute(lock_query)
+    locked_voter = lock_result.scalar_one_or_none()
+
+    if not locked_voter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Voter profile not found"
+        )
+
+    # 2. Re-check has_voted under the lock (TOCTOU prevention)
+    if locked_voter.has_voted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already cast your vote."
+        )
+
+    # 3. Get next ledger sequence atomically
+    #    PostgreSQL: uses nextval() which is concurrency-safe
+    #    SQLite: falls back to MAX(ledger_sequence) + 1 (tests only)
+    try:
+        seq_result = await db.execute(text("SELECT nextval('votes_ledger_sequence_seq')"))
+        next_seq = seq_result.scalar()
+    except Exception:
+        # Fallback for SQLite/Test environments
+        seq_query = select(func.max(Vote.ledger_sequence))
+        seq_result = await db.execute(seq_query)
+        max_seq = seq_result.scalar() or 0
+        next_seq = max_seq + 1
+
+    # 4. Compute previous hash from the preceding committed vote
     previous_hash = None
     if next_seq > 1:
-        prev_query = select(Vote.current_hash).where(Vote.ledger_sequence == max_seq)
+        prev_query = select(Vote.current_hash).where(Vote.ledger_sequence == next_seq - 1)
         prev_result = await db.execute(prev_query)
         previous_hash = prev_result.scalar()
 
-    # Generate timestamp string
+    # 5. Generate timestamp string
     now_utc = datetime.now(timezone.utc)
     timestamp_str = now_utc.replace(tzinfo=None).isoformat()
 
-    # Generate current hash
+    # 6. Generate current hash
     current_hash = await calculate_vote_hash(
         candidate_id=str(candidate.candidate_id) if candidate else None,
         timestamp_utc=timestamp_str,
@@ -203,7 +233,7 @@ async def cast_vote(
         ledger_sequence=next_seq
     )
 
-    # Create anonymous vote
+    # 7. Create anonymous vote
     new_vote = Vote(
         vote_id=str(uuid.uuid4()),
         voter_token_hash=voter_token_hash,
@@ -218,8 +248,8 @@ async def cast_vote(
     
     db.add(new_vote)
 
-    # Mark voter as having voted
-    voter.has_voted = True
+    # 8. Mark voter as having voted (under the same lock)
+    locked_voter.has_voted = True
     await db.commit()
 
     # Append to secure vault
