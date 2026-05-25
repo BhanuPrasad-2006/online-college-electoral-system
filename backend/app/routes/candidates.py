@@ -201,28 +201,41 @@ async def list_candidates(
         manifesto = manifesto_map.get(c.candidate_id)
         man_status = _manifesto_status_raw(manifesto)
 
-        # Parse stored AI contradictions, if available
+        # Parse stored AI analysis if available, otherwise use safe defaults
+        analysis = {}
         contradictions = []
         if manifesto and manifesto.ai_analysis:
             import json
             try:
-                parsed = json.loads(manifesto.ai_analysis)
-                raw = parsed.get("contradictions", [])
-                if isinstance(raw, list):
-                    contradictions = [
-                        {
-                            "statement_a": c.get("statement_a", ""),
-                            "statement_b": c.get("statement_b", ""),
-                            "explanation": c.get("explanation", ""),
-                            "severity": c.get("severity", "minor"),
-                        }
-                        for c in raw
-                        if isinstance(c, dict) and "statement_a" in c and "statement_b" in c
-                    ]
-            except (json.JSONDecodeError, TypeError):
-                pass
+                analysis = json.loads(manifesto.ai_analysis)
+                if not isinstance(analysis, dict):
+                    analysis = {}
+            except Exception:
+                analysis = {}
 
-        analysis = await get_manifesto_analysis_safe(manifesto.content if manifesto else "")
+        if not analysis:
+            analysis = {
+                "sentiment_score": 0.5,
+                "feasibility_score": 0.5,
+                "key_themes": ["General"],
+                "summary": "AI Analysis not yet available.",
+                "contradictions": [],
+                "impact_statements": []
+            }
+
+        # Safely parse contradictions for response
+        raw = analysis.get("contradictions", [])
+        if isinstance(raw, list):
+            contradictions = [
+                {
+                    "statement_a": c_item.get("statement_a") or c_item.get("promise_a") or "",
+                    "statement_b": c_item.get("statement_b") or c_item.get("promise_b") or "",
+                    "explanation": c_item.get("explanation") or "",
+                    "severity": c_item.get("severity") or "minor",
+                }
+                for c_item in raw
+                if isinstance(c_item, dict)
+            ]
 
         results.append({
             "candidate_id": str(c.candidate_id),
@@ -600,7 +613,26 @@ async def get_candidate_me(
     man_res = await db.execute(man_query)
     manifesto = man_res.scalars().first()
 
-    analysis = await get_manifesto_analysis_safe(manifesto.content if manifesto else "")
+    # Parse stored AI analysis if available, otherwise use safe defaults
+    analysis = {}
+    if manifesto and manifesto.ai_analysis:
+        import json
+        try:
+            analysis = json.loads(manifesto.ai_analysis)
+            if not isinstance(analysis, dict):
+                analysis = {}
+        except Exception:
+            analysis = {}
+
+    if not analysis:
+        analysis = {
+            "sentiment_score": 0.5,
+            "feasibility_score": 0.5,
+            "key_themes": ["General"],
+            "summary": "AI Analysis not yet available.",
+            "contradictions": [],
+            "impact_statements": []
+        }
 
     return {
         "candidate_id": str(candidate.candidate_id),
