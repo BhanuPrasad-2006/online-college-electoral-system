@@ -17,6 +17,8 @@ import {
   fetchAiAlerts,
   fetchAuditLogs,
   fetchConcernCategories,
+  fetchCandidateConcernReport,
+  getCurrentPhase,
 } from "@/lib/api";
 
 
@@ -87,3 +89,20 @@ export function useAuditLogs() {
 export function useResults() {
   return useQuery({ queryKey: ["results"], queryFn: fetchResults, ...demoQuery });
 }
+
+export function useCurrentPhase() {
+  return useQuery({
+    queryKey: ["election-phase"],
+    queryFn: getCurrentPhase,
+    ...liveQuery,
+  });
+}
+
+export function useCandidateConcernReport() {
+  return useQuery({
+    queryKey: ["candidate-concern-report"],
+    queryFn: fetchCandidateConcernReport,
+    ...demoQuery,
+  });
+}
+
