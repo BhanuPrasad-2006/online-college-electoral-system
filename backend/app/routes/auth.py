@@ -118,6 +118,14 @@ async def candidate_check(
         candidate = cand_res.scalar_one_or_none()
 
         if candidate:
+            # Validate that the entered mobile matches the candidate's registered mobile number!
+            stored_mobile = candidate.mobile_number.replace("+91", "").replace(" ", "").replace("-", "").strip()
+            entered_mobile = mobile_norm.strip()
+            if stored_mobile != entered_mobile:
+                return {
+                    "status": "ineligible",
+                    "reason": "Invalid email or mobile number."
+                }
             # Existing candidate
             return {"status": "exists"}
 
