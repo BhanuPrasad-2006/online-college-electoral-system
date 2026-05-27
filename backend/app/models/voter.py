@@ -66,7 +66,11 @@ class Voter(Base):
 
     failed_attempts = Column(Integer, default=0, nullable=False)
 
-    lockout_until = Column(DateTime(timezone=True), nullable=True)
+    lockout_until = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    embedding_model_version = Column(String(50), nullable=True, index=True)
+
+    failed_face_attempts = Column(Integer, default=0, nullable=False, index=True)
 
     created_at = Column(
         DateTime(timezone=True),

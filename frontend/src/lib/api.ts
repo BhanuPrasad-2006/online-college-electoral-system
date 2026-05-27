@@ -484,10 +484,35 @@ export async function verifyVoterId(verificationId: string) {
   return data as { success: boolean; anti_replay_token?: string; message?: string };
 }
 
+export async function verifyFace(params: {
+  liveFaceImage: string;
+  antiReplayToken: string;
+}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number }> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetch(`${API_BASE_URL}/vote/verify-face`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      live_face_image: params.liveFaceImage,
+      anti_replay_token: params.antiReplayToken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Face verification failed");
+  return data;
+}
+
 export async function castVote(params: {
   candidateId: string | null;
   verificationId: string;
-  liveFaceImage: string;
+  liveFaceImage?: string | null;
+  faceSessionToken?: string | null;
   antiReplayToken?: string;
   trapData?: {
     verification_field_confirm?: string;
@@ -509,7 +534,8 @@ export async function castVote(params: {
     body: JSON.stringify({
       candidate_id: params.candidateId,
       verification_id: params.verificationId,
-      live_face_image: params.liveFaceImage,
+      live_face_image: params.liveFaceImage ?? null,
+      face_session_token: params.faceSessionToken ?? null,
       anti_replay_token: params.antiReplayToken,
       verification_field_confirm: params.trapData?.verification_field_confirm ?? "",
       hidden_field_name: params.trapData?.hidden_field_name ?? "",

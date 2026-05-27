@@ -174,6 +174,62 @@ async def startup_validation():
         logger.error(f"STARTUP FAILURE: {e}")
         raise
 
+    # Dynamic schema migration for biometric columns
+    from sqlalchemy import text, inspect
+    from app.db.session import engine
+    try:
+        async with engine.begin() as conn:
+            def run_migration_steps(connection):
+                inspector = inspect(connection)
+                columns = [c["name"] for c in inspector.get_columns("voters")]
+                
+                # Add embedding_model_version
+                if "embedding_model_version" not in columns:
+                    logger.info("Adding embedding_model_version column to voters table...")
+                    connection.execute(text(
+                        "ALTER TABLE voters ADD COLUMN embedding_model_version VARCHAR(50) NULL"
+                    ))
+                
+                # Add failed_face_attempts
+                if "failed_face_attempts" not in columns:
+                    logger.info("Adding failed_face_attempts column to voters table...")
+                    connection.execute(text(
+                        "ALTER TABLE voters ADD COLUMN failed_face_attempts INTEGER DEFAULT 0"
+                    ))
+                
+                # Create indexes
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_voters_embedding_model ON voters(embedding_model_version);"
+                ))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_voters_failed_face ON voters(failed_face_attempts);"
+                ))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_voters_lockout ON voters(lockout_until);"
+                ))
+                logger.info("Biometric database schema self-healing/migration completed.")
+            
+            await conn.run_sync(run_migration_steps)
+    except Exception as e:
+        logger.error(f"Failed to run automatic biometric database migrations: {e}")
+
+    # Warmup ArcFace model
+    try:
+        from app.services.face_service import warmup_model
+        warmup_model()
+    except Exception as e:
+        logger.error(f"Model warmup failed: {e}")
+        raise SystemExit("Startup terminated: Face recognition model could not be loaded/warmed up.")
+
+    # Run automatic Facenet -> ArcFace migration for existing reference photos
+    try:
+        from app.services.face_service import migrate_voters_to_arcface
+        from app.db.session import SessionLocal
+        async with SessionLocal() as db_session:
+            await migrate_voters_to_arcface(db_session)
+    except Exception as e:
+        logger.error(f"Automatic face embedding migration failed: {e}")
+
     logger.info(f"{settings.APP_NAME} started successfully.")
 
 

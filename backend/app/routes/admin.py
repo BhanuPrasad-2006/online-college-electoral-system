@@ -767,9 +767,10 @@ async def approve_pending_photo(
     voter.previous_image_url = voter.reference_image_url
     voter.previous_face_encoding = voter.face_encoding
 
-    # Move pending to current
+    # Move pending to current and set correct model version
     voter.reference_image_url = voter.pending_image_url
     voter.face_encoding = voter.pending_face_encoding
+    voter.embedding_model_version = "arcface_v1"
 
     # Clear pending
     voter.pending_image_url = None
