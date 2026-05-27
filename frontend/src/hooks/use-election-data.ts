@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchConcernCategories,
   fetchElection,
+  fetchHourlyVotes,
   fetchMediaItems,
+  fetchResults,
   fetchVoterConcerns,
   fetchVoterProfile,
 } from "@/lib/demo-api";
@@ -11,22 +12,23 @@ import {
   fetchCandidates,
   fetchCandidateProfile,
   fetchDeptTurnout,
-  fetchHourlyVotes,
   fetchKpi,
   fetchNotifications,
   fetchAiAlerts,
   fetchAuditLogs,
+  fetchConcernCategories,
   fetchCandidateConcernReport,
   fetchPublicResults,
   getAuthToken,
   getCurrentPhase,
 } from "@/lib/api";
 
+
+
 const demoQuery = {
   retry: false,
   refetchOnWindowFocus: false,
-  staleTime: 1000 * 60 * 5,
-  gcTime: 1000 * 60 * 30,
+  staleTime: 1000 * 60 * 30,
 };
 
 // Fast-polling: for metrics that change in real-time during voting (turnout, etc.)
@@ -54,6 +56,11 @@ const slowQuery = {
   refetchIntervalInBackground: false,
   staleTime: 60_000,
   refetchInterval: 60_000,
+};
+
+const liveQuery = {
+  retry: 2,
+  refetchInterval: 10000, // Real-time: refetch every 10 seconds
 };
 
 export function useElection() {
@@ -105,11 +112,7 @@ export function useCandidateProfile() {
 }
 
 export function useConcernCategories() {
-  return useQuery({
-    queryKey: ["concern-categories"],
-    queryFn: fetchConcernCategories,
-    ...demoQuery,
-  });
+  return useQuery({ queryKey: ["concern-categories"], queryFn: fetchConcernCategories, ...liveQuery });
 }
 
 export function useVoterConcerns() {
@@ -153,6 +156,10 @@ export function usePublicResults() {
   });
 }
 
+export function useResults() {
+  return useQuery({ queryKey: ["results"], queryFn: fetchResults, ...demoQuery });
+}
+
 export function useCandidateConcernReport() {
   return useQuery({
     queryKey: ["candidate-concern-report"],
@@ -160,3 +167,4 @@ export function useCandidateConcernReport() {
     ...demoQuery,
   });
 }
+

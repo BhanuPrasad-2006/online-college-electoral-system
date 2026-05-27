@@ -32,11 +32,15 @@ class ManifestoAnalysisRequest(BaseModel):
         return validate_non_empty_whitespace(v, "content")
 
 
-class ManifestoContradiction(BaseModel):
-    statement_a: str
-    statement_b: str
+class ContradictionResponse(BaseModel):
+    promise_a: str
+    promise_b: str
     explanation: str
-    severity: str  # 'minor', 'moderate', or 'severe'
+
+
+class ImpactStatementResponse(BaseModel):
+    promise: str
+    trade_off: str
 
 
 class ManifestoAnalysisResponse(BaseModel):
@@ -44,19 +48,13 @@ class ManifestoAnalysisResponse(BaseModel):
     feasibility_score: float
     key_themes: List[str]
     summary: str
-    contradictions: List[ManifestoContradiction] = []
+    contradictions: List[ContradictionResponse] = []
+    impact_statements: List[ImpactStatementResponse] = []
 
-
-class CandidateInfo(BaseModel):
-    """Candidate information for recommendation matching."""
-    id: str
-    name: str
-    manifesto: str
 
 
 class RecommendationRequest(BaseModel):
     concerns: List[str] = Field(..., min_length=1)
-    candidates: Optional[List[CandidateInfo]] = Field(None, description="Optional candidate list. If omitted, demo placeholders are used.")
 
     @field_validator("concerns")
     @classmethod
@@ -102,36 +100,30 @@ class ChatRequest(BaseModel):
         return validate_non_empty_whitespace(v, "message")
 
 
-class ClusterItem(BaseModel):
-    cluster_id: int
-    label: str
-    size: int
-    concerns: List[str]
-
-
-class ClusterRequest(BaseModel):
-    texts: List[str] = Field(..., min_length=1, description="List of concern texts to cluster")
-
-
-class ClusterResponse(BaseModel):
-    clusters: List[ClusterItem]
-    num_clusters: int
-    unclustered: List[str] = []
-
-
 class ChatResponse(BaseModel):
     response: str
     flagged_for_neutrality: bool
 
 
-class CampusReportRequest(BaseModel):
-    """Request to generate a 'State of the Campus' report from aggregated concern data."""
-    data: dict
+class CategoryCoverageResponse(BaseModel):
+    category_name: str
+    covered: bool
+    explanation: str
 
 
-class CampusReportResponse(BaseModel):
-    """Generated campus report with executive summary, findings, trends, and actions."""
-    executive_summary: str
-    key_findings: list[str]
-    trend_analysis: str
-    suggested_actions: list[str]
+class GapAnalysisRequest(BaseModel):
+    manifesto: str = Field(..., max_length=15000)
+    categories: List[str] = Field(default_factory=list)
+
+    @field_validator("categories")
+    @classmethod
+    def validate_categories(cls, v: List[str]) -> List[str]:
+        for i, category in enumerate(v):
+            if not category.strip():
+                raise ValueError(f"Category at index {i} cannot be empty or whitespace-only")
+        return v
+
+
+class GapAnalysisResponse(BaseModel):
+    coverages: List[CategoryCoverageResponse] = []
+

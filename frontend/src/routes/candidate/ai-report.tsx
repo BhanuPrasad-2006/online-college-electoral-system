@@ -24,6 +24,26 @@ function Page() {
   const categories = data?.categories ?? [];
   const overallRaw = data?.overall ?? { positive: 0, neutral: 0, negative: 0 };
 
+  if (categories.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl md:text-[28px] font-bold">What Students Are Saying</h1>
+          <p className="text-sm text-muted-foreground mt-1">AI-powered analysis of student concerns vs your manifesto.</p>
+        </div>
+        <div className="flex flex-col items-center justify-center min-h-[350px] bg-card rounded-2xl shadow-sm p-8 text-center border border-dashed">
+          <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mb-4 text-muted-foreground">
+            <X className="h-6 w-6" />
+          </div>
+          <h3 className="text-base font-semibold mb-1">No Student Concerns Found</h3>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            There are currently no active student concerns submitted for this election. When students submit real concerns, they will appear here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const chartData = categories.map((c: any) => ({
     name: c.name.split(" ")[0],
     Positive: c.positive,
@@ -35,6 +55,7 @@ function Page() {
     { name: "Neutral", value: overallRaw.neutral },
     { name: "Negative", value: overallRaw.negative },
   ];
+
   const COLORS = ["#22c55e", "#cbd5e1", "#ef4444"];
   const priorities = categories.filter((c) => !c.covered).slice(0, 3);
 
@@ -112,25 +133,31 @@ function Page() {
       <div className="bg-card rounded-2xl shadow-sm p-5">
         <h2 className="text-base font-semibold mb-4">Suggested Manifesto Additions</h2>
         <div className="space-y-3">
-          {priorities.map((c, i) => (
-            <div
-              key={c.name}
-              className="flex items-center justify-between p-4 bg-muted/40 rounded-lg gap-3 flex-wrap"
-            >
-              <div>
-                <p className="text-xs text-[#6C63FF] font-semibold">Priority {i + 1}</p>
-                <p className="text-sm font-medium mt-0.5">
-                  Address {c.name.toLowerCase()} — {c.mentions} students concerned, {c.negative}%
-                  negative
-                </p>
+          {priorities.length > 0 ? (
+            priorities.map((c, i) => (
+              <div
+                key={c.name}
+                className="flex items-center justify-between p-4 bg-muted/40 rounded-lg gap-3 flex-wrap"
+              >
+                <div>
+                  <p className="text-xs text-[#6C63FF] font-semibold">Priority {i + 1}</p>
+                  <p className="text-sm font-medium mt-0.5">
+                    Address {c.name.toLowerCase()} — {c.mentions} students concerned, {c.negative}%
+                    negative
+                  </p>
+                </div>
+                <Link to="/candidate/manifesto">
+                  <Button size="sm" className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
+                    Add to Manifesto →
+                  </Button>
+                </Link>
               </div>
-              <Link to="/candidate/manifesto">
-                <Button size="sm" className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
-                  Add to Manifesto →
-                </Button>
-              </Link>
+            ))
+          ) : (
+            <div className="p-4 bg-success/10 text-success rounded-lg text-xs text-center font-medium">
+              🎉 Outstanding! Your manifesto addresses all current categories of student concerns.
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
