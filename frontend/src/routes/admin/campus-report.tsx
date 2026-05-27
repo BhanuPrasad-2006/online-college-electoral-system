@@ -90,7 +90,9 @@ function Page() {
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <AlertCircle className="h-12 w-12 text-destructive/60" />
         <h2 className="text-lg font-semibold">Failed to load campus report</h2>
-        <p className="text-sm text-muted-foreground">The report could not be generated. Please try again.</p>
+        <p className="text-sm text-muted-foreground">
+          The report could not be generated. Please try again.
+        </p>
         <Button onClick={handleRefresh} variant="outline" className="gap-2">
           <RefreshCw className="h-4 w-4" />
           Retry
@@ -103,7 +105,8 @@ function Page() {
   const totalNeg = data.sentiment_summary?.negative ?? 0;
   const totalNeu = data.sentiment_summary?.neutral ?? 0;
   const totalSentiment = totalPos + totalNeg + totalNeu;
-  const dominantSentiment = totalPos > totalNeg ? "positive" : totalNeg > totalPos ? "negative" : "neutral";
+  const dominantSentiment =
+    totalPos > totalNeg ? "positive" : totalNeg > totalPos ? "negative" : "neutral";
 
   return (
     <div className="space-y-6 print:space-y-4">
@@ -126,12 +129,7 @@ function Page() {
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
             Refresh
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrint}
-            className="gap-1.5"
-          >
+          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
             <Printer className="h-4 w-4" />
             Print / PDF
           </Button>
@@ -168,19 +166,27 @@ function Page() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
             <div className="bg-white/10 rounded-xl p-3 print:bg-gray-100 print:text-gray-800">
               <p className="text-2xl font-bold">{data.total_concerns}</p>
-              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">Total Concerns</p>
+              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">
+                Total Concerns
+              </p>
             </div>
             <div className="bg-white/10 rounded-xl p-3 print:bg-gray-100 print:text-gray-800">
               <p className="text-2xl font-bold">{data.total_clusters}</p>
-              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">Issue Clusters</p>
+              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">
+                Issue Clusters
+              </p>
             </div>
             <div className="bg-white/10 rounded-xl p-3 print:bg-gray-100 print:text-gray-800">
               <p className="text-2xl font-bold">{Object.keys(data.category_distribution).length}</p>
-              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">Categories</p>
+              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">
+                Categories
+              </p>
             </div>
             <div className="bg-white/10 rounded-xl p-3 print:bg-gray-100 print:text-gray-800">
               <p className="text-2xl font-bold capitalize">{dominantSentiment}</p>
-              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">Overall Mood</p>
+              <p className="text-[10px] text-white/70 print:text-gray-500 uppercase tracking-wider">
+                Overall Mood
+              </p>
             </div>
           </div>
         </div>
@@ -342,7 +348,8 @@ function Page() {
           <CardContent className="p-5 pt-0 space-y-3">
             {data.top_clusters?.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground border border-dashed rounded-lg">
-                No clusters identified yet. Use "Cluster Concerns" from AI Monitoring to group issues.
+                No clusters identified yet. Use "Cluster Concerns" from AI Monitoring to group
+                issues.
               </div>
             ) : (
               data.top_clusters?.map((cluster, i) => (
@@ -357,7 +364,9 @@ function Page() {
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-lg font-bold tabular-nums text-[#6C63FF]">{cluster.size}</span>
+                      <span className="text-lg font-bold tabular-nums text-[#6C63FF]">
+                        {cluster.size}
+                      </span>
                       <span className="text-xs text-muted-foreground">concerns</span>
                       {!cluster.is_unclustered && (
                         <Badge
@@ -372,7 +381,10 @@ function Page() {
                         </Badge>
                       )}
                       {cluster.is_unclustered && (
-                        <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-200">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-200"
+                        >
                           Unclustered
                         </Badge>
                       )}

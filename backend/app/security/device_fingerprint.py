@@ -9,7 +9,9 @@ import hashlib
 import json
 from typing import Optional
 
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
+
+from app.core.config import settings
 
 
 FINGERPRINT_HEADER = "X-Device-Fingerprint"
@@ -20,14 +22,12 @@ def generate_fingerprint(request: Request) -> str:
     Generate a device fingerprint from request headers.
 
     Combines browser-provided signals into a deterministic hash.
-    The client-side script sends these as a single JSON header.
+    The client-side script sends these as a single header value.
     """
     fingerprint_raw = request.headers.get(FINGERPRINT_HEADER, "")
     if fingerprint_raw:
-        # Hash the client-provided fingerprint
         return hashlib.sha256(fingerprint_raw.encode("utf-8")).hexdigest()
 
-    # Fallback: hash available headers
     signals = {
         "ua": request.headers.get("user-agent", ""),
         "accept": request.headers.get("accept", ""),
@@ -42,18 +42,17 @@ def generate_fingerprint(request: Request) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def validate_fingerprint(
-    request: Request,
-    token_fingerprint: Optional[str],
-) -> None:
+def validate_fingerprint(request: Request, token_fingerprint: Optional[str]) -> None:
     """
     Validate the request's device fingerprint against the one stored in the JWT.
 
-    Raises HTTPException if fingerprints do not match.
-    Skips validation if no fingerprint is stored in the token (backward compat).
+    This check is disabled by default in the current app configuration.
     """
+    if not settings.ENABLE_DEVICE_FINGERPRINT_BINDING:
+        return
+
     if not token_fingerprint:
-        return  # No fingerprint bound to token — skip (legacy tokens)
+        return
 
     current_fp = generate_fingerprint(request)
     if current_fp != token_fingerprint:

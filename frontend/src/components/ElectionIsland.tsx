@@ -36,7 +36,10 @@ function fmtShort(ms: number): string {
   return `${pad(m)}m ${pad(s)}s`;
 }
 
-function computePhase(election: ElectionData | null, now: number): {
+function computePhase(
+  election: ElectionData | null,
+  now: number,
+): {
   phase: Phase;
   target: number | null;
 } {
@@ -45,24 +48,16 @@ function computePhase(election: ElectionData | null, now: number): {
   const regStart = election.registration_start
     ? new Date(election.registration_start).getTime()
     : null;
-  const regEnd = election.registration_end
-    ? new Date(election.registration_end).getTime()
-    : null;
-  const votStart = election.voting_start
-    ? new Date(election.voting_start).getTime()
-    : null;
-  const votEnd = election.voting_end
-    ? new Date(election.voting_end).getTime()
-    : null;
+  const regEnd = election.registration_end ? new Date(election.registration_end).getTime() : null;
+  const votStart = election.voting_start ? new Date(election.voting_start).getTime() : null;
+  const votEnd = election.voting_end ? new Date(election.voting_end).getTime() : null;
 
   if (regStart && regEnd && now >= regStart && now < regEnd)
     return { phase: "registration_open", target: regEnd };
   if (votStart && votEnd && now >= votStart && now < votEnd)
     return { phase: "voting_open", target: votEnd };
-  if (regStart && now < regStart)
-    return { phase: "pre_registration", target: regStart };
-  if (votStart && now < votStart)
-    return { phase: "between", target: votStart };
+  if (regStart && now < regStart) return { phase: "pre_registration", target: regStart };
+  if (votStart && now < votStart) return { phase: "between", target: votStart };
 
   const status = (election.status || "").toUpperCase();
   if (status === "RESULTS_PUBLISHED") return { phase: "results", target: null };
@@ -125,8 +120,14 @@ export function ElectionIsland({
         status: (electionRaw as any).status ?? "",
         registration_start: (electionRaw as any).registration_start ?? null,
         registration_end: (electionRaw as any).registration_end ?? null,
-        voting_start: (electionRaw as any).voting_start ?? (electionRaw as any).votingStart?.toISOString?.() ?? null,
-        voting_end: (electionRaw as any).voting_end ?? (electionRaw as any).votingEnd?.toISOString?.() ?? null,
+        voting_start:
+          (electionRaw as any).voting_start ??
+          (electionRaw as any).votingStart?.toISOString?.() ??
+          null,
+        voting_end:
+          (electionRaw as any).voting_end ??
+          (electionRaw as any).votingEnd?.toISOString?.() ??
+          null,
       }
     : null;
 
@@ -146,9 +147,7 @@ export function ElectionIsland({
   return (
     <div
       className={cn(
-        floating
-          ? "fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-[95vw]"
-          : "w-full",
+        floating ? "fixed top-3 left-1/2 -translate-x-1/2 z-50 max-w-[95vw]" : "w-full",
         className,
       )}
     >

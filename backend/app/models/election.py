@@ -22,6 +22,8 @@ class Election(Base):
     registration_end      = Column(DateTime(timezone=True), nullable=True)
     voting_start          = Column(DateTime(timezone=True), nullable=True)
     voting_end            = Column(DateTime(timezone=True), nullable=True)
+    document_deadline     = Column(DateTime(timezone=True), nullable=True)
+    eligible_department   = Column(String(100), nullable=True)
     status                = Column(
         PgEnum(ElectionStatusEnum, pg_type_name="election_status"),
         default=ElectionStatusEnum.UPCOMING.value,

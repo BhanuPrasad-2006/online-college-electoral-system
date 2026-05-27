@@ -35,6 +35,8 @@ class ElectionSaveRequest(BaseModel):
     title: str
     registration_start: Optional[datetime] = None
     registration_end: Optional[datetime] = None
+    document_deadline: Optional[datetime] = None
     voting_start: Optional[datetime] = None
     voting_end: Optional[datetime] = None
+    eligible_department: Optional[str] = None
 

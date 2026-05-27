@@ -35,7 +35,9 @@ function Page() {
     try {
       await reviewCampaignMedia(id, status, reason);
       await queryClient.invalidateQueries({ queryKey: ["media"] });
-      toast.success(status === "Approved" ? "Approved. Voters can now see this item." : "Submission rejected.");
+      toast.success(
+        status === "Approved" ? "Approved. Voters can now see this item." : "Submission rejected.",
+      );
       setRejectingId(null);
       setRejectionReason("");
     } catch (error: any) {
@@ -50,11 +52,15 @@ function Page() {
       <div>
         <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media Approval</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Candidate submissions arrive here first. Approve to publish for voters, or reject with a reason.
+          Candidate submissions arrive here first. Approve to publish for voters, or reject with a
+          reason.
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as "pending" | "approved" | "rejected")}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as "pending" | "approved" | "rejected")}
+      >
         <TabsList>
           <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
           <TabsTrigger value="approved">Approved ({approved.length})</TabsTrigger>
@@ -64,17 +70,26 @@ function Page() {
         <TabsContent value={tab} className="mt-5">
           <div className="grid gap-4 lg:grid-cols-2">
             {groups[tab].map((item: any) => {
-              const assetUrl = resolveApiAssetUrl(item.uploadedFileUrl || item.externalUrl || item.url);
+              const assetUrl = resolveApiAssetUrl(
+                item.uploadedFileUrl || item.externalUrl || item.url,
+              );
               const isVideo = item.type === "video";
 
               return (
-                <div key={item.id} className="bg-card rounded-2xl border border-border overflow-hidden">
+                <div
+                  key={item.id}
+                  className="bg-card rounded-2xl border border-border overflow-hidden"
+                >
                   <div className="aspect-[16/9] bg-muted flex items-center justify-center overflow-hidden">
                     {assetUrl ? (
                       isVideo ? (
                         <video src={assetUrl} controls className="h-full w-full object-cover" />
                       ) : (
-                        <img src={assetUrl} alt={item.title} className="h-full w-full object-cover" />
+                        <img
+                          src={assetUrl}
+                          alt={item.title}
+                          className="h-full w-full object-cover"
+                        />
                       )
                     ) : (
                       <Play className="h-8 w-8 text-muted-foreground" />
@@ -92,17 +107,26 @@ function Page() {
                       <Badge variant="outline">{item.status}</Badge>
                     </div>
 
-                    <p className="mt-3 text-xs text-muted-foreground">{formatSubmittedAt(item.submittedAt)}</p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {formatSubmittedAt(item.submittedAt)}
+                    </p>
 
                     {assetUrl ? (
-                      <a href={assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]">
+                      <a
+                        href={assetUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]"
+                      >
                         <LinkIcon className="h-3.5 w-3.5" />
                         Open media
                       </a>
                     ) : null}
 
                     {item.rejectionReason ? (
-                      <p className="mt-3 text-xs text-destructive">Reason: {item.rejectionReason}</p>
+                      <p className="mt-3 text-xs text-destructive">
+                        Reason: {item.rejectionReason}
+                      </p>
                     ) : null}
 
                     {item.status === "Pending" ? (
@@ -151,7 +175,9 @@ function Page() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">This reason will be shown back to the candidate.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              This reason will be shown back to the candidate.
+            </p>
             <textarea
               value={rejectionReason}
               onChange={(event) => setRejectionReason(event.target.value)}

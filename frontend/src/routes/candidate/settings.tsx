@@ -11,13 +11,13 @@ import { ShieldCheck, Mail, KeyRound, AlertCircle, X } from "lucide-react";
 
 function Page() {
   const { data: profile, isPending } = useCandidateProfile();
-  
+
   // State for password change
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   // OTP Modal state
   const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [otpSessionToken, setOtpSessionToken] = useState("");
@@ -68,7 +68,7 @@ function Page() {
       const res = await confirmPasswordChange(otpSessionToken, otpCode);
       toast.success(res.message || "Password changed successfully!");
       setOtpModalOpen(false);
-      
+
       // Clear forms
       setCurrentPassword("");
       setNewPassword("");
@@ -100,18 +100,21 @@ function Page() {
       </div>
 
       {/* Change Password Card Form */}
-      <form onSubmit={handlePasswordChangeRequest} className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
+      <form
+        onSubmit={handlePasswordChangeRequest}
+        className="bg-card rounded-2xl shadow-sm p-6 space-y-4"
+      >
         <div className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-[#6C63FF]" />
           <h2 className="text-base font-semibold">Change Password</h2>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-muted-foreground">Current Password</label>
-            <Input 
-              className="mt-1 h-11" 
-              type="password" 
+            <Input
+              className="mt-1 h-11"
+              type="password"
               placeholder="••••••••"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -119,12 +122,12 @@ function Page() {
             />
           </div>
           <div className="hidden sm:block" />
-          
+
           <div>
             <label className="text-xs text-muted-foreground">New Password</label>
-            <Input 
-              className="mt-1 h-11" 
-              type="password" 
+            <Input
+              className="mt-1 h-11"
+              type="password"
               placeholder="••••••••"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -133,9 +136,9 @@ function Page() {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Confirm New Password</label>
-            <Input 
-              className="mt-1 h-11" 
-              type="password" 
+            <Input
+              className="mt-1 h-11"
+              type="password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
@@ -145,8 +148,8 @@ function Page() {
         </div>
 
         <div className="flex justify-end pt-2">
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={loading}
             className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 h-11 px-6 shadow-md"
           >
@@ -172,7 +175,6 @@ function Page() {
       {otpModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border/60 overflow-hidden relative animate-scale-up">
-            
             {/* Modal Header */}
             <div className="p-6 pb-0 flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -184,7 +186,7 @@ function Page() {
                   <p className="text-xs text-muted-foreground">Verification code is required</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setOtpModalOpen(false)}
                 className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/60 transition-colors"
               >
@@ -202,7 +204,9 @@ function Page() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">6-Digit Email OTP</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  6-Digit Email OTP
+                </label>
                 <Input
                   className="mt-2 h-12 text-center text-xl font-bold tracking-[0.4em] bg-muted/40 focus:bg-card focus:ring-[#6C63FF] border-border"
                   placeholder="000000"
@@ -240,11 +244,27 @@ function Page() {
   );
 }
 
-function Field({ label, value, type = "text", disabled = false }: { label: string; value?: string; type?: string; disabled?: boolean }) {
+function Field({
+  label,
+  value,
+  type = "text",
+  disabled = false,
+}: {
+  label: string;
+  value?: string;
+  type?: string;
+  disabled?: boolean;
+}) {
   return (
     <div>
       <label className="text-xs text-muted-foreground">{label}</label>
-      <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" value={value || ""} type={type} disabled={disabled} readOnly />
+      <Input
+        className="mt-1 h-11 bg-muted/40 cursor-not-allowed"
+        value={value || ""}
+        type={type}
+        disabled={disabled}
+        readOnly
+      />
     </div>
   );
 }

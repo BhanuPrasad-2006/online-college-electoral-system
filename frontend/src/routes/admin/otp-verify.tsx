@@ -32,7 +32,7 @@ function AdminOtpVerify() {
   const [phoneOtp, setPhoneOtp] = useState(Array(6).fill(""));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const ready = emailOtp.every((d) => d) && phoneOtp.every((d) => d);
   const { sessionToken, email, mobile } = getOtpSession();
 
@@ -48,7 +48,15 @@ function AdminOtpVerify() {
       const emailOtpStr = emailOtp.join("");
       const phoneOtpStr = phoneOtp.join("");
       const res = await adminLoginStep2(sessionToken, emailOtpStr, phoneOtpStr);
-      saveAuth(res.access_token, res.role, res.user_id, res.full_name, undefined, undefined, (res as any).csrf_token);
+      saveAuth(
+        res.access_token,
+        res.role,
+        res.user_id,
+        res.full_name,
+        undefined,
+        undefined,
+        (res as any).csrf_token,
+      );
       login("admin");
       toast.success("Identity verified securely!");
       nav({ to: "/admin/dashboard" });
@@ -71,19 +79,39 @@ function AdminOtpVerify() {
 
         {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
-        <Section icon={<Mail className="h-4 w-4" />} title="Email OTP" subtitle={email ? `Sent to ${email.slice(0,2)}***@${email.split("@")[1]}` : "Sent to your committee email"}>
+        <Section
+          icon={<Mail className="h-4 w-4" />}
+          title="Email OTP"
+          subtitle={
+            email
+              ? `Sent to ${email.slice(0, 2)}***@${email.split("@")[1]}`
+              : "Sent to your committee email"
+          }
+        >
           <OtpInput value={emailOtp} onChange={setEmailOtp} />
-          <p className="text-xs text-muted-foreground text-center mt-2">Expires in <Countdown seconds={5 * 60} /></p>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Expires in <Countdown seconds={5 * 60} />
+          </p>
         </Section>
 
         <div className="my-6 border-t border-border" />
 
-        <Section icon={<Phone className="h-4 w-4" />} title="Phone OTP" subtitle={mobile ? `Sent to +91-XXXXXX${mobile.slice(-4)}` : "Sent via secure SMS"}>
+        <Section
+          icon={<Phone className="h-4 w-4" />}
+          title="Phone OTP"
+          subtitle={mobile ? `Sent to +91-XXXXXX${mobile.slice(-4)}` : "Sent via secure SMS"}
+        >
           <OtpInput value={phoneOtp} onChange={setPhoneOtp} />
-          <p className="text-xs text-muted-foreground text-center mt-2">Expires in <Countdown seconds={5 * 60} /></p>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Expires in <Countdown seconds={5 * 60} />
+          </p>
         </Section>
 
-        <Button onClick={verify} disabled={!ready || loading} className="w-full mt-7 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
+        <Button
+          onClick={verify}
+          disabled={!ready || loading}
+          className="w-full mt-7 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+        >
           {loading ? "Verifying..." : "Verify Both & Continue"}
         </Button>
       </div>

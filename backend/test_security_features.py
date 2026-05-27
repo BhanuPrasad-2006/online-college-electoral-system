@@ -123,7 +123,6 @@ def mock_external_services():
     with patch("app.routes.vote.extract_face_embedding", return_value=[0.1]*128), \
          patch("app.routes.vote.compare_face_embeddings", return_value=True), \
          patch("app.routes.vote.deserialize_embedding", return_value=[0.1]*128), \
-         patch("app.routes.vote.send_custom_sms", new_callable=AsyncMock), \
          patch("app.routes.vote.send_election_email", new_callable=AsyncMock):
         yield
 
@@ -568,7 +567,6 @@ async def run_standalone_tests():
             with patch("app.routes.vote.extract_face_embedding", return_value=[0.1]*128), \
                  patch("app.routes.vote.compare_face_embeddings", return_value=True), \
                  patch("app.routes.vote.deserialize_embedding", return_value=[0.1]*128), \
-                 patch("app.routes.vote.send_custom_sms", new_callable=AsyncMock), \
                  patch("app.routes.vote.send_election_email", new_callable=AsyncMock):
                  
                 async with AsyncClient(

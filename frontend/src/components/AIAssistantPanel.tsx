@@ -1,8 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Send, Sparkles, ShieldAlert, RotateCcw, Loader2,
-  Bot, User, X, Minimize2, ChevronDown, MessageCircle,
-  BarChart3, HeartPulse, Users,
+  Send,
+  Sparkles,
+  ShieldAlert,
+  RotateCcw,
+  Loader2,
+  Bot,
+  User,
+  X,
+  Minimize2,
+  ChevronDown,
+  MessageCircle,
+  BarChart3,
+  HeartPulse,
+  Users,
 } from "lucide-react";
 import { getAuthToken, API_BASE_URL } from "@/lib/api";
 
@@ -28,7 +39,7 @@ function escapeHtml(str: string): string {
 }
 
 function renderMarkdown(raw: string): string {
-  let escaped = escapeHtml(raw);
+  const escaped = escapeHtml(raw);
   let html = escaped
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
@@ -47,7 +58,7 @@ function renderMarkdown(raw: string): string {
             .split("|")
             .filter(Boolean)
             .map((c) => `<td>${c.trim()}</td>`)
-            .join("")}</tr>`
+            .join("")}</tr>`,
       )
       .join("");
     return `<div class="chat-table-wrap"><table class="chat-table"><thead><tr>${header}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
@@ -94,11 +105,13 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 // ── Full-page embedded panel (for /voter/ai-assistant route) ──────────────────
 export function AIAssistantPanel({ compact: _compact = false }: { compact?: boolean }) {
-  const [msgs, setMsgs] = useState<Msg[]>([{
-    from: "ai",
-    text: "👋 Hi! I'm your **Election AI Assistant**.\n\nI can objectively compare candidates, analyze concerns, and explore manifestos — completely neutral.\n\nWhat would you like to know?",
-    timestamp: new Date(),
-  }]);
+  const [msgs, setMsgs] = useState<Msg[]>([
+    {
+      from: "ai",
+      text: "👋 Hi! I'm your **Election AI Assistant**.\n\nI can objectively compare candidates, analyze concerns, and explore manifestos — completely neutral.\n\nWhat would you like to know?",
+      timestamp: new Date(),
+    },
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -109,48 +122,59 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
 
-  const send = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
-    setInput("");
-    setMsgs((p) => [...p, { from: "user", text: trimmed, timestamp: new Date() }]);
-    setLoading(true);
-    try {
-      const token = getAuthToken();
-      const res = await fetch(`${AI_BASE}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ session_id: sessionId, message: trimmed }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setSessionId(data.session_id);
-      setMsgs((p) => [...p, {
-        from: "ai",
-        text: data.reply,
-        isMock: data.is_mock,
-        timestamp: new Date(),
-      }]);
-    } catch (e: any) {
-      setMsgs((p) => [...p, {
-        from: "ai",
-        text: `⚠️ **Connection error**: ${e.message || "Could not reach the AI service. Is the backend running?"}`,
-        isError: true,
-        timestamp: new Date(),
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  }, [loading, sessionId]);
+  const send = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || loading) return;
+      setInput("");
+      setMsgs((p) => [...p, { from: "user", text: trimmed, timestamp: new Date() }]);
+      setLoading(true);
+      try {
+        const token = getAuthToken();
+        const res = await fetch(`${AI_BASE}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ session_id: sessionId, message: trimmed }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setSessionId(data.session_id);
+        setMsgs((p) => [
+          ...p,
+          {
+            from: "ai",
+            text: data.reply,
+            isMock: data.is_mock,
+            timestamp: new Date(),
+          },
+        ]);
+      } catch (e: any) {
+        setMsgs((p) => [
+          ...p,
+          {
+            from: "ai",
+            text: `⚠️ **Connection error**: ${e.message || "Could not reach the AI service. Is the backend running?"}`,
+            isError: true,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loading, sessionId],
+  );
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">AI Assistant</h1>
-        <p className="text-sm text-muted-foreground mt-1">Neutral candidate research — Gemini 2.5 Flash + AI Microservice</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Neutral candidate research — Gemini 2.5 Flash + AI Microservice
+        </p>
       </div>
       <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-center gap-2">
         <ShieldAlert className="h-4 w-4 text-warning-foreground shrink-0" />
@@ -174,19 +198,32 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
 
       <div className="flex flex-wrap gap-2">
         {SUGGESTIONS.map((s) => (
-          <button key={s} onClick={() => send(s)} disabled={loading}
-            className="px-3 py-2 rounded-full bg-muted hover:bg-[#6C63FF]/10 hover:text-[#6C63FF] border border-border text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50">
+          <button
+            key={s}
+            onClick={() => send(s)}
+            disabled={loading}
+            className="px-3 py-2 rounded-full bg-muted hover:bg-[#6C63FF]/10 hover:text-[#6C63FF] border border-border text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+          >
             <Sparkles className="h-3 w-3 text-[#6C63FF]" /> {s}
           </button>
         ))}
       </div>
 
-      <div className="bg-card rounded-2xl border border-border/60 shadow-sm flex flex-col" style={{ minHeight: "420px", maxHeight: "60vh" }}>
+      <div
+        className="bg-card rounded-2xl border border-border/60 shadow-sm flex flex-col"
+        style={{ minHeight: "420px", maxHeight: "60vh" }}
+      >
         <div ref={bottomRef as any} className="flex-1 overflow-y-auto p-4 space-y-3">
           <MessageList msgs={msgs} loading={loading} />
           <div ref={bottomRef} />
         </div>
-        <ChatInput input={input} setInput={setInput} send={send} loading={loading} inputRef={inputRef} />
+        <ChatInput
+          input={input}
+          setInput={setInput}
+          send={send}
+          loading={loading}
+          inputRef={inputRef}
+        />
       </div>
     </div>
   );
@@ -196,11 +233,13 @@ export function AIAssistantPanel({ compact: _compact = false }: { compact?: bool
 export function FloatingChatbot() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
-  const [msgs, setMsgs] = useState<Msg[]>([{
-    from: "ai",
-    text: "👋 Hi! I'm your **Election AI Assistant**.\n\nAsk me anything about candidates or their manifestos. I'm completely neutral!",
-    timestamp: new Date(),
-  }]);
+  const [msgs, setMsgs] = useState<Msg[]>([
+    {
+      from: "ai",
+      text: "👋 Hi! I'm your **Election AI Assistant**.\n\nAsk me anything about candidates or their manifestos. I'm completely neutral!",
+      timestamp: new Date(),
+    },
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -231,56 +270,67 @@ export function FloatingChatbot() {
     }
   }, [open, minimized]);
 
-  const send = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
-    setInput("");
-    setShowSuggestions(false);
-    setShowQuickActions(false);
-    setMsgs((p) => [...p, { from: "user", text: trimmed, timestamp: new Date() }]);
-    setLoading(true);
-    try {
-      const token = getAuthToken();
-      const res = await fetch(`${AI_BASE}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ session_id: sessionId, message: trimmed }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setSessionId(data.session_id);
-      setMsgs((p) => [...p, {
-        from: "ai",
-        text: data.reply,
-        isMock: data.is_mock,
-        timestamp: new Date(),
-      }]);
-    } catch (e: any) {
-      setMsgs((p) => [...p, {
-        from: "ai",
-        text: `⚠️ **Connection error**: ${e.message || "Could not reach the backend."}`,
-        isError: true,
-        timestamp: new Date(),
-      }]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [loading, sessionId]);
+  const send = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || loading) return;
+      setInput("");
+      setShowSuggestions(false);
+      setShowQuickActions(false);
+      setMsgs((p) => [...p, { from: "user", text: trimmed, timestamp: new Date() }]);
+      setLoading(true);
+      try {
+        const token = getAuthToken();
+        const res = await fetch(`${AI_BASE}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ session_id: sessionId, message: trimmed }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setSessionId(data.session_id);
+        setMsgs((p) => [
+          ...p,
+          {
+            from: "ai",
+            text: data.reply,
+            isMock: data.is_mock,
+            timestamp: new Date(),
+          },
+        ]);
+      } catch (e: any) {
+        setMsgs((p) => [
+          ...p,
+          {
+            from: "ai",
+            text: `⚠️ **Connection error**: ${e.message || "Could not reach the backend."}`,
+            isError: true,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setLoading(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+    },
+    [loading, sessionId],
+  );
 
   const clearChat = useCallback(() => {
     if (sessionId) fetch(`${AI_BASE}/chat/${sessionId}`, { method: "DELETE" }).catch(() => {});
     setSessionId(null);
     setShowSuggestions(true);
     setShowQuickActions(true);
-    setMsgs([{
-      from: "ai",
-      text: "Chat cleared! 🔄 Ask me anything about the candidates or election.",
-      timestamp: new Date(),
-    }]);
+    setMsgs([
+      {
+        from: "ai",
+        text: "Chat cleared! 🔄 Ask me anything about the candidates or election.",
+        timestamp: new Date(),
+      },
+    ]);
   }, [sessionId]);
 
   const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -309,7 +359,9 @@ export function FloatingChatbot() {
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-[#1F3A6E]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-sm leading-tight">Election AI Assistant</p>
+              <p className="text-white font-semibold text-sm leading-tight">
+                Election AI Assistant
+              </p>
               <p className="text-white/60 text-[10px] flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
                 Online · Powered by Gemini + AI Microservice
@@ -328,10 +380,11 @@ export function FloatingChatbot() {
                 title={minimized ? "Expand" : "Minimize"}
                 className="h-7 w-7 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/15 transition-colors"
               >
-                {minimized
-                  ? <ChevronDown className="h-3.5 w-3.5 rotate-180" />
-                  : <Minimize2 className="h-3.5 w-3.5" />
-                }
+                {minimized ? (
+                  <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+                ) : (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                )}
               </button>
               <button
                 onClick={() => setOpen(false)}
@@ -418,7 +471,11 @@ export function FloatingChatbot() {
                   disabled={loading || !input.trim()}
                   className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-all shrink-0 shadow-md shadow-[#6C63FF]/30"
                 >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </>
@@ -428,18 +485,21 @@ export function FloatingChatbot() {
 
       {/* ── FAB Toggle Button — always fixed bottom-right ── */}
       <button
-        onClick={() => { setOpen((o) => !o); setMinimized(false); }}
+        onClick={() => {
+          setOpen((o) => !o);
+          setMinimized(false);
+        }}
         className="fixed bottom-6 right-6 z-[9999] h-14 w-14 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] text-white shadow-lg shadow-[#6C63FF]/40 flex items-center justify-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#6C63FF]/50 active:scale-95 group"
         aria-label="Toggle AI Assistant"
         title="Election AI Assistant"
       >
-        <span className="absolute inset-0 rounded-full bg-[#6C63FF]/30 animate-ping" style={{ animationDuration: "2.5s" }} />
+        <span
+          className="absolute inset-0 rounded-full bg-[#6C63FF]/30 animate-ping"
+          style={{ animationDuration: "2.5s" }}
+        />
         <span className="absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-white z-10 shadow-sm" />
         <span className="relative z-10 transition-all duration-200">
-          {open
-            ? <X className="h-5 w-5" />
-            : <MessageCircle className="h-6 w-6" />
-          }
+          {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-6 w-6" />}
         </span>
       </button>
 
@@ -492,7 +552,8 @@ function MessageList({
   formatTime?: (d: Date) => string;
   compact?: boolean;
 }) {
-  const ft = formatTime ?? ((d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  const ft =
+    formatTime ?? ((d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
 
   return (
     <>
@@ -506,22 +567,27 @@ function MessageList({
               <Bot className="h-3.5 w-3.5 text-[#6C63FF]" />
             </div>
           )}
-          <div className={`${compact ? "max-w-[85%]" : "max-w-[78%]"} flex flex-col ${m.from === "user" ? "items-end" : "items-start"} gap-0.5`}>
+          <div
+            className={`${compact ? "max-w-[85%]" : "max-w-[78%]"} flex flex-col ${m.from === "user" ? "items-end" : "items-start"} gap-0.5`}
+          >
             <div
               className={`rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed
-                ${m.from === "user"
-                  ? "bg-gradient-to-br from-[#6C63FF] to-[#4F46E5] text-white rounded-br-sm shadow-md shadow-[#6C63FF]/25"
-                  : m.isError
-                    ? "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200/50 rounded-bl-sm"
-                    : m.isMock
-                      ? "bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200/50 rounded-bl-sm"
-                      : "bg-white dark:bg-white/5 text-foreground border border-gray-100 dark:border-white/10 rounded-bl-sm shadow-sm"
+                ${
+                  m.from === "user"
+                    ? "bg-gradient-to-br from-[#6C63FF] to-[#4F46E5] text-white rounded-br-sm shadow-md shadow-[#6C63FF]/25"
+                    : m.isError
+                      ? "bg-red-50 dark:bg-red-950/30 text-red-600 border border-red-200/50 rounded-bl-sm"
+                      : m.isMock
+                        ? "bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200/50 rounded-bl-sm"
+                        : "bg-white dark:bg-white/5 text-foreground border border-gray-100 dark:border-white/10 rounded-bl-sm shadow-sm"
                 }`}
             >
               {m.from === "ai" && m.isMock && (
                 <div className="flex items-center gap-1 mb-1">
                   <ShieldAlert className="h-3 w-3 text-amber-500" />
-                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">Demo Mode</span>
+                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                    Demo Mode
+                  </span>
                 </div>
               )}
               {m.from === "user" ? (
@@ -570,7 +636,11 @@ function MessageList({
 
 // ── Chat input bar (used for full-page version) ────────────────────────────────
 function ChatInput({
-  input, setInput, send, loading, inputRef,
+  input,
+  setInput,
+  send,
+  loading,
+  inputRef,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -584,7 +654,12 @@ function ChatInput({
         ref={inputRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            send(input);
+          }
+        }}
         placeholder="Ask about candidates or concerns..."
         disabled={loading}
         className="flex-1 h-10 px-3 rounded-xl border border-border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 focus:border-[#6C63FF]/50 disabled:opacity-50 transition-all"

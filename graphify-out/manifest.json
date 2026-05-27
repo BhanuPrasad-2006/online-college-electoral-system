@@ -1,0 +1,1637 @@
+{
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\generate_report.py": {
+    "mtime": 1779611336.5884995,
+    "ast_hash": "1b5a9cd263c03698ed9cc4dc67214008",
+    "semantic_hash": "1b5a9cd263c03698ed9cc4dc67214008"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\gen_report.py": {
+    "mtime": 1779611336.5863216,
+    "ast_hash": "3f48dbb47eee276020bc2c08f2a4dec2",
+    "semantic_hash": "3f48dbb47eee276020bc2c08f2a4dec2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\package.json": {
+    "mtime": 1779012423.938268,
+    "ast_hash": "1bf4e7d3ccd8197254017064688ba05e",
+    "semantic_hash": "1bf4e7d3ccd8197254017064688ba05e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\part1.py": {
+    "mtime": 1779611336.5884995,
+    "ast_hash": "dd1297136e43a73f165b260a51f58669",
+    "semantic_hash": "dd1297136e43a73f165b260a51f58669"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\patch_auth.py": {
+    "mtime": 1779611336.59051,
+    "ast_hash": "06af2bb53fe075739cfc06d4eb2b5089",
+    "semantic_hash": "06af2bb53fe075739cfc06d4eb2b5089"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\report_gen.py": {
+    "mtime": 1779611336.593257,
+    "ast_hash": "d8b6f29a1f40bd2356954364dbe61c3d",
+    "semantic_hash": "d8b6f29a1f40bd2356954364dbe61c3d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\start_all.ps1": {
+    "mtime": 1779611336.595585,
+    "ast_hash": "b45699055f7036e65f0f401a89c28d51",
+    "semantic_hash": "b45699055f7036e65f0f401a89c28d51"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\turbo.json": {
+    "mtime": 1779012423.9475849,
+    "ast_hash": "56135255302bdd246a738a0928019d6b",
+    "semantic_hash": "56135255302bdd246a738a0928019d6b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\update_test_file.py": {
+    "mtime": 1779629050.3412285,
+    "ast_hash": "785bc0f4c383f81cfa5615c04e64a4a4",
+    "semantic_hash": "785bc0f4c383f81cfa5615c04e64a4a4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\main.py": {
+    "mtime": 1779611336.256455,
+    "ast_hash": "4937b3c6d9ce5b87588dba507f76b4cf",
+    "semantic_hash": "4937b3c6d9ce5b87588dba507f76b4cf"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\api\\routes.py": {
+    "mtime": 1779633540.8614285,
+    "ast_hash": "3d40ef92d63ff1c422fff1b55dd944eb",
+    "semantic_hash": "3d40ef92d63ff1c422fff1b55dd944eb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\api\\schemas.py": {
+    "mtime": 1779633333.4471042,
+    "ast_hash": "6e03424ea2b6c22c26e3fea150cc3c2b",
+    "semantic_hash": "6e03424ea2b6c22c26e3fea150cc3c2b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\anomaly_detection.py": {
+    "mtime": 1779012423.5724964,
+    "ast_hash": "7a4aac425fcc313052ea17d16f8323cf",
+    "semantic_hash": "7a4aac425fcc313052ea17d16f8323cf"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\behavioral.py": {
+    "mtime": 1779012423.5740302,
+    "ast_hash": "7357d9a495a73942082f459940689277",
+    "semantic_hash": "7357d9a495a73942082f459940689277"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\chatbot.py": {
+    "mtime": 1779380866.5639217,
+    "ast_hash": "984b0076ac1880d022a5eb0377e35835",
+    "semantic_hash": "984b0076ac1880d022a5eb0377e35835"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\classifier.py": {
+    "mtime": 1779611934.5597959,
+    "ast_hash": "aeefaa9655e233c954afd75ade9534c2",
+    "semantic_hash": "aeefaa9655e233c954afd75ade9534c2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\clustering.py": {
+    "mtime": 1779611949.3819945,
+    "ast_hash": "02a9365c50b9a88e9e010db1a65c765f",
+    "semantic_hash": "02a9365c50b9a88e9e010db1a65c765f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\honeypot.py": {
+    "mtime": 1779012423.5785434,
+    "ast_hash": "f1334993b79f03e0956cc0bb298089ff",
+    "semantic_hash": "f1334993b79f03e0956cc0bb298089ff"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\manifesto.py": {
+    "mtime": 1779627019.3688526,
+    "ast_hash": "0d3d1715f0e63cdca6ad9874a1c90605",
+    "semantic_hash": "0d3d1715f0e63cdca6ad9874a1c90605"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\recommendation.py": {
+    "mtime": 1779611962.1266344,
+    "ast_hash": "849ac203630e1eed570e5de304f93090",
+    "semantic_hash": "849ac203630e1eed570e5de304f93090"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\report_generator.py": {
+    "mtime": 1779611980.9865196,
+    "ast_hash": "e5c96d1f40e603ce22d02343e184f6bc",
+    "semantic_hash": "e5c96d1f40e603ce22d02343e184f6bc"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\modules\\sentiment.py": {
+    "mtime": 1779611920.869992,
+    "ast_hash": "ad8d7bdc3bbc809f74f3c5b9fc1e2051",
+    "semantic_hash": "ad8d7bdc3bbc809f74f3c5b9fc1e2051"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\utils\\embeddings.py": {
+    "mtime": 1779611909.364856,
+    "ast_hash": "a86bc9273234faf28fd1489df32222c2",
+    "semantic_hash": "a86bc9273234faf28fd1489df32222c2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\utils\\gemini.py": {
+    "mtime": 1779380866.564929,
+    "ast_hash": "4e861b0c8af3222acea363a50409b78d",
+    "semantic_hash": "4e861b0c8af3222acea363a50409b78d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\ai_service\\src\\utils\\preprocessing.py": {
+    "mtime": 1779012423.588644,
+    "ast_hash": "73f54c8f88b59f123912436c2d9aa4cb",
+    "semantic_hash": "73f54c8f88b59f123912436c2d9aa4cb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\check_election.py": {
+    "mtime": 1779611336.4156437,
+    "ast_hash": "66adedc30fc6a4d4acc625b31fac506a",
+    "semantic_hash": "66adedc30fc6a4d4acc625b31fac506a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\check_voter_columns.py": {
+    "mtime": 1779611336.4176507,
+    "ast_hash": "f1c5f0e0bff7acc006d1742c9093291c",
+    "semantic_hash": "f1c5f0e0bff7acc006d1742c9093291c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\fix_enums.py": {
+    "mtime": 1779012423.7318878,
+    "ast_hash": "0b09b0a1168456cd86c38f728a3516c2",
+    "semantic_hash": "0b09b0a1168456cd86c38f728a3516c2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\main.py": {
+    "mtime": 1779611549.3557577,
+    "ast_hash": "8f8552b32f1b34fc69b91eadde3dfe7f",
+    "semantic_hash": "8f8552b32f1b34fc69b91eadde3dfe7f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_add_concern_attachment.py": {
+    "mtime": 1779611336.4202604,
+    "ast_hash": "7e5a65eef78ef188437e2bafd3ea248f",
+    "semantic_hash": "7e5a65eef78ef188437e2bafd3ea248f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_add_manifesto_image_url.py": {
+    "mtime": 1779611336.4202604,
+    "ast_hash": "43522101117990d8b145314cb8464a5d",
+    "semantic_hash": "43522101117990d8b145314cb8464a5d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_add_manifesto_status.py": {
+    "mtime": 1779617140.5263605,
+    "ast_hash": "8a7265c735ad1f1163cfe33cbb290c8c",
+    "semantic_hash": "8a7265c735ad1f1163cfe33cbb290c8c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_add_verification_code.py": {
+    "mtime": 1779611336.4202604,
+    "ast_hash": "f04c0492549b5e6c3e8ed1e8a7b57c42",
+    "semantic_hash": "f04c0492549b5e6c3e8ed1e8a7b57c42"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_anti_replay.py": {
+    "mtime": 1779611336.4202604,
+    "ast_hash": "b3ea408969c6ef085008fc0bce5d455f",
+    "semantic_hash": "b3ea408969c6ef085008fc0bce5d455f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_campaign_media.py": {
+    "mtime": 1779611336.4291055,
+    "ast_hash": "607d5a9b86b082b486420101e248389c",
+    "semantic_hash": "607d5a9b86b082b486420101e248389c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_face_id.py": {
+    "mtime": 1779611336.4298089,
+    "ast_hash": "9d0e2ef78cdb6766e4dc980016d88cfd",
+    "semantic_hash": "9d0e2ef78cdb6766e4dc980016d88cfd"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_ledger_columns.py": {
+    "mtime": 1779611336.4298089,
+    "ast_hash": "1864b270190cd2413f1e36262f586b86",
+    "semantic_hash": "1864b270190cd2413f1e36262f586b86"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_phases.py": {
+    "mtime": 1779611336.4298089,
+    "ast_hash": "9152a1ded61ed2f9769b105f966bca41",
+    "semantic_hash": "9152a1ded61ed2f9769b105f966bca41"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\migrate_running_mates.py": {
+    "mtime": 1779611336.4298089,
+    "ast_hash": "9c6104db8ef0f82f4154ca24675d9bd4",
+    "semantic_hash": "9c6104db8ef0f82f4154ca24675d9bd4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_add_column.py": {
+    "mtime": 1779175043.5222325,
+    "ast_hash": "f3aaddb140e61e456e8ef4de012f270a",
+    "semantic_hash": "f3aaddb140e61e456e8ef4de012f270a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_add_verification_id_column.py": {
+    "mtime": 1779611336.4371984,
+    "ast_hash": "06aafb335612eff905393b152c143af0",
+    "semantic_hash": "06aafb335612eff905393b152c143af0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_check_admins.py": {
+    "mtime": 1779046038.1005526,
+    "ast_hash": "b8d620989e3f662dcda6c6d871521d18",
+    "semantic_hash": "b8d620989e3f662dcda6c6d871521d18"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_check_candidates.py": {
+    "mtime": 1779045986.5690365,
+    "ast_hash": "67880b69e24ee95fd4ed84c347d21ad1",
+    "semantic_hash": "67880b69e24ee95fd4ed84c347d21ad1"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_check_candidates_voters.py": {
+    "mtime": 1779611336.4371984,
+    "ast_hash": "7046bf2077cbfe47a4b8f7fdd29fac5e",
+    "semantic_hash": "7046bf2077cbfe47a4b8f7fdd29fac5e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_check_voter_details.py": {
+    "mtime": 1779611336.4371984,
+    "ast_hash": "ab88232473a3330043e99a62b735ed97",
+    "semantic_hash": "ab88232473a3330043e99a62b735ed97"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_check_voter_details_038.py": {
+    "mtime": 1779611336.4371984,
+    "ast_hash": "0364da1a458bed92e9ac9880d9fcf334",
+    "semantic_hash": "0364da1a458bed92e9ac9880d9fcf334"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_cleanup_candidates.py": {
+    "mtime": 1779611336.4454658,
+    "ast_hash": "827d4beaf330a8d97f758069f399cd4b",
+    "semantic_hash": "827d4beaf330a8d97f758069f399cd4b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_create_blacklist_table.py": {
+    "mtime": 1779611336.4462209,
+    "ast_hash": "258fdebddd40b4d79f090d3ef35d9020",
+    "semantic_hash": "258fdebddd40b4d79f090d3ef35d9020"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_fix_bhanu_name.py": {
+    "mtime": 1779611336.4462209,
+    "ast_hash": "d5355f46b010fc70f36a191da7404b91",
+    "semantic_hash": "d5355f46b010fc70f36a191da7404b91"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_get_latest_otp.py": {
+    "mtime": 1779046086.2335365,
+    "ast_hash": "6b783280b15607d9ffd85f4b3d8c67f8",
+    "semantic_hash": "6b783280b15607d9ffd85f4b3d8c67f8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_patch.py": {
+    "mtime": 1779611336.4507134,
+    "ast_hash": "3ec0cdb119b23a64313aec9631462d12",
+    "semantic_hash": "3ec0cdb119b23a64313aec9631462d12"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_print_all_voters.py": {
+    "mtime": 1779611336.4507134,
+    "ast_hash": "f8eaf4f69d69bdeca72f3b37364c8f4d",
+    "semantic_hash": "f8eaf4f69d69bdeca72f3b37364c8f4d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_print_manifesto_columns.py": {
+    "mtime": 1779177205.6672792,
+    "ast_hash": "11e75e240e18031acfb6f8cccdb8b72e",
+    "semantic_hash": "11e75e240e18031acfb6f8cccdb8b72e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_print_voters.py": {
+    "mtime": 1779611336.4507134,
+    "ast_hash": "a0b99b22ae4705e16f7a188c4df2706a",
+    "semantic_hash": "a0b99b22ae4705e16f7a188c4df2706a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_test_candidate_flow.py": {
+    "mtime": 1779173860.8298364,
+    "ast_hash": "ee3c03d3d200fa2a3c80d2a605aa66f3",
+    "semantic_hash": "ee3c03d3d200fa2a3c80d2a605aa66f3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_test_dept_stats.py": {
+    "mtime": 1779611336.4549062,
+    "ast_hash": "6eca293aea22aa96f7b25921c02b6960",
+    "semantic_hash": "6eca293aea22aa96f7b25921c02b6960"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_test_login_api.py": {
+    "mtime": 1779611336.4549062,
+    "ast_hash": "a7912870cf4f5d3c52ba4244997a80f9",
+    "semantic_hash": "a7912870cf4f5d3c52ba4244997a80f9"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_test_login_fn.py": {
+    "mtime": 1779611336.4549062,
+    "ast_hash": "84985a861713f3b4df8fb4e0182742e3",
+    "semantic_hash": "84985a861713f3b4df8fb4e0182742e3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_test_new_candidate_flow.py": {
+    "mtime": 1779611336.4611506,
+    "ast_hash": "9eb366169d70b119ae793f27c86f8706",
+    "semantic_hash": "9eb366169d70b119ae793f27c86f8706"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\scratch_verify_connections.py": {
+    "mtime": 1779611336.4628544,
+    "ast_hash": "9fe7787a4c233243930e92de675a9f12",
+    "semantic_hash": "9fe7787a4c233243930e92de675a9f12"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\seed_admin.py": {
+    "mtime": 1779017456.6141162,
+    "ast_hash": "a22e0e746342db5af76257581d51f866",
+    "semantic_hash": "a22e0e746342db5af76257581d51f866"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\seed_candidate.py": {
+    "mtime": 1779611336.4628544,
+    "ast_hash": "298ce4bb9b3af9edf05dc0b28fe587bb",
+    "semantic_hash": "298ce4bb9b3af9edf05dc0b28fe587bb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\seed_user.py": {
+    "mtime": 1779008911.9133854,
+    "ast_hash": "a68ad576b23fd465516efa92e9e60c57",
+    "semantic_hash": "a68ad576b23fd465516efa92e9e60c57"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\test_admin_login_step1.py": {
+    "mtime": 1779042855.7448902,
+    "ast_hash": "798547e4efcbebef77f2e897e57c78ca",
+    "semantic_hash": "798547e4efcbebef77f2e897e57c78ca"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\test_candidates_escaping_flow.py": {
+    "mtime": 1779611336.4628544,
+    "ast_hash": "6562b4b6d9ac3f64258a61bc510d96ec",
+    "semantic_hash": "6562b4b6d9ac3f64258a61bc510d96ec"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\test_db.py": {
+    "mtime": 1779621347.5268636,
+    "ast_hash": "e48ef08975cdf44385a195eb6638e371",
+    "semantic_hash": "e48ef08975cdf44385a195eb6638e371"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\test_db_and_auth.py": {
+    "mtime": 1779042416.526456,
+    "ast_hash": "04a134986ff79714470279ba99430e86",
+    "semantic_hash": "04a134986ff79714470279ba99430e86"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\test_security_features.py": {
+    "mtime": 1779611336.4628544,
+    "ast_hash": "997b896806ac84bccad982e638926121",
+    "semantic_hash": "997b896806ac84bccad982e638926121"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\database.py": {
+    "mtime": 1779012423.6064756,
+    "ast_hash": "943bb2b2189f113edb48331de14f0afc",
+    "semantic_hash": "943bb2b2189f113edb48331de14f0afc"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\main.py": {
+    "mtime": 1779611336.2819664,
+    "ast_hash": "3af60ceba9f33d9003857684775acbaf",
+    "semantic_hash": "3af60ceba9f33d9003857684775acbaf"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\__init__.py": {
+    "mtime": 1779012423.5919592,
+    "ast_hash": "80e1d0f7521ac079d834f388c70ccc01",
+    "semantic_hash": "80e1d0f7521ac079d834f388c70ccc01"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\ai\\context_data.py": {
+    "mtime": 1779616697.1002753,
+    "ast_hash": "33f344d80f1d08c257538e772dec44c7",
+    "semantic_hash": "33f344d80f1d08c257538e772dec44c7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\ai\\__init__.py": {
+    "mtime": 1779380866.564929,
+    "ast_hash": "655ea8af9ec02ec10800a111e48472cf",
+    "semantic_hash": "655ea8af9ec02ec10800a111e48472cf"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\deps.py": {
+    "mtime": 1779611336.2627475,
+    "ast_hash": "90ca6391f4aac4a6d10ecd2904939828",
+    "semantic_hash": "90ca6391f4aac4a6d10ecd2904939828"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\admin.py": {
+    "mtime": 1779012423.5952387,
+    "ast_hash": "97e872da69cc0717f455e9ae8afccaa3",
+    "semantic_hash": "97e872da69cc0717f455e9ae8afccaa3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\ai.py": {
+    "mtime": 1779012423.596254,
+    "ast_hash": "966992b9ed9556bddf55285b6459ba43",
+    "semantic_hash": "966992b9ed9556bddf55285b6459ba43"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\analytics.py": {
+    "mtime": 1779012423.5968883,
+    "ast_hash": "a6e925c38b73f9d6ca9a6ec310e23f8e",
+    "semantic_hash": "a6e925c38b73f9d6ca9a6ec310e23f8e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\auth.py": {
+    "mtime": 1779012423.5984302,
+    "ast_hash": "a5290ee3f0726b4d8b9c27cd6dea15f6",
+    "semantic_hash": "a5290ee3f0726b4d8b9c27cd6dea15f6"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\candidates.py": {
+    "mtime": 1779012423.5984302,
+    "ast_hash": "ace09a144a7eb5c6cb1725b93fb9be0b",
+    "semantic_hash": "ace09a144a7eb5c6cb1725b93fb9be0b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\concerns.py": {
+    "mtime": 1779012423.600971,
+    "ast_hash": "d7c021407eedff2abcb70f5ed6d464a2",
+    "semantic_hash": "d7c021407eedff2abcb70f5ed6d464a2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\api\\v1\\vote.py": {
+    "mtime": 1779012423.6025913,
+    "ast_hash": "c2d004aefe50a5a5de3a0d0d80a8be87",
+    "semantic_hash": "c2d004aefe50a5a5de3a0d0d80a8be87"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\core\\config.py": {
+    "mtime": 1779640130.2693017,
+    "ast_hash": "01b6f875ce4693f1b62a234963309b3b",
+    "semantic_hash": "01b6f875ce4693f1b62a234963309b3b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\core\\constants.py": {
+    "mtime": 1779012423.6064756,
+    "ast_hash": "a48d3cb1b5b00acdd7944d3e91c31597",
+    "semantic_hash": "a48d3cb1b5b00acdd7944d3e91c31597"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\core\\redis.py": {
+    "mtime": 1779012423.6064756,
+    "ast_hash": "43e893a1e108a8ec6957936f6d3dd35e",
+    "semantic_hash": "43e893a1e108a8ec6957936f6d3dd35e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\core\\security.py": {
+    "mtime": 1779611336.2718375,
+    "ast_hash": "cc73a83c7a60d181fa60fe6e35dde88d",
+    "semantic_hash": "cc73a83c7a60d181fa60fe6e35dde88d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\db\\base.py": {
+    "mtime": 1779012423.6129634,
+    "ast_hash": "692e53566aa8d6b544cb0c61adab83c4",
+    "semantic_hash": "692e53566aa8d6b544cb0c61adab83c4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\db\\init_db.py": {
+    "mtime": 1779611555.605652,
+    "ast_hash": "75c9a506550b0685d636a73cf011e04b",
+    "semantic_hash": "75c9a506550b0685d636a73cf011e04b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\db\\session.py": {
+    "mtime": 1779628561.832847,
+    "ast_hash": "aba707da8a98b3167262d23468310eea",
+    "semantic_hash": "aba707da8a98b3167262d23468310eea"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\db\\types.py": {
+    "mtime": 1779012423.6181152,
+    "ast_hash": "900121691113c0c55539c1495a60ad90",
+    "semantic_hash": "900121691113c0c55539c1495a60ad90"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\alert_severity.py": {
+    "mtime": 1779012423.6191964,
+    "ast_hash": "d63ac4d01be6ac56ab5fc44e8e4d036e",
+    "semantic_hash": "d63ac4d01be6ac56ab5fc44e8e4d036e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\alert_type.py": {
+    "mtime": 1779012423.621598,
+    "ast_hash": "b0c7e46a356335e0f41322adbd7fd2b3",
+    "semantic_hash": "b0c7e46a356335e0f41322adbd7fd2b3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\candidate_status.py": {
+    "mtime": 1779012423.6221254,
+    "ast_hash": "ac016bae0624b3f30196686b36b2eb1e",
+    "semantic_hash": "ac016bae0624b3f30196686b36b2eb1e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\concern_enums.py": {
+    "mtime": 1779012423.625218,
+    "ast_hash": "8daa22606fe4c8f0ce42a0f78726ae15",
+    "semantic_hash": "8daa22606fe4c8f0ce42a0f78726ae15"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\election_status.py": {
+    "mtime": 1779012423.6262527,
+    "ast_hash": "eeb4b8c791ae55f927319b41b310991a",
+    "semantic_hash": "eeb4b8c791ae55f927319b41b310991a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\manifesto_status.py": {
+    "mtime": 1779617134.1522653,
+    "ast_hash": "404c947a21f5b124e232dff797b3f35a",
+    "semantic_hash": "404c947a21f5b124e232dff797b3f35a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\otp_type.py": {
+    "mtime": 1779012423.6300085,
+    "ast_hash": "efa5cf9d47776f90e11e36394e1dd679",
+    "semantic_hash": "efa5cf9d47776f90e11e36394e1dd679"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\enums\\roles.py": {
+    "mtime": 1779012423.6320467,
+    "ast_hash": "5228313f45ba36669fdc3de5258de709",
+    "semantic_hash": "5228313f45ba36669fdc3de5258de709"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\exceptions\\auth_exceptions.py": {
+    "mtime": 1779105440.140233,
+    "ast_hash": "28d0fba705ff3901da7165fa6483bcf8",
+    "semantic_hash": "28d0fba705ff3901da7165fa6483bcf8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\exceptions\\candidate_exceptions.py": {
+    "mtime": 1779012423.6357787,
+    "ast_hash": "b78cfd12b6947cafb75f7fc1532061d4",
+    "semantic_hash": "b78cfd12b6947cafb75f7fc1532061d4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\exceptions\\vote_exceptions.py": {
+    "mtime": 1779012423.6375241,
+    "ast_hash": "c755b1b1d1f29395e70f943b8803b2f7",
+    "semantic_hash": "c755b1b1d1f29395e70f943b8803b2f7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\audit_middleware.py": {
+    "mtime": 1779614738.489176,
+    "ast_hash": "042b0539df5716691c0803731e4e91c6",
+    "semantic_hash": "042b0539df5716691c0803731e4e91c6"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\cors.py": {
+    "mtime": 1779012423.6410732,
+    "ast_hash": "d76b25266c403f93f3fbf08ae41bc13d",
+    "semantic_hash": "d76b25266c403f93f3fbf08ae41bc13d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\jwt_middleware.py": {
+    "mtime": 1779012423.6410732,
+    "ast_hash": "fdd1ea3813f05329a34f8e453f59218b",
+    "semantic_hash": "fdd1ea3813f05329a34f8e453f59218b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\rate_limit.py": {
+    "mtime": 1779611336.287972,
+    "ast_hash": "edb5b4c1ffabc0ca62bcf5090932b1fb",
+    "semantic_hash": "edb5b4c1ffabc0ca62bcf5090932b1fb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\redis_rate_limiter.py": {
+    "mtime": 1779611336.2889552,
+    "ast_hash": "0aa05c66e7d0b76619ae9b2bd07478bd",
+    "semantic_hash": "0aa05c66e7d0b76619ae9b2bd07478bd"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\request_size_limit.py": {
+    "mtime": 1779611336.2889552,
+    "ast_hash": "7279779ca947e14ed559cf3ab0899cad",
+    "semantic_hash": "7279779ca947e14ed559cf3ab0899cad"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\middleware\\security_headers.py": {
+    "mtime": 1779611336.295479,
+    "ast_hash": "3eb6dca0ca27fa9faae07f348835b1f4",
+    "semantic_hash": "3eb6dca0ca27fa9faae07f348835b1f4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\admin_user.py": {
+    "mtime": 1779611336.3003476,
+    "ast_hash": "8cd2caead2aa67d211d974a3de0797f5",
+    "semantic_hash": "8cd2caead2aa67d211d974a3de0797f5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\ai_alert.py": {
+    "mtime": 1779611336.3036413,
+    "ast_hash": "5383175136fbf0d1eb18de41ed99432d",
+    "semantic_hash": "5383175136fbf0d1eb18de41ed99432d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\ai_report.py": {
+    "mtime": 1779012423.655821,
+    "ast_hash": "81d76e0cef5617b97835002ceca01156",
+    "semantic_hash": "81d76e0cef5617b97835002ceca01156"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\announcement.py": {
+    "mtime": 1779611410.693805,
+    "ast_hash": "c6bd6097ed390aec557f09a2693bcb02",
+    "semantic_hash": "c6bd6097ed390aec557f09a2693bcb02"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\audit_log.py": {
+    "mtime": 1779012423.655821,
+    "ast_hash": "93fb07e2c87477e7d9a4f393472204d4",
+    "semantic_hash": "93fb07e2c87477e7d9a4f393472204d4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\campaign_media.py": {
+    "mtime": 1779611336.3082757,
+    "ast_hash": "c393718c8e09323ef3c44f97bfebff69",
+    "semantic_hash": "c393718c8e09323ef3c44f97bfebff69"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\candidate.py": {
+    "mtime": 1779611336.314061,
+    "ast_hash": "56b5f8091cfb3dd96c3895a97af8d309",
+    "semantic_hash": "56b5f8091cfb3dd96c3895a97af8d309"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\concern.py": {
+    "mtime": 1779611336.3158894,
+    "ast_hash": "25d4c49f76e796e61a934fdfe002d0dd",
+    "semantic_hash": "25d4c49f76e796e61a934fdfe002d0dd"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\election.py": {
+    "mtime": 1779611336.3201525,
+    "ast_hash": "1d3fffd7cc5634de06a0f6f178717835",
+    "semantic_hash": "1d3fffd7cc5634de06a0f6f178717835"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\election_phase.py": {
+    "mtime": 1779611336.322164,
+    "ast_hash": "ee2ee6ce16e289a66e9f30a45d726e46",
+    "semantic_hash": "ee2ee6ce16e289a66e9f30a45d726e46"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\manifesto.py": {
+    "mtime": 1779627728.3366966,
+    "ast_hash": "679cba9ee16dddd5b6fe577c517ecc63",
+    "semantic_hash": "679cba9ee16dddd5b6fe577c517ecc63"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\otp_request.py": {
+    "mtime": 1779611336.3271968,
+    "ast_hash": "4e19005fa6adbd380bb3fed6bf5c1f3b",
+    "semantic_hash": "4e19005fa6adbd380bb3fed6bf5c1f3b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\position.py": {
+    "mtime": 1779012423.6703799,
+    "ast_hash": "002af86923f36dbb9ff325164e15d6c4",
+    "semantic_hash": "002af86923f36dbb9ff325164e15d6c4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\vote.py": {
+    "mtime": 1779611336.3301208,
+    "ast_hash": "10920a46252d82d019195a4321cd4955",
+    "semantic_hash": "10920a46252d82d019195a4321cd4955"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\voter.py": {
+    "mtime": 1779611336.3333077,
+    "ast_hash": "afe7afbf693beea70b7d4e2b92a4f5d1",
+    "semantic_hash": "afe7afbf693beea70b7d4e2b92a4f5d1"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\vote_stats.py": {
+    "mtime": 1779012423.6749666,
+    "ast_hash": "3b705114961b657a4431114a3da16b03",
+    "semantic_hash": "3b705114961b657a4431114a3da16b03"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\models\\__init__.py": {
+    "mtime": 1779611542.4335604,
+    "ast_hash": "d7ec7e6964569085cb92048cb5e8cd88",
+    "semantic_hash": "d7ec7e6964569085cb92048cb5e8cd88"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\admin.py": {
+    "mtime": 1779642647.3519044,
+    "ast_hash": "8406790864ba83f6f93bfc2e77951132",
+    "semantic_hash": "8406790864ba83f6f93bfc2e77951132"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\ai.py": {
+    "mtime": 1779627031.1235988,
+    "ast_hash": "060927fc689ebcf1cb345460d01fe366",
+    "semantic_hash": "060927fc689ebcf1cb345460d01fe366"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\announcements.py": {
+    "mtime": 1779611747.1783307,
+    "ast_hash": "3b5e1a61d5f5a9f3485a7c5a71483e26",
+    "semantic_hash": "3b5e1a61d5f5a9f3485a7c5a71483e26"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\auth.py": {
+    "mtime": 1779611336.340663,
+    "ast_hash": "96642c39b40d0018b0cd5f7b4baa01a2",
+    "semantic_hash": "96642c39b40d0018b0cd5f7b4baa01a2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\candidates.py": {
+    "mtime": 1779632552.8070104,
+    "ast_hash": "e449209eda64192e68beffbe00f9a35c",
+    "semantic_hash": "e449209eda64192e68beffbe00f9a35c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\concerns.py": {
+    "mtime": 1779622701.489825,
+    "ast_hash": "8e3d853f6a423546503dcfc4e1bf002e",
+    "semantic_hash": "8e3d853f6a423546503dcfc4e1bf002e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\election.py": {
+    "mtime": 1779640693.5980804,
+    "ast_hash": "a31f9db81015bf9cf70cb78eb04d4b89",
+    "semantic_hash": "a31f9db81015bf9cf70cb78eb04d4b89"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\media.py": {
+    "mtime": 1779619259.9875517,
+    "ast_hash": "650b6d6283c2fa91e1954ad5bf6f30a3",
+    "semantic_hash": "650b6d6283c2fa91e1954ad5bf6f30a3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\vote.py": {
+    "mtime": 1779642636.1326056,
+    "ast_hash": "7623accc12ffe58d5fbd24759f227f2a",
+    "semantic_hash": "7623accc12ffe58d5fbd24759f227f2a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\routes\\__init__.py": {
+    "mtime": 1779012423.6786041,
+    "ast_hash": "bdee62d1865bc734bd218bf25e00b80b",
+    "semantic_hash": "bdee62d1865bc734bd218bf25e00b80b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\auth_schema.py": {
+    "mtime": 1779611336.353734,
+    "ast_hash": "ca420a6400fa87d9c8d18267ed3ba71e",
+    "semantic_hash": "ca420a6400fa87d9c8d18267ed3ba71e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\candidate_schema.py": {
+    "mtime": 1779012423.6848023,
+    "ast_hash": "ffee511393368caa2664bb3a4dc94483",
+    "semantic_hash": "ffee511393368caa2664bb3a4dc94483"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\concern_schema.py": {
+    "mtime": 1779611336.3587146,
+    "ast_hash": "8f26d7d2e623907b8fcc09a22f27f2ec",
+    "semantic_hash": "8f26d7d2e623907b8fcc09a22f27f2ec"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\election_schema.py": {
+    "mtime": 1779611336.359415,
+    "ast_hash": "123b0e950543e2729f0cf8fd1f67c57b",
+    "semantic_hash": "123b0e950543e2729f0cf8fd1f67c57b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\manifesto_schema.py": {
+    "mtime": 1779012423.6889567,
+    "ast_hash": "79b8f4d7f9a232e6480bc37f56dae7a0",
+    "semantic_hash": "79b8f4d7f9a232e6480bc37f56dae7a0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\media_schema.py": {
+    "mtime": 1779611336.3629124,
+    "ast_hash": "317ff02dfd52430dd4d85de05ba7b9d4",
+    "semantic_hash": "317ff02dfd52430dd4d85de05ba7b9d4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\schemas\\vote_schema.py": {
+    "mtime": 1779012423.6889567,
+    "ast_hash": "8f927ddeaa413d8fa1b0d8cfc4c7f49b",
+    "semantic_hash": "8f927ddeaa413d8fa1b0d8cfc4c7f49b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\anomaly_service.py": {
+    "mtime": 1779611336.3629124,
+    "ast_hash": "d896812bd2526415a5bd4d5ab824862a",
+    "semantic_hash": "d896812bd2526415a5bd4d5ab824862a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\anti_replay_service.py": {
+    "mtime": 1779611336.368153,
+    "ast_hash": "34865082c7cfd5f1c467b44c495004cd",
+    "semantic_hash": "34865082c7cfd5f1c467b44c495004cd"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\audit_service.py": {
+    "mtime": 1779611336.368153,
+    "ast_hash": "73686ef28df4f318a8ddaf91e57af19a",
+    "semantic_hash": "73686ef28df4f318a8ddaf91e57af19a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\device_fingerprint.py": {
+    "mtime": 1779640229.660676,
+    "ast_hash": "8ec6c05ec90dd6b031af9f089b774a1d",
+    "semantic_hash": "8ec6c05ec90dd6b031af9f089b774a1d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\fraud_detection_service.py": {
+    "mtime": 1779618589.129571,
+    "ast_hash": "784b83ffb7426803d9cd807f504f5f24",
+    "semantic_hash": "784b83ffb7426803d9cd807f504f5f24"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\honeypot.py": {
+    "mtime": 1779611336.3748093,
+    "ast_hash": "8ad011163f6ea3f7963e91596370fce0",
+    "semantic_hash": "8ad011163f6ea3f7963e91596370fce0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\integrity_service.py": {
+    "mtime": 1779611336.379719,
+    "ast_hash": "be8118b659ab336143696043139ff147",
+    "semantic_hash": "be8118b659ab336143696043139ff147"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\jwt_service.py": {
+    "mtime": 1779611336.379719,
+    "ast_hash": "733cc4dcfda8b4a537e53c922f61d213",
+    "semantic_hash": "733cc4dcfda8b4a537e53c922f61d213"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\otp_hash_service.py": {
+    "mtime": 1779012423.0,
+    "ast_hash": "cf00faff0b5316e77885b258ae1184e5",
+    "semantic_hash": "cf00faff0b5316e77885b258ae1184e5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\security\\vote_hash_service.py": {
+    "mtime": 1779012423.0,
+    "ast_hash": "9e21c19e1eac9454e9aa6553f8ddde6d",
+    "semantic_hash": "9e21c19e1eac9454e9aa6553f8ddde6d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\ai_proxy_service.py": {
+    "mtime": 1779633342.5986254,
+    "ast_hash": "606c270e02edcfe29fe2a2535bb731d0",
+    "semantic_hash": "606c270e02edcfe29fe2a2535bb731d0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\anomaly_service.py": {
+    "mtime": 1779611336.38651,
+    "ast_hash": "e0f1977807f4f87461c5553ed0c646e8",
+    "semantic_hash": "e0f1977807f4f87461c5553ed0c646e8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\auth_service.py": {
+    "mtime": 1779611336.38651,
+    "ast_hash": "768bb60c69db4c5b86705a72fc332f26",
+    "semantic_hash": "768bb60c69db4c5b86705a72fc332f26"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\candidate_service.py": {
+    "mtime": 1779611296.9579234,
+    "ast_hash": "c7d4393d035165d498195c849d1b82bf",
+    "semantic_hash": "c7d4393d035165d498195c849d1b82bf"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\college_api.py": {
+    "mtime": 1779611535.1003118,
+    "ast_hash": "51f37225217b85932d5a338e97c01fa8",
+    "semantic_hash": "51f37225217b85932d5a338e97c01fa8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\concern_service.py": {
+    "mtime": 1779622714.349309,
+    "ast_hash": "acab32a27eaf9bbe42197de8b968f5f9",
+    "semantic_hash": "acab32a27eaf9bbe42197de8b968f5f9"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\election_service.py": {
+    "mtime": 1779012423.7114751,
+    "ast_hash": "c569561f6c28b3f2e17797a30d97cff1",
+    "semantic_hash": "c569561f6c28b3f2e17797a30d97cff1"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\email_service.py": {
+    "mtime": 1779611336.38651,
+    "ast_hash": "dd75ec643627bd580ae4df3d75534339",
+    "semantic_hash": "dd75ec643627bd580ae4df3d75534339"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\face_service.py": {
+    "mtime": 1779611336.38651,
+    "ast_hash": "c753a216e85b17c8034616ab5575be7e",
+    "semantic_hash": "c753a216e85b17c8034616ab5575be7e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\fraud_detection_service.py": {
+    "mtime": 1779611336.397056,
+    "ast_hash": "ad17cd9ba260fe778fe71d0b4275d9ec",
+    "semantic_hash": "ad17cd9ba260fe778fe71d0b4275d9ec"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\honeypot.py": {
+    "mtime": 1779611336.397056,
+    "ast_hash": "f0f2fea53b41c35e0889c59e03214670",
+    "semantic_hash": "f0f2fea53b41c35e0889c59e03214670"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\ledger_service.py": {
+    "mtime": 1779611336.4002035,
+    "ast_hash": "804a994d2bf38d4491433608a57c3465",
+    "semantic_hash": "804a994d2bf38d4491433608a57c3465"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\notification_scheduler.py": {
+    "mtime": 1779611336.4022193,
+    "ast_hash": "1a980042394856337e985e853a39ed9a",
+    "semantic_hash": "1a980042394856337e985e853a39ed9a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\notification_service.py": {
+    "mtime": 1779012423.7130787,
+    "ast_hash": "da620946c9c5fe9ee62f57c3e0b130b2",
+    "semantic_hash": "da620946c9c5fe9ee62f57c3e0b130b2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\otp_service.py": {
+    "mtime": 1779611336.4046752,
+    "ast_hash": "62f84c6f2dc3f288bcf70eddf9c33ea0",
+    "semantic_hash": "62f84c6f2dc3f288bcf70eddf9c33ea0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\phase_engine.py": {
+    "mtime": 1779611336.4046752,
+    "ast_hash": "7ed1027e5afd0873be5b7534e513506e",
+    "semantic_hash": "7ed1027e5afd0873be5b7534e513506e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\result_service.py": {
+    "mtime": 1779611336.408793,
+    "ast_hash": "41c3b03001dda84d3840c74228db8e09",
+    "semantic_hash": "41c3b03001dda84d3840c74228db8e09"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\sms_service.py": {
+    "mtime": 1779611336.413635,
+    "ast_hash": "1571c72222d7e66dc37f66e81ca5610d",
+    "semantic_hash": "1571c72222d7e66dc37f66e81ca5610d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\supabase_storage.py": {
+    "mtime": 1779623410.708586,
+    "ast_hash": "6409d4e90109b2b96c815874ea748cc0",
+    "semantic_hash": "6409d4e90109b2b96c815874ea748cc0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\services\\vote_service.py": {
+    "mtime": 1779611296.9579234,
+    "ast_hash": "4a4623f24de976306dc8ad896d576579",
+    "semantic_hash": "4a4623f24de976306dc8ad896d576579"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\utils\\hashing.py": {
+    "mtime": 1779012423.720654,
+    "ast_hash": "93a8b2913c31a6d72761cc9a3543779e",
+    "semantic_hash": "93a8b2913c31a6d72761cc9a3543779e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\utils\\helpers.py": {
+    "mtime": 1779012423.7221806,
+    "ast_hash": "b5f6a322984b532db8e93386eaca2f68",
+    "semantic_hash": "b5f6a322984b532db8e93386eaca2f68"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\utils\\logger.py": {
+    "mtime": 1779012423.724518,
+    "ast_hash": "e8b143c04873ae5c536d61da5f91a875",
+    "semantic_hash": "e8b143c04873ae5c536d61da5f91a875"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\utils\\otp.py": {
+    "mtime": 1779012423.725571,
+    "ast_hash": "539be9b4a20b544878beb1203fc26b95",
+    "semantic_hash": "539be9b4a20b544878beb1203fc26b95"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\utils\\__init__.py": {
+    "mtime": 1779012423.7195375,
+    "ast_hash": "a13a02d4dc14f2b47dcc798d6957b87e",
+    "semantic_hash": "a13a02d4dc14f2b47dcc798d6957b87e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\validators\\auth_validator.py": {
+    "mtime": 1779012423.725571,
+    "ast_hash": "ae8e01d2ab499085b05b86a069b4db81",
+    "semantic_hash": "ae8e01d2ab499085b05b86a069b4db81"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\validators\\concern_validator.py": {
+    "mtime": 1779012423.72882,
+    "ast_hash": "f5203b8abad0a6206e325a3d5fa10821",
+    "semantic_hash": "f5203b8abad0a6206e325a3d5fa10821"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\validators\\manifesto_validator.py": {
+    "mtime": 1779012423.72882,
+    "ast_hash": "4037ef513299f6c1816cc7c610ea3100",
+    "semantic_hash": "4037ef513299f6c1816cc7c610ea3100"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\app\\validators\\vote_validator.py": {
+    "mtime": 1779611336.4156437,
+    "ast_hash": "be3ca2b024a5e94c1285ccfe80bc4ae7",
+    "semantic_hash": "be3ca2b024a5e94c1285ccfe80bc4ae7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\backend\\db\\migrations\\versions\\004_create_ledger_sequence.sql": {
+    "mtime": 1779628649.196954,
+    "ast_hash": "7659c20845774841a0b4959b01baa72b",
+    "semantic_hash": "7659c20845774841a0b4959b01baa72b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\functions\\generate_result_hash.sql": {
+    "mtime": 1779012423.7420876,
+    "ast_hash": "5d2020dcca5fe021863fc1a53737f1d5",
+    "semantic_hash": "5d2020dcca5fe021863fc1a53737f1d5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\functions\\integrity_lock.sql": {
+    "mtime": 1779012423.7420876,
+    "ast_hash": "7e254a84c4e320f7a3eff13640261fa5",
+    "semantic_hash": "7e254a84c4e320f7a3eff13640261fa5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\functions\\lock_result_hash.sql": {
+    "mtime": 1779012423.7456295,
+    "ast_hash": "5cc90804aed0d4a2bd98c0593691c53e",
+    "semantic_hash": "5cc90804aed0d4a2bd98c0593691c53e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\functions\\otp_cleanup.sql": {
+    "mtime": 1779012423.7460663,
+    "ast_hash": "b7067dab8cc95bd1e5fb41d193811a6a",
+    "semantic_hash": "b7067dab8cc95bd1e5fb41d193811a6a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\functions\\prevent_vote_update.sql": {
+    "mtime": 1779012423.747507,
+    "ast_hash": "da2b2faf4f9a57c36d3da85fbcedb837",
+    "semantic_hash": "da2b2faf4f9a57c36d3da85fbcedb837"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\migrations\\env.py": {
+    "mtime": 1779012423.7485363,
+    "ast_hash": "f6eb4790790c22b951f285aff27350e7",
+    "semantic_hash": "f6eb4790790c22b951f285aff27350e7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\seeds\\dev_seed.sql": {
+    "mtime": 1779012423.751073,
+    "ast_hash": "1ca19af69c7aa14e7d1cfee3113cbedf",
+    "semantic_hash": "1ca19af69c7aa14e7d1cfee3113cbedf"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\db\\seeds\\test_seed.sql": {
+    "mtime": 1779012423.751073,
+    "ast_hash": "f0b9ecfda20f74ae239666568327dce3",
+    "semantic_hash": "f0b9ecfda20f74ae239666568327dce3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\components.json": {
+    "mtime": 1779012423.772119,
+    "ast_hash": "d9a5358de725b840c808a17fa6638620",
+    "semantic_hash": "d9a5358de725b840c808a17fa6638620"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\eslint.config.js": {
+    "mtime": 1779012423.772119,
+    "ast_hash": "20097f0c1a669549b3a8d3a194c3c25d",
+    "semantic_hash": "20097f0c1a669549b3a8d3a194c3c25d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\next-env.d.ts": {
+    "mtime": 1779012423.7752407,
+    "ast_hash": "187b4b5b507c358a018aeeadd81abe57",
+    "semantic_hash": "187b4b5b507c358a018aeeadd81abe57"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\next.config.js": {
+    "mtime": 1779012423.7771053,
+    "ast_hash": "b5b72b7a882ae422a650b3ee9e2361f2",
+    "semantic_hash": "b5b72b7a882ae422a650b3ee9e2361f2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\package.json": {
+    "mtime": 1779611336.5036438,
+    "ast_hash": "25d579fa52c3a8c608c54e6b48d37b73",
+    "semantic_hash": "25d579fa52c3a8c608c54e6b48d37b73"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\tailwind.config.js": {
+    "mtime": 1779012423.926972,
+    "ast_hash": "0ca15314751518312f869ca421e2c04f",
+    "semantic_hash": "0ca15314751518312f869ca421e2c04f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\tsconfig.json": {
+    "mtime": 1779012423.9289477,
+    "ast_hash": "662721996bc74d1469c21a681e37be5e",
+    "semantic_hash": "662721996bc74d1469c21a681e37be5e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\vercel.json": {
+    "mtime": 1779012423.9301713,
+    "ast_hash": "3bdd8a4b77d531068d271b51fc3bb492",
+    "semantic_hash": "3bdd8a4b77d531068d271b51fc3bb492"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\vite.config.ts": {
+    "mtime": 1779012423.932076,
+    "ast_hash": "bf24ef4f99371b14d0201672e9193b10",
+    "semantic_hash": "bf24ef4f99371b14d0201672e9193b10"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\router.tsx": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "0cea60202fdf54b4403244909a9ed642",
+    "semantic_hash": "0cea60202fdf54b4403244909a9ed642"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routeTree.gen.ts": {
+    "mtime": 1779633394.3982515,
+    "ast_hash": "a7b01d4ba827e6f1ceb72972708bb2d4",
+    "semantic_hash": "a7b01d4ba827e6f1ceb72972708bb2d4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\server.ts": {
+    "mtime": 1779634923.6375122,
+    "ast_hash": "b1be6ae5e9eccc2e8a3ecbc4f4051182",
+    "semantic_hash": "b1be6ae5e9eccc2e8a3ecbc4f4051182"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\start.ts": {
+    "mtime": 1779634923.6375122,
+    "ast_hash": "7acf2a0a84ee70fa4b9951083a0fa19b",
+    "semantic_hash": "7acf2a0a84ee70fa4b9951083a0fa19b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\AIAssistantPanel.tsx": {
+    "mtime": 1779634923.577407,
+    "ast_hash": "66e6b5f3d4b0e2bd5167ad354243d284",
+    "semantic_hash": "66e6b5f3d4b0e2bd5167ad354243d284"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\CandidateCard.tsx": {
+    "mtime": 1779634923.577407,
+    "ast_hash": "e01969d83032a6c4304ac622e4596775",
+    "semantic_hash": "e01969d83032a6c4304ac622e4596775"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\Countdown.tsx": {
+    "mtime": 1779634923.5791612,
+    "ast_hash": "b590c0f3719f2e7930459a1c8ac49d99",
+    "semantic_hash": "b590c0f3719f2e7930459a1c8ac49d99"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ElectionIsland.tsx": {
+    "mtime": 1779634923.5801587,
+    "ast_hash": "21f9b486ff283a3f769a379452422510",
+    "semantic_hash": "21f9b486ff283a3f769a379452422510"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\JITVerificationModal.tsx": {
+    "mtime": 1779634923.5804763,
+    "ast_hash": "04c47bd60c357b218235ea88db65164f",
+    "semantic_hash": "04c47bd60c357b218235ea88db65164f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\OtpInput.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "537399a7ac01a472457038b6dd3463eb",
+    "semantic_hash": "537399a7ac01a472457038b6dd3463eb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\PageLoader.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "f191d835af5f7feab06638beecc15da4",
+    "semantic_hash": "f191d835af5f7feab06638beecc15da4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\TimerBanner.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "74caa0b0e09a7d44fbc878296d2b6b11",
+    "semantic_hash": "74caa0b0e09a7d44fbc878296d2b6b11"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\layout\\AppLayout.tsx": {
+    "mtime": 1779634923.577407,
+    "ast_hash": "9c6649708e8802f1656dd52779685aee",
+    "semantic_hash": "9c6649708e8802f1656dd52779685aee"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\layout\\Header.tsx": {
+    "mtime": 1779634923.5801587,
+    "ast_hash": "a8ce44469f161d0778406c78801161b2",
+    "semantic_hash": "a8ce44469f161d0778406c78801161b2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\layout\\MobileBottomNav.tsx": {
+    "mtime": 1779634923.5804763,
+    "ast_hash": "fe516f3a0decabaaeab38d9339ec1623",
+    "semantic_hash": "fe516f3a0decabaaeab38d9339ec1623"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\layout\\Sidebar.tsx": {
+    "mtime": 1779634923.5804763,
+    "ast_hash": "7e343bb719f092bb7f1abbb6fe454739",
+    "semantic_hash": "7e343bb719f092bb7f1abbb6fe454739"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\accordion.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "1152021ea2d7f6dbffa8a9c49b4fc657",
+    "semantic_hash": "1152021ea2d7f6dbffa8a9c49b4fc657"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\alert-dialog.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "6c6d8c338274d9ea9213cb3f846aa441",
+    "semantic_hash": "6c6d8c338274d9ea9213cb3f846aa441"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\alert.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "f993d7e96b1e25ce50e68ed97e11d2a8",
+    "semantic_hash": "f993d7e96b1e25ce50e68ed97e11d2a8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\aspect-ratio.tsx": {
+    "mtime": 1779634923.5820687,
+    "ast_hash": "c5c364545e1b25a94e9e752cd67ad048",
+    "semantic_hash": "c5c364545e1b25a94e9e752cd67ad048"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\avatar.tsx": {
+    "mtime": 1779634923.5840776,
+    "ast_hash": "72989cd32f72c4122802540ef32525a5",
+    "semantic_hash": "72989cd32f72c4122802540ef32525a5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\badge.tsx": {
+    "mtime": 1779634923.5840776,
+    "ast_hash": "81cade001fc4260f9943e18dcd79449b",
+    "semantic_hash": "81cade001fc4260f9943e18dcd79449b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\breadcrumb.tsx": {
+    "mtime": 1779634923.5840776,
+    "ast_hash": "bb9ac254f12662b20d5d50b84308bf3a",
+    "semantic_hash": "bb9ac254f12662b20d5d50b84308bf3a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\button.tsx": {
+    "mtime": 1779634923.5840776,
+    "ast_hash": "5b40ae0e331b7342656fb9a21e1840ac",
+    "semantic_hash": "5b40ae0e331b7342656fb9a21e1840ac"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\calendar.tsx": {
+    "mtime": 1779634923.5845828,
+    "ast_hash": "415d91d7006d4cc654e27620fca340f6",
+    "semantic_hash": "415d91d7006d4cc654e27620fca340f6"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\card.tsx": {
+    "mtime": 1779634923.5845828,
+    "ast_hash": "d6c48ea36221b9cdc3576d305d12d5d5",
+    "semantic_hash": "d6c48ea36221b9cdc3576d305d12d5d5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\carousel.tsx": {
+    "mtime": 1779634923.5850873,
+    "ast_hash": "e324c68ae00cd5aed49317638abd429a",
+    "semantic_hash": "e324c68ae00cd5aed49317638abd429a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\chart.tsx": {
+    "mtime": 1779634923.5850873,
+    "ast_hash": "6a3baf94f2e89f1f97d4d7a28f3622d2",
+    "semantic_hash": "6a3baf94f2e89f1f97d4d7a28f3622d2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\checkbox.tsx": {
+    "mtime": 1779634923.5850873,
+    "ast_hash": "142bf28afc40346e352be4b29aad7d55",
+    "semantic_hash": "142bf28afc40346e352be4b29aad7d55"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\collapsible.tsx": {
+    "mtime": 1779634923.5850873,
+    "ast_hash": "767631bbc344945c236f185f4078d71d",
+    "semantic_hash": "767631bbc344945c236f185f4078d71d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\command.tsx": {
+    "mtime": 1779634923.5850873,
+    "ast_hash": "014782599cc838b021ec68b07ad4ea02",
+    "semantic_hash": "014782599cc838b021ec68b07ad4ea02"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\context-menu.tsx": {
+    "mtime": 1779634923.5850873,
+    "ast_hash": "e9d689beb53d9adb63165bfe64838bf6",
+    "semantic_hash": "e9d689beb53d9adb63165bfe64838bf6"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\dialog.tsx": {
+    "mtime": 1779634923.585934,
+    "ast_hash": "9a859a6e0e4c40794b34632118502eec",
+    "semantic_hash": "9a859a6e0e4c40794b34632118502eec"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\drawer.tsx": {
+    "mtime": 1779634923.585934,
+    "ast_hash": "8be333e8fd8e42576b1b5f72f07f4337",
+    "semantic_hash": "8be333e8fd8e42576b1b5f72f07f4337"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\dropdown-menu.tsx": {
+    "mtime": 1779634923.5869453,
+    "ast_hash": "32156e221f3473280114c80fdb818829",
+    "semantic_hash": "32156e221f3473280114c80fdb818829"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\form.tsx": {
+    "mtime": 1779634923.5869453,
+    "ast_hash": "1b0aa6302b9017ea2a1307c22a1d2983",
+    "semantic_hash": "1b0aa6302b9017ea2a1307c22a1d2983"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\hover-card.tsx": {
+    "mtime": 1779634923.5884225,
+    "ast_hash": "1442794c5ca2a78d69e4e613b315ed3d",
+    "semantic_hash": "1442794c5ca2a78d69e4e613b315ed3d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\input-otp.tsx": {
+    "mtime": 1779634923.5884225,
+    "ast_hash": "58cff10c8942cac8483c0bcd65d39d3c",
+    "semantic_hash": "58cff10c8942cac8483c0bcd65d39d3c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\input.tsx": {
+    "mtime": 1779634923.5884225,
+    "ast_hash": "fb33068d6eadd4430e584ddfa72da9d2",
+    "semantic_hash": "fb33068d6eadd4430e584ddfa72da9d2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\label.tsx": {
+    "mtime": 1779634923.5884225,
+    "ast_hash": "7e35df4ca8edd0835efd97ca7937ef92",
+    "semantic_hash": "7e35df4ca8edd0835efd97ca7937ef92"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\menubar.tsx": {
+    "mtime": 1779634923.5904286,
+    "ast_hash": "5870465653e12c3d0e35a2fad6f9faa9",
+    "semantic_hash": "5870465653e12c3d0e35a2fad6f9faa9"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\navigation-menu.tsx": {
+    "mtime": 1779634923.5904286,
+    "ast_hash": "169a6451373dc5e17c1b3da2e646d0f2",
+    "semantic_hash": "169a6451373dc5e17c1b3da2e646d0f2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\page-header.tsx": {
+    "mtime": 1779634923.5904286,
+    "ast_hash": "b159f0988a9194d9d41a622119527a6c",
+    "semantic_hash": "b159f0988a9194d9d41a622119527a6c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\pagination.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "fac6cdbb4bbf78b273d85cd36d6cbb49",
+    "semantic_hash": "fac6cdbb4bbf78b273d85cd36d6cbb49"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\popover.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "f18aa1da2144f25ee60795c539c51bcd",
+    "semantic_hash": "f18aa1da2144f25ee60795c539c51bcd"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\progress.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "55c462e5c9dd678dcf2c0c510b014ac4",
+    "semantic_hash": "55c462e5c9dd678dcf2c0c510b014ac4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\radio-group.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "357bc630a588800655147312e167ac54",
+    "semantic_hash": "357bc630a588800655147312e167ac54"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\resizable.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "d9fcb9203c749fcab4e125a99bb12a86",
+    "semantic_hash": "d9fcb9203c749fcab4e125a99bb12a86"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\scroll-area.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "87b65d3eb26f2b02ff35a7acea585ba5",
+    "semantic_hash": "87b65d3eb26f2b02ff35a7acea585ba5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\select.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "ec00ac14b94b6272d12a6ae6c380aa9c",
+    "semantic_hash": "ec00ac14b94b6272d12a6ae6c380aa9c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\separator.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "433d163c4ffa00b59398a0c293198b5e",
+    "semantic_hash": "433d163c4ffa00b59398a0c293198b5e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\sheet.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "f9dab8daf0021ef0481f3913acb1dc4e",
+    "semantic_hash": "f9dab8daf0021ef0481f3913acb1dc4e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\sidebar.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "1569d08f4b4c4e139d4b6d070f0e05e3",
+    "semantic_hash": "1569d08f4b4c4e139d4b6d070f0e05e3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\skeleton.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "41b182e6e2fc3805960d41e767d4a972",
+    "semantic_hash": "41b182e6e2fc3805960d41e767d4a972"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\slider.tsx": {
+    "mtime": 1779634923.5909345,
+    "ast_hash": "4752f1bfa26426988d325599e01c335b",
+    "semantic_hash": "4752f1bfa26426988d325599e01c335b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\sonner.tsx": {
+    "mtime": 1779634923.59151,
+    "ast_hash": "97f59f60be3413196d095fcbf7383216",
+    "semantic_hash": "97f59f60be3413196d095fcbf7383216"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\stat-card.tsx": {
+    "mtime": 1779634923.59151,
+    "ast_hash": "3bf17b8928e8820ea298eb461dbb7094",
+    "semantic_hash": "3bf17b8928e8820ea298eb461dbb7094"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\switch.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "82f5d8b0c59bb7ff305caa9f502e79ff",
+    "semantic_hash": "82f5d8b0c59bb7ff305caa9f502e79ff"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\table.tsx": {
+    "mtime": 1779634923.59151,
+    "ast_hash": "7cc889989d53894b659903c73aded96e",
+    "semantic_hash": "7cc889989d53894b659903c73aded96e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\tabs.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "e3558f35f8b847fee9f67da1120a7bce",
+    "semantic_hash": "e3558f35f8b847fee9f67da1120a7bce"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\textarea.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "c7aad96fb9545210d53135a96c76ed6b",
+    "semantic_hash": "c7aad96fb9545210d53135a96c76ed6b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\toggle-group.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "ac26383acf721d116ca8e3ab5c5355d5",
+    "semantic_hash": "ac26383acf721d116ca8e3ab5c5355d5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\toggle.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "b98a69052f115695d2a9455da07632be",
+    "semantic_hash": "b98a69052f115695d2a9455da07632be"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\components\\ui\\tooltip.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "67d71db5a1ab935695d1def497f5b8a6",
+    "semantic_hash": "67d71db5a1ab935695d1def497f5b8a6"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\context\\AuthContext.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "4c9be23ab8942420846fe98b25a5a5ef",
+    "semantic_hash": "4c9be23ab8942420846fe98b25a5a5ef"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\context\\NotificationContext.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "8f9ebbccafd67c6521099baf87c21f19",
+    "semantic_hash": "8f9ebbccafd67c6521099baf87c21f19"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\context\\NotificationStore.ts": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "ac402260e5c4f04f2c7840240a89a6a7",
+    "semantic_hash": "ac402260e5c4f04f2c7840240a89a6a7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\context\\RoleContext.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "530b2d6a6478a10f6636925d607dda85",
+    "semantic_hash": "530b2d6a6478a10f6636925d607dda85"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\hooks\\use-election-data.ts": {
+    "mtime": 1779641798.402654,
+    "ast_hash": "45deb940b824fdbcff84edc454d74c2c",
+    "semantic_hash": "45deb940b824fdbcff84edc454d74c2c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\hooks\\use-hydrated.ts": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "1a0e42930b3e2223088438cc7d01be41",
+    "semantic_hash": "1a0e42930b3e2223088438cc7d01be41"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\hooks\\use-mobile.tsx": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "c0a0bdd4638c391a1dd06ac82074e60b",
+    "semantic_hash": "c0a0bdd4638c391a1dd06ac82074e60b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\api.ts": {
+    "mtime": 1779640714.5748663,
+    "ast_hash": "de6dc2da215208c7dfbc0c0db065159c",
+    "semantic_hash": "de6dc2da215208c7dfbc0c0db065159c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\demo-api.ts": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "a1eb7c5392391f9ea8437af7c92cd745",
+    "semantic_hash": "a1eb7c5392391f9ea8437af7c92cd745"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\demo-config.ts": {
+    "mtime": 1779634923.5921566,
+    "ast_hash": "5c274aaa94de347b4185a590f41619e1",
+    "semantic_hash": "5c274aaa94de347b4185a590f41619e1"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\device-fingerprint.ts": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "e62af2179ffe06ee40e7826ecc67c700",
+    "semantic_hash": "e62af2179ffe06ee40e7826ecc67c700"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\error-capture.ts": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "00e77bfacfb2d79c0816361e678f1b65",
+    "semantic_hash": "00e77bfacfb2d79c0816361e678f1b65"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\error-page.ts": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "1d435c16053611887faaab934c50ddd0",
+    "semantic_hash": "1d435c16053611887faaab934c50ddd0"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\mock.ts": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "e67c8a3a0660d08730a44be004177e1a",
+    "semantic_hash": "e67c8a3a0660d08730a44be004177e1a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\lib\\utils.ts": {
+    "mtime": 1779634923.5932674,
+    "ast_hash": "d9837f38cc05303254571985e3164050",
+    "semantic_hash": "d9837f38cc05303254571985e3164050"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\index.tsx": {
+    "mtime": 1779634923.6029441,
+    "ast_hash": "ff752318441a6f0c59dbed9ec9348dd5",
+    "semantic_hash": "ff752318441a6f0c59dbed9ec9348dd5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\__root.tsx": {
+    "mtime": 1779634923.6375122,
+    "ast_hash": "81aebb159e4187d580f5e1c53e3634b8",
+    "semantic_hash": "81aebb159e4187d580f5e1c53e3634b8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\ai-monitoring.tsx": {
+    "mtime": 1779634923.5938985,
+    "ast_hash": "fe8743a708538c346c245763727e71e8",
+    "semantic_hash": "fe8743a708538c346c245763727e71e8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\announcements.tsx": {
+    "mtime": 1779634923.5938985,
+    "ast_hash": "0bf0ac9e92036d6ebd9d1af0f43b24c7",
+    "semantic_hash": "0bf0ac9e92036d6ebd9d1af0f43b24c7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\audit-logs.tsx": {
+    "mtime": 1779635252.5912764,
+    "ast_hash": "6284cfa1774a906dc8c96a575c3d7115",
+    "semantic_hash": "6284cfa1774a906dc8c96a575c3d7115"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\campus-report.tsx": {
+    "mtime": 1779634923.5938985,
+    "ast_hash": "fc450957d5c3080510ac1d15a0a19a56",
+    "semantic_hash": "fc450957d5c3080510ac1d15a0a19a56"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\candidates.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "8b737d8dc6373c35de3ef9abf11c4eab",
+    "semantic_hash": "8b737d8dc6373c35de3ef9abf11c4eab"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\concerns-clusters.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "6226cc73df48a8a35ada6a6b3ac34b75",
+    "semantic_hash": "6226cc73df48a8a35ada6a6b3ac34b75"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\dashboard.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "ebc6a03dd66089311c2e46bafb776b5a",
+    "semantic_hash": "ebc6a03dd66089311c2e46bafb776b5a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\election.tsx": {
+    "mtime": 1779642797.6021214,
+    "ast_hash": "d90aab52e326cbbbd2b485952b4b73a7",
+    "semantic_hash": "d90aab52e326cbbbd2b485952b4b73a7"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\login.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "84d1b74200d692b8767e70ee86fbde2c",
+    "semantic_hash": "84d1b74200d692b8767e70ee86fbde2c"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\manifestos.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "74a731bd40dcf9fb0d76593a9ba81808",
+    "semantic_hash": "74a731bd40dcf9fb0d76593a9ba81808"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\media.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "b58fc4330993fd6a425b7e205af756d5",
+    "semantic_hash": "b58fc4330993fd6a425b7e205af756d5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\otp-verify.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "15b7a4a2dc76ca1c7be4779b8588c7fe",
+    "semantic_hash": "15b7a4a2dc76ca1c7be4779b8588c7fe"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\admin\\results.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "53b0907095c55af478795dc05cc66093",
+    "semantic_hash": "53b0907095c55af478795dc05cc66093"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\ai-report.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "abab8c2fa7c403da3b3b20542d1e75a5",
+    "semantic_hash": "abab8c2fa7c403da3b3b20542d1e75a5"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\apply.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "2749152123ba876f0f94ac9948c77012",
+    "semantic_hash": "2749152123ba876f0f94ac9948c77012"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\dashboard.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "ab4d907fd82caaf45ecf44cf8e8dc6d1",
+    "semantic_hash": "ab4d907fd82caaf45ecf44cf8e8dc6d1"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\manifesto.tsx": {
+    "mtime": 1779634923.599586,
+    "ast_hash": "c2f154bd471f1b2abd19cfa11349b46b",
+    "semantic_hash": "c2f154bd471f1b2abd19cfa11349b46b"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\media.tsx": {
+    "mtime": 1779634923.5946243,
+    "ast_hash": "54d9bdc8955346b4cc998fd9d18827fc",
+    "semantic_hash": "54d9bdc8955346b4cc998fd9d18827fc"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\notifications.tsx": {
+    "mtime": 1779634923.6009011,
+    "ast_hash": "6ae71c91ffc37dc0df17eebf14673157",
+    "semantic_hash": "6ae71c91ffc37dc0df17eebf14673157"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\otp-verify.tsx": {
+    "mtime": 1779634923.6009011,
+    "ast_hash": "afc901219e7404c34bb9ddef9cf11916",
+    "semantic_hash": "afc901219e7404c34bb9ddef9cf11916"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\register.tsx": {
+    "mtime": 1779634923.6009011,
+    "ast_hash": "dbd7f2026e217134c4631b60aa4933eb",
+    "semantic_hash": "dbd7f2026e217134c4631b60aa4933eb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\settings.tsx": {
+    "mtime": 1779634923.6029441,
+    "ast_hash": "3ec8788a8c7d834c09fef1e29d0e115f",
+    "semantic_hash": "3ec8788a8c7d834c09fef1e29d0e115f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\candidate\\status.tsx": {
+    "mtime": 1779634923.6044686,
+    "ast_hash": "1d62c3adea594e1d209df8f1320ac4eb",
+    "semantic_hash": "1d62c3adea594e1d209df8f1320ac4eb"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\ai-assistant.tsx": {
+    "mtime": 1779634923.6361542,
+    "ast_hash": "484eea9357d3ca8f3142646727f6ee34",
+    "semantic_hash": "484eea9357d3ca8f3142646727f6ee34"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\candidates.tsx": {
+    "mtime": 1779634923.6361542,
+    "ast_hash": "89989be863b6b2e402b43c432ff7f605",
+    "semantic_hash": "89989be863b6b2e402b43c432ff7f605"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\concerns.tsx": {
+    "mtime": 1779634923.6361542,
+    "ast_hash": "8013fde980ca3c00899d6cfb2a79a080",
+    "semantic_hash": "8013fde980ca3c00899d6cfb2a79a080"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\dashboard.tsx": {
+    "mtime": 1779641951.052673,
+    "ast_hash": "7d0416df20af32065f7c0548c3ff3348",
+    "semantic_hash": "7d0416df20af32065f7c0548c3ff3348"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\media.tsx": {
+    "mtime": 1779634923.6361542,
+    "ast_hash": "e0d62e736981f36a2b77754f4343baa2",
+    "semantic_hash": "e0d62e736981f36a2b77754f4343baa2"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\notifications.tsx": {
+    "mtime": 1779634923.6361542,
+    "ast_hash": "701ebb5aaa4a90c0ff1e0e1168469c65",
+    "semantic_hash": "701ebb5aaa4a90c0ff1e0e1168469c65"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\otp-verify.tsx": {
+    "mtime": 1779634923.6361542,
+    "ast_hash": "e3b6749b6ccb411616fd7923696832d8",
+    "semantic_hash": "e3b6749b6ccb411616fd7923696832d8"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\settings.tsx": {
+    "mtime": 1779634923.6375122,
+    "ast_hash": "2d7d810055225df3a299957b61ea3bb6",
+    "semantic_hash": "2d7d810055225df3a299957b61ea3bb6"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\statistics.tsx": {
+    "mtime": 1779634923.6375122,
+    "ast_hash": "730b6db074c21135dee51053e9e78ce4",
+    "semantic_hash": "730b6db074c21135dee51053e9e78ce4"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\frontend\\src\\routes\\voter\\vote.tsx": {
+    "mtime": 1779634923.6375122,
+    "ast_hash": "9bf9c6451753d8d846a73652997bde8e",
+    "semantic_hash": "9bf9c6451753d8d846a73652997bde8e"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\scripts\\add_edge_case_tests.py": {
+    "mtime": 1779625228.3038404,
+    "ast_hash": "4fb7ade86148be2cd032129e905d6375",
+    "semantic_hash": "4fb7ade86148be2cd032129e905d6375"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\scripts\\fix_manifesto_test.py": {
+    "mtime": 1779624404.0463974,
+    "ast_hash": "8c419d89e5c089c09a9e5e3d7088117d",
+    "semantic_hash": "8c419d89e5c089c09a9e5e3d7088117d"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\scripts\\write_manifesto_load_test.py": {
+    "mtime": 1779625539.8228245,
+    "ast_hash": "e22ae529762906382f9c68b212ae01b3",
+    "semantic_hash": "e22ae529762906382f9c68b212ae01b3"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\scripts\\write_manifesto_test.py": {
+    "mtime": 1779624291.482714,
+    "ast_hash": "cebd7e78b33bcf668e2711ce3774309f",
+    "semantic_hash": "cebd7e78b33bcf668e2711ce3774309f"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\scripts\\write_vote_auth_test.py": {
+    "mtime": 1779626440.9799237,
+    "ast_hash": "29e410e7b9c58dad1cdaaa79e81b0545",
+    "semantic_hash": "29e410e7b9c58dad1cdaaa79e81b0545"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\shared\\types\\concern.types.ts": {
+    "mtime": 1779012423.9403858,
+    "ast_hash": "436df76bb94795d7d5efb19d326a6bfc",
+    "semantic_hash": "436df76bb94795d7d5efb19d326a6bfc"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\shared\\types\\manifesto.types.ts": {
+    "mtime": 1779627031.1202257,
+    "ast_hash": "035b73525caeef9ace4f083694a6f3ea",
+    "semantic_hash": "035b73525caeef9ace4f083694a6f3ea"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\ai\\test_ai.py": {
+    "mtime": 1779012423.942399,
+    "ast_hash": "9cedd97f3fc348d7a79f3645ff787fb1",
+    "semantic_hash": "9cedd97f3fc348d7a79f3645ff787fb1"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\ai\\test_gemini.py": {
+    "mtime": 1779622229.7993371,
+    "ast_hash": "26dc0ab4b6d322f59a066fa8a0dc964a",
+    "semantic_hash": "26dc0ab4b6d322f59a066fa8a0dc964a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\backend\\test_api.py": {
+    "mtime": 1779012423.9456325,
+    "ast_hash": "7a361e4694d7f4997784d5109da8a282",
+    "semantic_hash": "7a361e4694d7f4997784d5109da8a282"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\backend\\test_manifesto_e2e.py": {
+    "mtime": 1779625410.1900394,
+    "ast_hash": "ef5aaaee5a8a8c73880a4b5d253d6632",
+    "semantic_hash": "ef5aaaee5a8a8c73880a4b5d253d6632"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\backend\\test_manifesto_load.py": {
+    "mtime": 1779625908.6481018,
+    "ast_hash": "9d97972ad5e18a264cd05725f0b0ae3a",
+    "semantic_hash": "9d97972ad5e18a264cd05725f0b0ae3a"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\backend\\test_vote_auth.py": {
+    "mtime": 1779626656.5581634,
+    "ast_hash": "7bdf8c96a3069b11e25f1d1e43bd29db",
+    "semantic_hash": "7bdf8c96a3069b11e25f1d1e43bd29db"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\backend\\test_vote_load.py": {
+    "mtime": 1779630336.0619497,
+    "ast_hash": "b5054ad4b1021a1074a739404b3448fa",
+    "semantic_hash": "b5054ad4b1021a1074a739404b3448fa"
+  },
+  "C:\\Users\\Bhanu Prasad\\OneDrive\\Desktop\\oces\\online-college-electoral-system\\tests\\frontend\\test_components.ts": {
+    "mtime": 1779012423.9456325,
+    "ast_hash": "beab9788aa8033cacede9144a467d17d",
+    "semantic_hash": "beab9788aa8033cacede9144a467d17d"
+  }
+}

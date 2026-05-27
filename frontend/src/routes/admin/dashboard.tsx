@@ -19,22 +19,57 @@ function Page() {
       <PageHeader title="Admin Dashboard" subtitle="Election operations overview" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Users} label="Registered Voters" value={kpi.registered.toLocaleString()} layout="col" delay={50} />
-        <StatCard icon={CheckCircle2} label="Votes Cast" value={kpi.votesCast.toLocaleString()} tone="bg-success/15 text-success" layout="col" delay={100} />
-        <StatCard icon={TrendingUp} label="Turnout" value={`${kpi.turnout}%`} tone="bg-[#1F3A6E]/10 text-[#1F3A6E]" layout="col" delay={150} />
-        <StatCard icon={AlertTriangle} label="Active AI Alerts" value={kpi.alerts} tone="bg-destructive/10 text-destructive" layout="col" delay={200} />
+        <StatCard
+          icon={Users}
+          label="Registered Voters"
+          value={kpi.registered.toLocaleString()}
+          layout="col"
+          delay={50}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Votes Cast"
+          value={kpi.votesCast.toLocaleString()}
+          tone="bg-success/15 text-success"
+          layout="col"
+          delay={100}
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Turnout"
+          value={`${kpi.turnout}%`}
+          tone="bg-[#1F3A6E]/10 text-[#1F3A6E]"
+          layout="col"
+          delay={150}
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Active AI Alerts"
+          value={kpi.alerts}
+          tone="bg-destructive/10 text-destructive"
+          layout="col"
+          delay={200}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Phase title="Registration" status="OPEN" tone="bg-success/15 text-success" delay={250} />
-        <Phase title="Voting" status="SCHEDULED" tone="bg-warning/20 text-warning-foreground" cta="Activate" delay={300} />
+        <Phase
+          title="Voting"
+          status="SCHEDULED"
+          tone="bg-warning/20 text-warning-foreground"
+          cta="Activate"
+          delay={300}
+        />
         <Phase title="Results" status="PENDING" tone="bg-muted text-muted-foreground" delay={350} />
       </div>
 
       <SectionCard delay={400}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold">AI Fraud Alerts</h2>
-          <Badge variant="outline" className="border-destructive/40 text-destructive animate-pulse">Live</Badge>
+          <Badge variant="outline" className="border-destructive/40 text-destructive animate-pulse">
+            Live
+          </Badge>
         </div>
         <div className="space-y-3">
           {aiAlerts.map((a, i) => (
@@ -48,17 +83,33 @@ function Page() {
               style={{ animationDelay: `${450 + i * 60}ms` }}
             >
               <div className="flex items-start gap-3">
-                <Badge className={a.severity === "HIGH" ? "bg-destructive text-white" : "bg-warning text-warning-foreground"}>
+                <Badge
+                  className={
+                    a.severity === "HIGH"
+                      ? "bg-destructive text-white"
+                      : "bg-warning text-warning-foreground"
+                  }
+                >
                   {a.severity}
                 </Badge>
                 <div>
                   <p className="font-semibold text-sm">{a.title}</p>
-                  <p className="text-xs text-muted-foreground">{a.detail} · {a.time}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {a.detail} · {a.time}
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <Button size="sm" variant="outline" className="hover:border-[#6C63FF]/40 hover:text-[#6C63FF]">Investigate</Button>
-                <Button size="sm" variant="ghost">Dismiss</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="hover:border-[#6C63FF]/40 hover:text-[#6C63FF]"
+                >
+                  Investigate
+                </Button>
+                <Button size="sm" variant="ghost">
+                  Dismiss
+                </Button>
               </div>
             </div>
           ))}
@@ -76,7 +127,19 @@ function Page() {
   );
 }
 
-function Phase({ title, status, tone, cta, delay }: { title: string; status: string; tone: string; cta?: string; delay?: number }) {
+function Phase({
+  title,
+  status,
+  tone,
+  cta,
+  delay,
+}: {
+  title: string;
+  status: string;
+  tone: string;
+  cta?: string;
+  delay?: number;
+}) {
   return (
     <div
       className={cn(
@@ -88,7 +151,10 @@ function Phase({ title, status, tone, cta, delay }: { title: string; status: str
       <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">{title}</p>
       <Badge className={`${tone} mt-2`}>{status}</Badge>
       {cta && (
-        <Button size="sm" className="mt-4 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-90 border-0 shadow-md">
+        <Button
+          size="sm"
+          className="mt-4 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-90 border-0 shadow-md"
+        >
           {cta}
         </Button>
       )}

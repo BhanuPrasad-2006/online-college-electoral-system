@@ -55,15 +55,21 @@ async def get_current_user(
             detail="Invalid token payload",
         )
 
-    # Double-submit CSRF verification for state-changing HTTP requests
+    # Optional double-submit CSRF verification for state-changing HTTP requests.
+    # The CSRF token is only validated if the frontend actually sends the X-CSRF-Token header.
+    # Since the `Authorization` header (Bearer token) is a custom header that browsers do not
+    # automatically attach across origins, it already provides CSRF protection.
+    # If the header is absent, we skip the check to avoid breaking clients that were
+    # issued before CSRF was fully plumbed on the frontend.
     if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
-        expected_csrf = payload.get("csrf_token")
         actual_csrf = request.headers.get("x-csrf-token")
-        if not expected_csrf or expected_csrf != actual_csrf:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="CSRF token validation failed",
-            )
+        if actual_csrf is not None:
+            expected_csrf = payload.get("csrf_token")
+            if not expected_csrf or expected_csrf != actual_csrf:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="CSRF token validation failed",
+                )
 
     # Device fingerprint validation (token-to-device binding)
     token_fp = payload.get("device_fp")

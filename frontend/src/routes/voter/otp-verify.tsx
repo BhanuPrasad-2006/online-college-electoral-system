@@ -6,7 +6,14 @@ import { Countdown } from "@/components/Countdown";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { voterLoginStep1, voterLoginStep2, getOtpSession, saveOtpSession, saveAuth, resendVoterOtp } from "@/lib/api";
+import {
+  voterLoginStep1,
+  voterLoginStep2,
+  getOtpSession,
+  saveOtpSession,
+  saveAuth,
+  resendVoterOtp,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/voter/otp-verify")({ component: Page });
 
@@ -43,7 +50,15 @@ function OtpVerify() {
     setLoading(true);
     try {
       const res = await voterLoginStep2(sessionToken, otpStr);
-      saveAuth(res.access_token, res.role, res.user_id, res.full_name, (res as any).department, (res as any).semester, (res as any).csrf_token);
+      saveAuth(
+        res.access_token,
+        res.role,
+        res.user_id,
+        res.full_name,
+        (res as any).department,
+        (res as any).semester,
+        (res as any).csrf_token,
+      );
       login("voter");
       toast.success("Verified successfully!");
       nav({ to: "/voter/dashboard" });

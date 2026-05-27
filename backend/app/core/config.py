@@ -35,8 +35,9 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 5
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 180
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ENABLE_DEVICE_FINGERPRINT_BINDING: bool = False
 
     # OTP
     OTP_EXPIRE_MINUTES: int = 5
@@ -62,6 +63,12 @@ class Settings(BaseSettings):
     # AI Microservice
     AI_SERVICE_URL: str = "http://localhost:8001"
     AI_SERVICE_API_KEY: str = "default-ai-service-key-change-in-prod"
+
+    # Face matching thresholds used by live verification
+    # FaceNet128 with euclidean_l2: typical range 0–4. Verified same person = ~0.3–0.9, different = 1.0+
+    # Standard recommended threshold: 1.1–1.2 (DeepFace default is 0.8 which is too strict for webcam)
+    FACE_MATCH_THRESHOLD: float = 1.15
+    FACE_MATCH_COSINE_THRESHOLD: float = 0.7
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",

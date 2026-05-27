@@ -17,13 +17,14 @@ import {
 import { cn } from "@/lib/utils";
 import type { SidebarKind } from "./Sidebar";
 import { useNotifications } from "@/context/NotificationStore";
+import { useCurrentPhase } from "@/hooks/use-election-data";
 
 const MAP = {
   voter: [
     { to: "/voter/dashboard", label: "Home", icon: Home },
     { to: "/voter/candidates", label: "Candidates", icon: Users },
     { to: "/voter/vote", label: "Vote", icon: Vote },
-    { to: "/voter/ai-assistant", label: "AI", icon: MessageSquare },
+    { to: "/voter/results", label: "Results", icon: BarChart2 },
     { to: "/voter/notifications", label: "Alerts", icon: Bell },
   ],
   candidate: [
@@ -44,7 +45,18 @@ const MAP = {
 
 export function MobileBottomNav({ kind }: { kind: SidebarKind }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const links = MAP[kind];
+  const { data: phaseData } = useCurrentPhase();
+  const isVoteOpen = phaseData?.phase === "voting_open";
+  
+  // Filter out Vote link when voting is not open
+  let links = MAP[kind];
+  if (kind === "voter") {
+    links = links.filter((l) => {
+      if (l.to === "/voter/vote") return isVoteOpen;
+      return true;
+    });
+  }
+  
   const { unreadCount } = useNotifications();
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 glass-panel border-t border-border/60 z-30 pb-safe shadow-[0_-4px_24px_oklch(0_0_0/0.06)]">

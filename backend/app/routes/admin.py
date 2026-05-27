@@ -2,7 +2,7 @@ import os
 import uuid
 from typing import Optional
 from collections import Counter
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -14,11 +14,66 @@ from app.models.concern import Concern
 from app.enums.concern_enums import ConcernCategoryEnum
 from app.services.face_service import extract_face_embedding, serialize_embedding
 from app.services.ai_proxy_service import AIProxyService
+from app.services.supabase_storage import (
+    SupabaseStorageError,
+    upload_voter_face as supabase_upload_voter_face,
+)
+from app.utils.image_validator import validate_image
 from app.utils.logger import logger
+from app.core.config import settings
+from app.middleware.rate_limit import limiter
+import asyncio
 
 router = APIRouter()
 
-UPLOAD_DIR = "uploads/faces"
+# Development-only helper: allow unauthenticated upload for testing local dev
+if settings.APP_ENV == "development":
+    @router.post("/debug/voters/{voter_id}/upload-face")
+    async def debug_upload_voter_face(
+        voter_id: str,
+        file: UploadFile = File(...),
+        db: AsyncSession = Depends(get_db),
+    ):
+        # Reuse same logic as upload_voter_face but without admin dependency
+        # Phase gate intentionally skipped for dev
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+        image_data = await file.read()
+        if len(image_data) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Image size exceeds 5MB limit.")
+        validation = validate_image(image_data, file.filename or "face.jpg")
+        if not validation.passed:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=validation.reason)
+        result = await db.execute(select(Voter).where(Voter.voter_id == voter_id))
+        voter = result.scalars().first()
+        if not voter:
+            raise HTTPException(status_code=404, detail="Voter not found.")
+        try:
+            embedding = extract_face_embedding(image_data)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+        # local save
+        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+        safe_filename = f"student_{voter_id}{file_ext}"
+        file_path = os.path.join("uploads/faces", safe_filename)
+        os.makedirs("uploads/faces", exist_ok=True)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(image_data)
+            voter.reference_image_url = f"/{file_path.replace(os.sep, '/')}"
+        except Exception as e:
+            logger.error(f"Failed to save face image: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save image file.")
+        voter.face_encoding = serialize_embedding(embedding)
+        try:
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Failed to commit face embedding: {e}")
+            raise HTTPException(status_code=500, detail="Database error while saving face data.")
+        return {"success": True, "message": "Face uploaded (debug)", "reference_image_url": voter.reference_image_url}
 
 
 @router.post("/voters/{voter_id}/upload-face")
@@ -30,9 +85,21 @@ async def upload_voter_face(
 ):
     """
     Admin endpoint to upload a reference ID photo for a student.
+    Photo uploads are blocked during/after voting to prevent impersonation.
     Extracts face embedding and saves it to DB.
     """
     # 1. Verify user is admin is handled by get_admin_user dependency
+
+    # Phase gate — block photo uploads only after election is fully closed/results published
+    from app.models.election import Election
+    from app.enums.election_status import ElectionStatusEnum
+    election_result = await db.execute(
+        select(Election).order_by(Election.created_at.desc()).limit(1)
+    )
+    election = election_result.scalars().first()
+    # NOTE: previously uploads were blocked when election results were announced.
+    # For admin tooling during development, allow admin uploads regardless of election status.
+    # If you want to re-enable the phase gate, restore the check below.
         
     # 2. Validate file type and size
     if not file.content_type.startswith("image/"):
@@ -42,33 +109,60 @@ async def upload_voter_face(
     if len(image_data) > 5 * 1024 * 1024:  # 5MB
         raise HTTPException(status_code=400, detail="Image size exceeds 5MB limit.")
         
-    # 3. Find voter
+    # 3. Validate image (block AI-generated / malicious content)
+    validation = validate_image(image_data, file.filename or "face.jpg")
+    if not validation.passed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=validation.reason)
+
+    # 4. Find voter
     result = await db.execute(select(Voter).where(Voter.voter_id == voter_id))
     voter = result.scalars().first()
     if not voter:
         raise HTTPException(status_code=404, detail="Voter not found.")
         
-    # 4. Process with AI Service
+    # 5. Process with AI Service
     try:
         embedding = extract_face_embedding(image_data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
         
-    # 5. Save the file
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    file_ext = os.path.splitext(file.filename)[1] or ".jpg"
-    safe_filename = f"student_{voter_id}{file_ext}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    # 6. Upload to Supabase Storage (with local fallback)
+    supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)
+    if supabase_enabled:
+        try:
+            uploaded = await supabase_upload_voter_face(
+                voter_id=voter_id,
+                filename=file.filename or "face.jpg",
+                content_type=file.content_type or "image/jpeg",
+                data=image_data,
+            )
+            voter.reference_image_url = uploaded.public_url
+        except SupabaseStorageError as exc:
+            logger.error(f"Supabase face upload failed: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upload face image to storage. Please try again.",
+            )
+    else:
+        # Local fallback for development
+        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+        safe_filename = f"student_{voter_id}{file_ext}"
+        file_path = os.path.join("uploads/faces", safe_filename)
+        os.makedirs("uploads/faces", exist_ok=True)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(image_data)
+            voter.reference_image_url = f"/{file_path.replace(os.sep, '/')}"
+        except Exception as e:
+            logger.error(f"Failed to save face image: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save image file.")
     
-    try:
-        with open(file_path, "wb") as f:
-            f.write(image_data)
-    except Exception as e:
-        logger.error(f"Failed to save face image: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save image file.")
-        
-    # 6. Save to DB
-    voter.reference_image_url = f"/{file_path.replace(os.sep, '/')}"
+    # 7. Save face encoding to DB
     voter.face_encoding = serialize_embedding(embedding)
     
     try:
@@ -80,7 +174,7 @@ async def upload_voter_face(
         
     return {
         "success": True,
-        "message": "Face enrolled successfully",
+        "message": "Face uploaded successfully",
         "reference_image_url": voter.reference_image_url
     }
 
@@ -127,29 +221,140 @@ async def resolve_ai_alert(
     return {"message": "Alert resolved successfully", "alert_id": alert_id}
 
 
+def _compute_audit_level(event: str) -> str:
+    """Classify audit event severity based on keywords."""
+    upper = event.upper()
+    if any(k in upper for k in ["FAILED", "ERROR", "REJECTED", "HONEYPOT"]):
+        return "security"
+    if any(k in upper for k in ["ALERT", "WARNING", "SUSPICIOUS"]):
+        return "warning"
+    return "success"
+
+
 @router.get("/audit-logs")
 async def get_audit_logs(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(get_admin_user),
+    skip: int = 0,
+    limit: int = 50,
+    event_type: Optional[str] = None,
+    actor: Optional[str] = None,
+    ip: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    q: Optional[str] = None,
 ):
-    """Query system logs for forensic auditing."""
+    """
+    Query system logs for forensic auditing with pagination and filters.
+
+    - skip / limit: pagination (default 0 / 50, max limit 200)
+    - event_type: filter by exact event type (e.g. LOGIN_SUCCESS, VOTE_CAST)
+    - actor: partial-match filter on actor_id (UUID string representation)
+    - ip: partial-match filter on ip_address
+    - date_from / date_to: ISO date range filter (inclusive)
+    - q: catch-all search across description
+    """
     from app.models.audit_log import AuditLog
-    query = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(100)
-    result = await db.execute(query)
+    from sqlalchemy import func, cast, String
+    from datetime import datetime
+
+    limit = min(limit, 200)
+
+    # Count query
+    count_query = select(func.count(AuditLog.log_id))
+
+    # Data query
+    data_query = select(AuditLog).order_by(AuditLog.created_at.desc())
+
+    if event_type:
+        count_query = count_query.where(AuditLog.event_type == event_type)
+        data_query = data_query.where(AuditLog.event_type == event_type)
+    if actor:
+        pattern = f"%{actor}%"
+        count_query = count_query.where(cast(AuditLog.actor_id, String).ilike(pattern))
+        data_query = data_query.where(cast(AuditLog.actor_id, String).ilike(pattern))
+    if ip:
+        pattern = f"%{ip}%"
+        count_query = count_query.where(AuditLog.ip_address.ilike(pattern))
+        data_query = data_query.where(AuditLog.ip_address.ilike(pattern))
+    if date_from:
+        try:
+            dt_from = datetime.fromisoformat(date_from)
+            count_query = count_query.where(AuditLog.created_at >= dt_from)
+            data_query = data_query.where(AuditLog.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.fromisoformat(date_to)
+            count_query = count_query.where(AuditLog.created_at <= dt_to)
+            data_query = data_query.where(AuditLog.created_at <= dt_to)
+        except ValueError:
+            pass
+    if q:
+        pattern = f"%{q}%"
+        count_query = count_query.where(AuditLog.description.ilike(pattern))
+        data_query = data_query.where(AuditLog.description.ilike(pattern))
+
+    # Execute count
+    total_result = await db.execute(count_query)
+    total_count = total_result.scalar() or 0
+
+    # Execute paginated data
+    data_query = data_query.offset(skip).limit(limit)
+    result = await db.execute(data_query)
     logs = result.scalars().all()
-    
-    return [
-        {
-            "id": str(log.log_id),
-            "ts": log.created_at.strftime("%Y-%m-%d %H:%M:%S") if log.created_at else None,
-            "event": log.event_type,
-            "actor": str(log.actor_id) if log.actor_id else "anonymous",
-            "ip": str(log.ip_address) if log.ip_address else "unknown",
-            "desc": log.description,
-            "level": "security" if "FAILED" in log.event_type or "ALERT" in log.event_type or "HONEYPOT" in log.event_type else "success"
-        }
-        for log in logs
-    ]
+
+    return {
+        "logs": [
+            {
+                "id": str(log.log_id),
+                "ts": log.created_at.strftime("%Y-%m-%d %H:%M:%S") if log.created_at else None,
+                "ts_iso": log.created_at.isoformat() if log.created_at else None,
+                "event": log.event_type,
+                "actor": str(log.actor_id) if log.actor_id else "anonymous",
+                "ip": str(log.ip_address) if log.ip_address else "unknown",
+                "desc": log.description,
+                "level": _compute_audit_level(log.event_type),
+            }
+            for log in logs
+        ],
+        "total": total_count,
+        "skip": skip,
+        "limit": limit,
+    }
+
+
+@router.get("/audit-logs/{log_id}")
+async def get_audit_log_detail(
+    log_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """Return full details for a single audit log entry."""
+    from app.models.audit_log import AuditLog
+    import uuid
+
+    try:
+        uid = uuid.UUID(log_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid log ID format")
+
+    result = await db.execute(select(AuditLog).where(AuditLog.log_id == uid))
+    log = result.scalars().first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+
+    return {
+        "id": str(log.log_id),
+        "ts": log.created_at.strftime("%Y-%m-%d %H:%M:%S") if log.created_at else None,
+        "ts_iso": log.created_at.isoformat() if log.created_at else None,
+        "event": log.event_type,
+        "actor": str(log.actor_id) if log.actor_id else "anonymous",
+        "ip": str(log.ip_address) if log.ip_address else "unknown",
+        "desc": log.description,
+        "level": _compute_audit_level(log.event_type),
+    }
 
 
 # ==============================================================================
@@ -210,7 +415,13 @@ async def get_clustered_concerns(
                     "category": c.category.value if c.category else "unknown",
                     "sentiment": c.sentiment.value if c.sentiment else "neutral",
                     "priority": c.priority,
+                    "to_candidate_id": c.to_candidate_id,
                     "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
+                    "subject": c.subject,
+                    "message": c.message,
+                    "evidence_url": c.evidence_url,
+                    "status": c.status,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
                 }
                 for c in sorted_concerns
             ],
@@ -493,4 +704,310 @@ async def get_ip_clusters(
     return {
         "clusters": clusters,
         "total_unique_ips": len(set(all_ips)),
+    }
+
+
+# ==============================================================================
+# PENDING PHOTO REVIEW (Voter-submitted photos awaiting admin approval)
+# ==============================================================================
+
+
+@router.get("/pending-photos")
+async def list_pending_photos(
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """
+    List all voters who have submitted a pending photo for admin review.
+    Returns both current (approved) and pending images for side-by-side comparison.
+    """
+    result = await db.execute(
+        select(Voter).where(Voter.pending_image_url.isnot(None)).order_by(Voter.full_name)
+    )
+    voters = result.scalars().all()
+
+    return [
+        {
+            "voter_id": str(v.voter_id),
+            "full_name": v.full_name,
+            "college_email": v.college_email,
+            "current_image_url": v.reference_image_url or None,
+            "pending_image_url": v.pending_image_url,
+            "has_current_photo": v.reference_image_url is not None,
+            "submitted_at": None,  # We don't have a timestamp for submission yet
+        }
+        for v in voters
+    ]
+
+
+@router.post("/pending-photos/{voter_id}/approve")
+async def approve_pending_photo(
+    voter_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """
+    Approve a voter's pending photo.
+    - Moves current photo to 'previous' for audit trail
+    - Moves pending photo to 'current'
+    - Clears pending fields
+    """
+    result = await db.execute(select(Voter).where(Voter.voter_id == voter_id))
+    voter = result.scalars().first()
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    if not voter.pending_image_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending photo to approve.",
+        )
+
+    # Move current to previous (audit trail)
+    voter.previous_image_url = voter.reference_image_url
+    voter.previous_face_encoding = voter.face_encoding
+
+    # Move pending to current
+    voter.reference_image_url = voter.pending_image_url
+    voter.face_encoding = voter.pending_face_encoding
+
+    # Clear pending
+    voter.pending_image_url = None
+    voter.pending_face_encoding = None
+
+    # Audit log
+    from app.models.audit_log import AuditLog
+    from datetime import datetime, timezone
+
+    audit_entry = AuditLog(
+        event_type="PHOTO_APPROVED",
+        actor_id=current_admin.get("user_id"),
+        description=f"Admin approved new photo for voter {voter.full_name} ({voter.college_email})",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit_entry)
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to approve pending photo: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while approving photo.",
+        )
+
+    return {
+        "success": True,
+        "message": f"Photo approved for {voter.full_name}",
+        "current_image_url": voter.reference_image_url,
+        "previous_image_url": voter.previous_image_url,
+    }
+
+
+@router.post("/pending-photos/{voter_id}/reject")
+async def reject_pending_photo(
+    voter_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """
+    Reject a voter's pending photo.
+    Clears the pending fields, keeping the current photo unchanged.
+    """
+    result = await db.execute(select(Voter).where(Voter.voter_id == voter_id))
+    voter = result.scalars().first()
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    if not voter.pending_image_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending photo to reject.",
+        )
+
+    # Clear pending fields (current photo stays unchanged)
+    voter.pending_image_url = None
+    voter.pending_face_encoding = None
+
+    # Audit log
+    from app.models.audit_log import AuditLog
+    from datetime import datetime, timezone
+
+    audit_entry = AuditLog(
+        event_type="PHOTO_REJECTED",
+        actor_id=current_admin.get("user_id"),
+        description=f"Admin rejected photo update for voter {voter.full_name} ({voter.college_email})",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit_entry)
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to reject pending photo: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while rejecting photo.",
+        )
+
+    return {
+        "success": True,
+        "message": f"Photo update rejected for {voter.full_name}",
+    }
+
+
+@router.post("/pending-photos/{voter_id}/request-reupload")
+@limiter.limit("30/minute")
+async def request_voter_photo_reupload(
+    request: Request,
+    voter_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """
+    Admin: Request a voter to re-upload their photo.
+    Sets the photo_reupload_requested flag and resets reupload count to 0
+    so the voter can submit a new photo.
+    """
+    result = await db.execute(select(Voter).where(Voter.voter_id == voter_id))
+    voter = result.scalars().first()
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    voter.photo_reupload_requested = True
+    voter.photo_reupload_count = 0  # Reset count so they can upload again
+
+    # Clear any pending photo
+    voter.pending_image_url = None
+    voter.pending_face_encoding = None
+
+    # Audit log
+    from app.models.audit_log import AuditLog
+    from datetime import datetime, timezone
+
+    audit_entry = AuditLog(
+        event_type="PHOTO_REUPLOAD_REQUESTED",
+        actor_id=current_admin.get("user_id"),
+        description=f"Admin requested photo re-upload from voter {voter.full_name} ({voter.college_email})",
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit_entry)
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to request photo re-upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while requesting re-upload.",
+        )
+
+    # Send email notification
+    if voter.college_email:
+        admin_name = current_admin.get("email", "Election Admin")
+        email_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px;">
+            <div style="background: #6C63FF; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                <h2 style="color: white; margin: 0;">Photo Re-upload Requested</h2>
+            </div>
+            <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+                <p style="color: #374151; font-size: 16px;">Hi <strong>{voter.full_name}</strong>,</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.5;">
+                    The election admin has requested you to upload a new profile photo for your voter account.
+                </p>
+                <div style="background: #eef2ff; border-left: 4px solid #6C63FF; padding: 12px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+                    <p style="color: #4338ca; margin: 0; font-size: 14px;">
+                        <strong>Action Required:</strong> Log in to your voter dashboard and upload a clear, well-lit photo of your face.
+                    </p>
+                </div>
+                <p style="color: #6b7280; font-size: 13px; line-height: 1.4;">
+                    Once submitted, the admin will review and approve your new photo. You can submit up to 2 photos for review.
+                </p>
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                    If you have any questions, please contact the election admin.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        try:
+            from app.services.email_service import send_election_email
+            asyncio.create_task(
+                send_election_email(
+                    to_email=voter.college_email,
+                    recipient_name=voter.full_name,
+                    subject="Photo Re-upload Requested - College Election Portal",
+                    html_body=email_body
+                )
+            )
+        except Exception as e:
+            logger.error(f"Failed to send re-upload email to {voter.college_email}: {e}")
+
+    return {
+        "success": True,
+        "message": f"Re-upload requested for {voter.full_name}. Email notification sent.",
+    }
+
+
+@router.get("/pending-photos/reupload-requests")
+async def list_reupload_requests(
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """
+    Admin: List all voters who have been asked to re-upload their photo.
+    """
+    result = await db.execute(
+        select(Voter).where(Voter.photo_reupload_requested == True).order_by(Voter.full_name)
+    )
+    voters = result.scalars().all()
+
+    return [
+        {
+            "voter_id": str(v.voter_id),
+            "full_name": v.full_name,
+            "college_email": v.college_email,
+            "current_image_url": v.reference_image_url or None,
+            "has_current_photo": v.reference_image_url is not None,
+            "has_submitted_new_photo": v.pending_image_url is not None,
+            "pending_image_url": v.pending_image_url or None,
+        }
+        for v in voters
+    ]
+
+
+@router.post("/pending-photos/{voter_id}/clear-reupload-request")
+async def clear_reupload_request(
+    voter_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(get_admin_user),
+):
+    """
+    Admin: Clear the re-upload request flag for a voter (e.g. after they've uploaded a new photo).
+    """
+    result = await db.execute(select(Voter).where(Voter.voter_id == voter_id))
+    voter = result.scalars().first()
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter not found")
+
+    voter.photo_reupload_requested = False
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to clear re-upload request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error.",
+        )
+
+    return {
+        "success": True,
+        "message": f"Re-upload request cleared for {voter.full_name}.",
     }

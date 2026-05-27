@@ -17,6 +17,8 @@ import {
   fetchAiAlerts,
   fetchAuditLogs,
   fetchCandidateConcernReport,
+  fetchPublicResults,
+  getAuthToken,
   getCurrentPhase,
 } from "@/lib/api";
 
@@ -27,23 +29,42 @@ const demoQuery = {
   gcTime: 1000 * 60 * 30,
 };
 
-const liveQuery = {
+// Fast-polling: for metrics that change in real-time during voting (turnout, etc.)
+const fastQuery = {
   retry: 1,
-  refetchOnWindowFocus: false,
+  refetchOnWindowFocus: true,
+  refetchIntervalInBackground: false,
+  staleTime: 15_000,
+  refetchInterval: 15_000,
+};
+
+// Normal polling: for moderately dynamic data (phase transitions, notifications)
+const normalQuery = {
+  retry: 1,
+  refetchOnWindowFocus: true,
   refetchIntervalInBackground: false,
   staleTime: 30_000,
+  refetchInterval: 30_000,
+};
+
+// Slow polling: for rarely-changing reference data (election metadata, results)
+const slowQuery = {
+  retry: 1,
+  refetchOnWindowFocus: true,
+  refetchIntervalInBackground: false,
+  staleTime: 60_000,
   refetchInterval: 60_000,
 };
 
 export function useElection() {
-  return useQuery({ queryKey: ["election"], queryFn: fetchElection, ...demoQuery });
+  return useQuery({ queryKey: ["election"], queryFn: fetchElection, ...slowQuery });
 }
 
 export function useCurrentPhase() {
   return useQuery({
     queryKey: ["election-phase"],
     queryFn: getCurrentPhase,
-    ...liveQuery,
+    ...normalQuery,
   });
 }
 
@@ -52,11 +73,11 @@ export function useCandidates() {
 }
 
 export function useKpi() {
-  return useQuery({ queryKey: ["kpi"], queryFn: fetchKpi, ...liveQuery });
+  return useQuery({ queryKey: ["kpi"], queryFn: fetchKpi, ...fastQuery });
 }
 
 export function useNotifications() {
-  return useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications, ...liveQuery });
+  return useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications, ...normalQuery });
 }
 
 export function useMediaItems() {
@@ -64,15 +85,31 @@ export function useMediaItems() {
 }
 
 export function useVoterProfile() {
-  return useQuery({ queryKey: ["voter-profile"], queryFn: fetchVoterProfile, ...demoQuery });
+  // Include auth token in query key so different users get separate cache entries.
+  // This prevents showing Voter A's cached profile to Voter B after login.
+  const token = typeof window !== "undefined" ? getAuthToken() : "no-token";
+  return useQuery({
+    queryKey: ["voter-profile", token],
+    queryFn: fetchVoterProfile,
+    ...demoQuery,
+    staleTime: 0, // Always fetch fresh data from server on mount/invalidation
+  });
 }
 
 export function useCandidateProfile() {
-  return useQuery({ queryKey: ["candidate-profile"], queryFn: fetchCandidateProfile, ...demoQuery });
+  return useQuery({
+    queryKey: ["candidate-profile"],
+    queryFn: fetchCandidateProfile,
+    ...demoQuery,
+  });
 }
 
 export function useConcernCategories() {
-  return useQuery({ queryKey: ["concern-categories"], queryFn: fetchConcernCategories, ...demoQuery });
+  return useQuery({
+    queryKey: ["concern-categories"],
+    queryFn: fetchConcernCategories,
+    ...demoQuery,
+  });
 }
 
 export function useVoterConcerns() {
@@ -91,8 +128,29 @@ export function useAiAlerts() {
   return useQuery({ queryKey: ["ai-alerts"], queryFn: fetchAiAlerts, ...demoQuery });
 }
 
-export function useAuditLogs() {
-  return useQuery({ queryKey: ["audit-logs"], queryFn: fetchAuditLogs, ...demoQuery });
+export function useAuditLogs(params?: {
+  skip?: number;
+  limit?: number;
+  event_type?: string;
+  actor?: string;
+  ip?: string;
+  date_from?: string;
+  date_to?: string;
+  q?: string;
+}) {
+  return useQuery({
+    queryKey: ["audit-logs", params],
+    queryFn: () => fetchAuditLogs(params),
+    ...demoQuery,
+  });
+}
+
+export function usePublicResults() {
+  return useQuery({
+    queryKey: ["public-results"],
+    queryFn: fetchPublicResults,
+    ...slowQuery,
+  });
 }
 
 export function useCandidateConcernReport() {

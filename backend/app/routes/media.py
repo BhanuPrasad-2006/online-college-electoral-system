@@ -17,6 +17,7 @@ from app.models.voter import Voter
 from app.enums.roles import UserRoleEnum
 from app.core.config import settings
 from app.services.supabase_storage import SupabaseStorageError, upload_campaign_media
+from app.utils.image_validator import validate_image
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -248,6 +249,15 @@ async def submit_media(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Security rejection: File contains disallowed scripts or code signatures."
+                )
+
+        # AI-generated image detection for images
+        if content_type and content_type.startswith("image/"):
+            validation = validate_image(file_data, filename)
+            if not validation.passed:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=validation.reason,
                 )
 
         supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)

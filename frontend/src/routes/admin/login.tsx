@@ -32,7 +32,9 @@ function AdminLogin() {
             <Shield className="h-7 w-7 text-white" />
           </div>
           <h1 className="text-2xl font-bold">Election Administration Portal</h1>
-          <p className="text-sm text-muted-foreground mt-1">Restricted access — committee members only</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Restricted access — committee members only
+          </p>
         </div>
 
         <form
@@ -53,20 +55,48 @@ function AdminLogin() {
           className="space-y-4"
         >
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">College Email</label>
-            <Input type="email" required placeholder="admin@college.edu.in" className="mt-1.5 h-11" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              College Email
+            </label>
+            <Input
+              type="email"
+              required
+              placeholder="admin@college.edu.in"
+              className="mt-1.5 h-11"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phone Number</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Phone Number
+            </label>
             <div className="mt-1.5 flex">
-              <span className="inline-flex items-center px-3 border border-r-0 border-border bg-muted rounded-l-md text-sm font-medium">+91</span>
-              <Input type="tel" required placeholder="98765 43210" className="rounded-l-none h-11" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+              <span className="inline-flex items-center px-3 border border-r-0 border-border bg-muted rounded-l-md text-sm font-medium">
+                +91
+              </span>
+              <Input
+                type="tel"
+                required
+                placeholder="98765 43210"
+                className="rounded-l-none h-11"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+              />
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Password</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Password
+            </label>
             <div className="mt-1.5 relative">
-              <Input type={show ? "text" : "password"} required className="pr-10 h-11" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input
+                type={show ? "text" : "password"}
+                required
+                className="pr-10 h-11"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
               <button
                 type="button"
                 onClick={() => setShow((s) => !s)}

@@ -17,55 +17,68 @@ PHASE_ORDER = [
     "results_announced"
 ]
 
+
 class PhaseEngine:
     @staticmethod
-    def get_current_phase(election: Election, current_time: datetime = None) -> str:
-        """Calculate the current phase of the election based on its dates."""
-        def normalize_dt(dt):
-            if dt is None:
-                return None
-            if dt.tzinfo is not None:
-                return dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt
+    def _normalize(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
 
-        current_time = normalize_dt(current_time or datetime.now(timezone.utc))
-        reg_start = normalize_dt(election.registration_start)
-        reg_end = normalize_dt(election.registration_end)
-        vote_start = normalize_dt(election.voting_start)
-        vote_end = normalize_dt(election.voting_end)
+    @staticmethod
+    def get_current_phase(election: Election, current_time: datetime = None) -> str:
+        """Calculate the current phase of the election based on its dates and document_deadline."""
+        n = PhaseEngine._normalize
+        now = n(current_time or datetime.now(timezone.utc))
+        reg_start = n(election.registration_start)
+        reg_end = n(election.registration_end)
+        doc_dl = n(election.document_deadline)
+        vote_start = n(election.voting_start)
+        vote_end = n(election.voting_end)
 
         if election.is_paused:
             return "paused"
-            
         if election.status == ElectionStatusEnum.RESULTS_PUBLISHED.value:
             return "results_announced"
-            
-        # Check explicit dates
-        if reg_start and reg_end:
-            if current_time < reg_start:
-                return "pre_registration"
-            if reg_start <= current_time < reg_end:
-                return "registration_open"
-                
-        # If we passed registration end, but haven't hit voting start
-        if reg_end and vote_start:
-            if reg_end <= current_time < vote_start:
-                # We can split this into registration_closed and campaign_period,
-                # but campaign_period is the practical phase here.
+
+        # 1. Pre-registration
+        if reg_start and now < reg_start:
+            return "pre_registration"
+
+        # 2. Registration open
+        if reg_start and reg_end and reg_start <= now < reg_end:
+            return "registration_open"
+
+        # 3. Post-registration phases (registration_closed / campaign_period)
+        if reg_end and now >= reg_end:
+            # 3a. Registration closed (document submission period)
+            if doc_dl and now < doc_dl:
+                return "registration_closed"
+            # 3b. Campaign period (before voting starts)
+            if vote_start and now < vote_start:
                 return "campaign_period"
-                
+            if not vote_start:
+                # No voting_start set — stay in registration_closed if doc_dl not reached
+                if doc_dl and now < doc_dl:
+                    return "registration_closed"
+                return "campaign_period"
+            # If we're past vote_start, fall through to voting checks
+
+        # 4. Voting
         if vote_start and vote_end:
-            if vote_start <= current_time < vote_end:
+            if vote_start <= now < vote_end:
                 return "voting_open"
-            if current_time >= vote_end:
+            if now >= vote_end:
                 return "voting_closed"
-                
-        # Fallback if dates are missing but status is set manually
+
+        # Fallback based on election status
         if election.status == ElectionStatusEnum.VOTING_OPEN.value:
             return "voting_open"
         if election.status == ElectionStatusEnum.CLOSED.value:
             return "voting_closed"
-            
+
         return "unknown"
 
     @staticmethod
@@ -78,18 +91,13 @@ class PhaseEngine:
 
     @staticmethod
     def get_time_remaining(election: Election, current_phase: str, current_time: datetime = None) -> str:
-        def normalize_dt(dt):
-            if dt is None:
-                return None
-            if dt.tzinfo is not None:
-                return dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt
-
-        current_time = normalize_dt(current_time or datetime.now(timezone.utc))
-        reg_start = normalize_dt(election.registration_start)
-        reg_end = normalize_dt(election.registration_end)
-        vote_start = normalize_dt(election.voting_start)
-        vote_end = normalize_dt(election.voting_end)
+        n = PhaseEngine._normalize
+        current_time = n(current_time or datetime.now(timezone.utc))
+        reg_start = n(election.registration_start)
+        reg_end = n(election.registration_end)
+        doc_dl = n(election.document_deadline)
+        vote_start = n(election.voting_start)
+        vote_end = n(election.voting_end)
             
         if current_phase == "pre_registration" and reg_start:
             delta = reg_start - current_time
@@ -98,6 +106,16 @@ class PhaseEngine:
         if current_phase == "registration_open" and reg_end:
             delta = reg_end - current_time
             return PhaseEngine._format_timedelta(delta)
+            
+        if current_phase == "registration_closed":
+            doc_deadline = PhaseEngine._normalize(election.document_deadline)
+            if doc_deadline and doc_deadline > current_time:
+                delta = doc_deadline - current_time
+                return PhaseEngine._format_timedelta(delta)
+            # Fallback to vote_start if no document_deadline
+            if vote_start and vote_start > current_time:
+                delta = vote_start - current_time
+                return PhaseEngine._format_timedelta(delta)
             
         if current_phase == "campaign_period" and vote_start:
             delta = vote_start - current_time
@@ -136,4 +154,10 @@ class PhaseEngine:
     @staticmethod
     def is_manifesto_edit_allowed(election: Election) -> bool:
         phase = PhaseEngine.get_current_phase(election)
-        return phase in ["registration_open", "campaign_period"]
+        return phase in ["registration_open", "registration_closed"]
+
+    @staticmethod
+    def is_document_submission_allowed(election: Election) -> bool:
+        """Document/manifesto uploads allowed during registration and registration_closed phases."""
+        phase = PhaseEngine.get_current_phase(election)
+        return phase in ["registration_open", "registration_closed"]

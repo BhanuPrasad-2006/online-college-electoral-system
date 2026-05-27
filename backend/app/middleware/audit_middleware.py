@@ -144,10 +144,17 @@ class AuditMiddleware:
         status_code: int,
         skip_db: bool = False,
     ):
-        body_bytes = b"".join(body_chunks)
-        body_str = body_bytes.decode("utf-8", errors="ignore")
+        content_type = request.headers.get("content-type", "").lower()
         
-        sanitized_body = sanitize_payload(body_str)
+        # Skip body logging for file uploads (multipart) — binary data can't be logged as text
+        # and joining MBs of chunks just to discard them wastes memory
+        is_multipart = "multipart/form-data" in content_type
+        
+        body_str = ""
+        if not is_multipart and body_chunks:
+            body_bytes = b"".join(body_chunks)
+            body_str = body_bytes.decode("utf-8", errors="replace")
+        sanitized_body = sanitize_payload(body_str) if body_str else "[FILE_UPLOAD]"
         sanitized_path = sanitize_url(str(request.url))
         ip_address = get_client_ip(request)
 
@@ -170,7 +177,8 @@ class AuditMiddleware:
             path=sanitized_path,
             ip=ip_address,
             actor_id=actor_id,
-            status_code=status_code
+            status_code=status_code,
+            content_type=content_type
         )
 
         if skip_db:

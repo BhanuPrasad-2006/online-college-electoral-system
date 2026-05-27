@@ -21,10 +21,19 @@ function Page() {
           <h1 className="text-2xl md:text-[28px] font-bold">Election Results</h1>
         </div>
         <div className="bg-card rounded-2xl shadow-sm p-12 text-center">
-          <div className="mx-auto h-16 w-16 rounded-full bg-muted flex items-center justify-center"><Lock className="h-8 w-8 text-muted-foreground" /></div>
+          <div className="mx-auto h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+            <Lock className="h-8 w-8 text-muted-foreground" />
+          </div>
           <p className="mt-4 font-semibold">Results not yet published</p>
-          <p className="text-sm text-muted-foreground mt-1">Voting must close before results can be computed.</p>
-          <Button className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={() => setConfirm(true)}>Publish Results</Button>
+          <p className="text-sm text-muted-foreground mt-1">
+            Voting must close before results can be computed.
+          </p>
+          <Button
+            className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+            onClick={() => setConfirm(true)}
+          >
+            Publish Results
+          </Button>
         </div>
       </div>
     );
@@ -35,9 +44,13 @@ function Page() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="bg-card rounded-2xl shadow-sm p-8 max-w-md text-center">
           <h2 className="text-lg font-semibold">Publish results?</h2>
-          <p className="text-sm text-muted-foreground mt-2">This will notify all users and cannot be undone.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            This will notify all users and cannot be undone.
+          </p>
           <div className="flex gap-2 mt-6 justify-center">
-            <Button variant="outline" onClick={() => setConfirm(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setConfirm(false)}>
+              Cancel
+            </Button>
             <Button
               className="bg-destructive text-white hover:bg-destructive/90"
               disabled={loading}
@@ -73,7 +86,10 @@ function Page() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl md:text-[28px] font-bold">Election Results</h1>
-        <Button variant="outline" onClick={() => toast.success("PDF exported")}><FileDown className="h-4 w-4 mr-2" />Export PDF</Button>
+        <Button variant="outline" onClick={() => toast.success("PDF exported")}>
+          <FileDown className="h-4 w-4 mr-2" />
+          Export PDF
+        </Button>
       </div>
 
       {results.map((r) => (
@@ -96,8 +112,16 @@ function Page() {
           <p className="text-xs text-muted-foreground">SHA-256 Integrity Hash</p>
           <p className="font-mono text-xs break-all">{hash}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => { navigator.clipboard?.writeText(hash); toast.success("Hash copied"); }}>
-          <Copy className="h-3.5 w-3.5 mr-1" />Copy
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard?.writeText(hash);
+            toast.success("Hash copied");
+          }}
+        >
+          <Copy className="h-3.5 w-3.5 mr-1" />
+          Copy
         </Button>
       </div>
     </div>

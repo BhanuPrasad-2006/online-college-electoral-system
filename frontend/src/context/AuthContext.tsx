@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
 
 export type Role = "voter" | "candidate" | "admin" | null;
 
@@ -63,50 +63,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Initialize device fingerprint as early as possible on app mount
     if (typeof window !== "undefined" && !sessionStorage.getItem("collegevote-fingerprint")) {
       import("../lib/device-fingerprint").then((mod) =>
-        mod.getDeviceFingerprint().then((fp) =>
-          sessionStorage.setItem("collegevote-fingerprint", fp)
-        )
+        mod
+          .getDeviceFingerprint()
+          .then((fp) => sessionStorage.setItem("collegevote-fingerprint", fp)),
       );
     }
   }, []);
 
+  const login = useCallback((r: Exclude<Role, null>) => {
+    setRole(r);
+    try {
+      sessionStorage.setItem(AUTH_STORAGE_KEY, r);
+      // Initialize device fingerprint if not already stored
+      if (!sessionStorage.getItem("collegevote-fingerprint")) {
+        import("../lib/device-fingerprint").then((mod) =>
+          mod
+            .getDeviceFingerprint()
+            .then((fp) => sessionStorage.setItem("collegevote-fingerprint", fp)),
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    setRole(null);
+    try {
+      for (const key of SESSION_KEYS_TO_CLEAR) {
+        sessionStorage.removeItem(key);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const value = useMemo(
+    () => ({ role, setRole, isAuthed: role !== null, authReady, login, logout, candidateRegistered, setCandidateRegistered }),
+    [role, authReady, login, logout, candidateRegistered, setCandidateRegistered],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        role,
-        setRole,
-        isAuthed: role !== null,
-        authReady,
-        login: (r) => {
-          setRole(r);
-          try {
-            sessionStorage.setItem(AUTH_STORAGE_KEY, r);
-            // Initialize device fingerprint if not already stored
-            if (!sessionStorage.getItem("collegevote-fingerprint")) {
-              import("../lib/device-fingerprint").then(mod =>
-                mod.getDeviceFingerprint().then(fp =>
-                  sessionStorage.setItem("collegevote-fingerprint", fp)
-                )
-              );
-            }
-          } catch {
-            /* ignore */
-          }
-        },
-        logout: () => {
-          setRole(null);
-          try {
-            for (const key of SESSION_KEYS_TO_CLEAR) {
-              sessionStorage.removeItem(key);
-            }
-          } catch {
-            /* ignore */
-          }
-        },
-        candidateRegistered,
-        setCandidateRegistered,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
