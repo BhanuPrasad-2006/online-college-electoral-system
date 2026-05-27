@@ -5,14 +5,14 @@
  * and set DEMO_MODE to false in demo-config.ts.
  */
 import { DEMO_MODE } from "./demo-config";
-import { 
-  getAuthToken, 
+import {
+  getAuthToken,
   fetchCurrentElection,
   fetchHourlyVotes as liveFetchHourlyVotes,
   fetchMediaItems as liveFetchMediaItems,
   submitCampaignMedia as liveSubmitCampaignMedia,
   reviewCampaignMedia as liveReviewCampaignMedia,
-  uploadConcernAttachment as liveUploadConcernAttachment
+  uploadConcernAttachment as liveUploadConcernAttachment,
 } from "./api";
 import {
   AI_ALERTS,
@@ -41,11 +41,10 @@ const CLIENT_HOST =
     ? window.location.hostname
     : "127.0.0.1";
 const LIVE_API_HOST =
-  CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
-    ? "localhost"
-    : CLIENT_HOST;
+  CLIENT_HOST === "localhost" || CLIENT_HOST === "::1" ? "localhost" : CLIENT_HOST;
 // Use HTTPS in production (when host is not localhost), HTTP for local dev
-const LIVE_PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
+const LIVE_PROTOCOL =
+  typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
 const LIVE_API_BASE = `${LIVE_PROTOCOL}://${LIVE_API_HOST}:8000/api/v1`;
 const LIVE_PROFILE_RETRY_DELAY_MS = 150;
 
@@ -53,7 +52,7 @@ function clone<T>(data: T): T {
   return structuredClone(data);
 }
 
-let demoMediaItems = clone(MEDIA_ITEMS);
+const demoMediaItems = clone(MEDIA_ITEMS);
 
 async function fetchLiveProfile<T>(path: string, token: string): Promise<T> {
   const request = () =>
@@ -118,7 +117,15 @@ export async function fetchElection() {
 }
 
 export async function fetchCandidates(): Promise<Candidate[]> {
-  // return apiGet<Candidate[]>("/candidates");
+  const token = getAuthToken();
+  if (!DEMO_MODE && token) {
+    try {
+      return await fetchLiveProfile<Candidate[]>('/candidates', token);
+    } catch (e) {
+      console.warn('Candidate list fetch failed, falling back to mock:', e);
+    }
+  }
+
   await delay();
   return clone(CANDIDATES);
 }
@@ -154,7 +161,7 @@ export async function submitCampaignMedia(payload: any): Promise<any> {
 export async function reviewCampaignMedia(
   id: string,
   status: "Approved" | "Rejected",
-  rejectionReason?: string
+  rejectionReason?: string,
 ): Promise<any> {
   return liveReviewCampaignMedia(id, status, rejectionReason);
 }
@@ -168,6 +175,12 @@ export interface VoterProfile {
   voter_code?: string;
   voted: boolean;
   vote_permission: boolean;
+  verification_id_set?: boolean;
+  face_enrolled?: boolean;
+  reference_image_url?: string;
+  pending_face_enrolled?: boolean;
+  photo_reupload_count?: number;
+  photo_reupload_requested?: boolean;
 }
 
 export async function fetchVoterProfile(): Promise<VoterProfile> {
@@ -179,20 +192,16 @@ export async function fetchVoterProfile(): Promise<VoterProfile> {
       ...mockVoter,
       email: "aditya.rao@college.edu.in",
       vote_permission: true,
+      face_enrolled: false,
+      pending_face_enrolled: false,
+      photo_reupload_count: 0,
+      photo_reupload_requested: false,
     } as VoterProfile;
   }
 
-  try {
-    return await fetchLiveProfile<VoterProfile>("/auth/voter/me", token);
-  } catch (e) {
-    console.error("Voter profile fetch failed, falling back to mock:", e);
-    const mockVoter = clone(VOTER);
-    return {
-      ...mockVoter,
-      email: "aditya.rao@college.edu.in",
-      vote_permission: true,
-    } as VoterProfile;
-  }
+  // When a token exists, ALWAYS fetch from the database — never fall back to mock data.
+  // Falling back to mock would show another student's name ("Aditya Rao") and hide real photo status.
+  return await fetchLiveProfile<VoterProfile>("/auth/voter/me", token);
 }
 
 export async function fetchCandidateProfile() {
@@ -214,9 +223,9 @@ export async function fetchConcernCategories() {
   const token = getAuthToken();
   if (!DEMO_MODE && token) {
     try {
-      return await fetchLiveProfile("/concerns/categories", token);
+      return await fetchLiveProfile('/concerns/categories', token);
     } catch (e) {
-      console.warn("Concern categories fetch failed, falling back to mock:", e);
+      console.warn('Concern categories fetch failed, falling back to mock:', e);
     }
   }
   await delay(110);
@@ -224,7 +233,43 @@ export async function fetchConcernCategories() {
 }
 
 export async function fetchVoterConcerns(): Promise<VoterConcern[]> {
-  // return apiGet<VoterConcern[]>("/voter/concerns");
+  const token = getAuthToken();
+  if (!DEMO_MODE && token) {
+    try {
+      const result = await fetchLiveProfile<{
+        concerns: Array<{
+          concern_id: string;
+          content: string;
+          category: string;
+          attachment_url?: string | null;
+          submitted_at?: string | null;
+          to_candidate_id?: string | null;
+        }>;
+      }>('/concerns', token);
+
+      return result.concerns.map((c) => ({
+        id: c.concern_id,
+        fromName: VOTER.name,
+        department: VOTER.department,
+        toCandidateId: c.to_candidate_id || '',
+        category: c.category || 'Other',
+        message: c.content,
+        attachment: c.attachment_url
+          ? { name: c.attachment_url.split('/').pop() ?? 'attachment', url: c.attachment_url, type: 'file/*' }
+          : undefined,
+        submittedAt: c.submitted_at ?? 'Just now',
+      })) as VoterConcern[];
+    } catch (e) {
+      console.error('Voter concerns fetch failed:', e);
+      if (!DEMO_MODE) {
+        throw e;
+      }
+      console.warn('Falling back to demo concerns because DEMO_MODE is enabled.');
+    }
+  }
+  if (!DEMO_MODE) {
+    throw new Error('Unable to load voter concerns from live backend.');
+  }
   await delay(100);
   return clone(VOTER_CONCERNS);
 }
@@ -311,14 +356,26 @@ export async function submitConcern(_payload: {
           toCandidateId: _payload.toCandidateId,
           category: data.category,
           message: data.content,
-          attachment: attachmentUrl && fileToUpload ? { name: fileToUpload.name, url: attachmentUrl, type: fileToUpload.type } : undefined,
+          attachment:
+            attachmentUrl && fileToUpload
+              ? { name: fileToUpload.name, url: attachmentUrl, type: fileToUpload.type }
+              : undefined,
           submittedAt: data.submitted_at ?? "Just now",
         } as any;
       }
       throw new Error(data.detail ?? `HTTP ${res.status}`);
     } catch (e) {
-      console.warn("submitConcern fell back to mock:", e);
+      console.error("submitConcern failed:", e);
+      if (DEMO_MODE) {
+        console.warn("Falling back to demo concern because DEMO_MODE is enabled.");
+      } else {
+        throw e;
+      }
     }
+  }
+
+  if (!DEMO_MODE) {
+    throw new Error("Unable to submit concern to live backend.");
   }
 
   await delay(280);

@@ -14,7 +14,8 @@ function diff(target: Date) {
 
 export function TimerBanner({ label, target }: { label?: string; target?: Date }) {
   const t = target ?? ELECTION.votingStart;
-  const isOpen = Date.now() >= ELECTION.votingStart.getTime() && Date.now() < ELECTION.votingEnd.getTime();
+  const isOpen =
+    Date.now() >= ELECTION.votingStart.getTime() && Date.now() < ELECTION.votingEnd.getTime();
   const effectiveTarget = target ?? (isOpen ? ELECTION.votingEnd : ELECTION.votingStart);
   const effectiveLabel = label ?? (isOpen ? "Voting Closes In" : "Voting Opens In");
   const [now, setNow] = useState(() => diff(effectiveTarget));
@@ -40,7 +41,7 @@ export function TimerBanner({ label, target }: { label?: string; target?: Date }
         "rounded-2xl px-5 md:px-7 py-4 md:py-5 text-white shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3",
         urgent
           ? "bg-gradient-to-r from-red-600 to-red-500 animate-pulse"
-          : "bg-gradient-to-r from-[#1F3A6B] via-[#2E75B6] to-[#3E8FCF]"
+          : "bg-gradient-to-r from-[#1F3A6B] via-[#2E75B6] to-[#3E8FCF]",
       )}
     >
       <div>
@@ -50,8 +51,13 @@ export function TimerBanner({ label, target }: { label?: string; target?: Date }
       <div className="flex gap-2">
         {cells ? (
           cells.map((c, i) => (
-            <div key={i} className="bg-white/15 backdrop-blur rounded-lg px-3 py-2 min-w-[58px] text-center">
-              <p className="text-xl md:text-2xl font-bold tabular-nums">{String(c.v).padStart(2, "0")}</p>
+            <div
+              key={i}
+              className="bg-white/15 backdrop-blur rounded-lg px-3 py-2 min-w-[58px] text-center"
+            >
+              <p className="text-xl md:text-2xl font-bold tabular-nums">
+                {String(c.v).padStart(2, "0")}
+              </p>
               <p className="text-[10px] uppercase text-white/70">{c.l}</p>
             </div>
           ))

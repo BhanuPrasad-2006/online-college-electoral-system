@@ -2,24 +2,52 @@ const CLIENT_HOST =
   typeof window !== "undefined" && window.location.hostname
     ? window.location.hostname
     : "127.0.0.1";
-const API_HOST =
-  CLIENT_HOST === "localhost" || CLIENT_HOST === "::1"
-    ? "localhost"
-    : CLIENT_HOST;
+const API_HOST = CLIENT_HOST === "localhost" || CLIENT_HOST === "::1" ? "localhost" : CLIENT_HOST;
 // Use HTTPS in production (when host is not localhost), HTTP for local dev
-const PROTOCOL = typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
-const BASE = `${PROTOCOL}://${API_HOST}:8000/api/v1`;
-export const API_BASE_URL = BASE;
-export const API_ORIGIN = `${PROTOCOL}://${API_HOST}:8000`;
+const PROTOCOL =
+  typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
+const DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1";
+const DEFAULT_API_ORIGIN = "http://127.0.0.1:8000";
+
+const computedBase = `${PROTOCOL}://${API_HOST}:8000/api/v1`;
+const computedOrigin = `${PROTOCOL}://${API_HOST}:8000`;
+const envApiBase = typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_URL;
+const envApiOrigin = typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_ORIGIN;
+
+export const API_BASE_URL = typeof envApiBase === "string" && envApiBase.trim()
+  ? envApiBase.trim()
+  : computedBase || DEFAULT_API_BASE;
+export const API_ORIGIN = typeof envApiOrigin === "string" && envApiOrigin.trim()
+  ? envApiOrigin.trim()
+  : computedOrigin || DEFAULT_API_ORIGIN;
 const RETRY_DELAY_MS = 150;
-const REQUEST_TIMEOUT_MS = 20_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function ensureDeviceFingerprint(): Promise<string> {
+  if (typeof window === "undefined") return "";
+  try {
+    const existing = sessionStorage.getItem("collegevote-fingerprint");
+    if (existing) return existing;
+    const mod = await import("./device-fingerprint");
+    const fp = await mod.getDeviceFingerprint();
+    sessionStorage.setItem("collegevote-fingerprint", fp);
+    return fp;
+  } catch {
+    return "";
+  }
+}
 
 function normalizeFetchError(error: unknown) {
   if (error instanceof TypeError) {
     return new Error(
-      `Request to ${BASE} did not complete. The backend may be down, restarting, or crashing during the request.`,
+      `Request to ${API_BASE_URL} did not complete. The backend may be down, restarting, or crashing during the request.`,
+    );
+  }
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return new Error(
+      `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. The backend may be down or taking too long to respond. Please try again.`,
     );
   }
   return error instanceof Error ? error : new Error("Request failed");
@@ -59,60 +87,86 @@ async function fetchWithRetry(input: string, init: RequestInit) {
 
 // ── Storage helpers ──────────────────────────────────────────
 const KEYS = {
-  token:        "collegevote-token",
-  csrf:         "collegevote-csrf-token",
-  role:         "collegevote-demo-auth",
-  otpSession:   "collegevote-otp-session",
-  otpEmail:     "collegevote-otp-email",
-  otpMobile:    "collegevote-otp-mobile",
-  userId:       "collegevote-user-id",
-  fullName:     "collegevote-full-name",
-  department:   "collegevote-department",
-  semester:     "collegevote-semester",
+  token: "collegevote-token",
+  csrf: "collegevote-csrf-token",
+  role: "collegevote-demo-auth",
+  otpSession: "collegevote-otp-session",
+  otpEmail: "collegevote-otp-email",
+  otpMobile: "collegevote-otp-mobile",
+  userId: "collegevote-user-id",
+  fullName: "collegevote-full-name",
+  department: "collegevote-department",
+  semester: "collegevote-semester",
 };
 
-export function saveAuth(token: string, role: string, userId: string, fullName: string, department?: string, semester?: string, csrfToken?: string) {
+export function saveAuth(
+  token: string,
+  role: string,
+  userId: string,
+  fullName: string,
+  department?: string,
+  semester?: string,
+  csrfToken?: string,
+) {
   try {
-    sessionStorage.setItem(KEYS.token,    token);
+    sessionStorage.setItem(KEYS.token, token);
     if (csrfToken) {
-      sessionStorage.setItem(KEYS.csrf,   csrfToken);
+      sessionStorage.setItem(KEYS.csrf, csrfToken);
     }
-    sessionStorage.setItem(KEYS.role,     role);
-    sessionStorage.setItem(KEYS.userId,   userId);
+    sessionStorage.setItem(KEYS.role, role);
+    sessionStorage.setItem(KEYS.userId, userId);
     sessionStorage.setItem(KEYS.fullName, fullName);
     if (department) sessionStorage.setItem(KEYS.department, department);
     if (semester) sessionStorage.setItem(KEYS.semester, semester);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getCsrfToken() {
-  try { return sessionStorage.getItem(KEYS.csrf) ?? ""; } catch { return ""; }
+  try {
+    return sessionStorage.getItem(KEYS.csrf) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function saveOtpSession(sessionToken: string, email: string, mobile?: string) {
   try {
     sessionStorage.setItem(KEYS.otpSession, sessionToken);
-    sessionStorage.setItem(KEYS.otpEmail,   email);
+    sessionStorage.setItem(KEYS.otpEmail, email);
     if (mobile) sessionStorage.setItem(KEYS.otpMobile, mobile);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function getOtpSession() {
   try {
     return {
       sessionToken: sessionStorage.getItem(KEYS.otpSession) ?? "",
-      email:        sessionStorage.getItem(KEYS.otpEmail)   ?? "",
-      mobile:       sessionStorage.getItem(KEYS.otpMobile)  ?? "",
+      email: sessionStorage.getItem(KEYS.otpEmail) ?? "",
+      mobile: sessionStorage.getItem(KEYS.otpMobile) ?? "",
     };
-  } catch { return { sessionToken: "", email: "", mobile: "" }; }
+  } catch {
+    return { sessionToken: "", email: "", mobile: "" };
+  }
 }
 
 export function getAuthToken() {
-  try { return sessionStorage.getItem(KEYS.token) ?? ""; } catch { return ""; }
+  try {
+    return sessionStorage.getItem(KEYS.token) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function getFullName() {
-  try { return sessionStorage.getItem(KEYS.fullName) ?? ""; } catch { return ""; }
+  try {
+    return sessionStorage.getItem(KEYS.fullName) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function resolveApiAssetUrl(path?: string | null) {
@@ -138,7 +192,7 @@ async function post<T>(path: string, body: object): Promise<T> {
   }
   let res: Response;
   try {
-    res = await fetchWithRetry(`${BASE}${path}`, {
+    res = await fetchWithRetry(`${API_BASE_URL}${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -163,7 +217,7 @@ async function post<T>(path: string, body: object): Promise<T> {
 
 async function get<T>(path: string): Promise<T> {
   const token = getAuthToken();
-  const headers: Record<string, string> = { "Accept": "application/json" };
+  const headers: Record<string, string> = { Accept: "application/json" };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -173,7 +227,7 @@ async function get<T>(path: string): Promise<T> {
   }
   let res: Response;
   try {
-    res = await fetchWithRetry(`${BASE}${path}`, {
+    res = await fetchWithRetry(`${API_BASE_URL}${path}`, {
       method: "GET",
       headers,
     });
@@ -211,7 +265,7 @@ async function put<T>(path: string, body: object): Promise<T> {
   }
   let res: Response;
   try {
-    res = await fetchWithRetry(`${BASE}${path}`, {
+    res = await fetchWithRetry(`${API_BASE_URL}${path}`, {
       method: "PUT",
       headers,
       body: JSON.stringify(body),
@@ -255,10 +309,14 @@ export async function fetchNotifications() {
   return get<any[]>("/election/notifications");
 }
 
-export async function updateCandidateStatus(candidateId: string, status: string, adminRemarks?: string) {
+export async function updateCandidateStatus(
+  candidateId: string,
+  status: string,
+  adminRemarks?: string,
+) {
   return put<{ message: string; candidate_id: string; status: string }>(
     `/candidates/${candidateId}/status`,
-    { status, admin_remarks: adminRemarks }
+    { status, admin_remarks: adminRemarks },
   );
 }
 
@@ -291,55 +349,119 @@ export async function reviewManifesto(
   });
 }
 
-
 // ── Voter Login ──────────────────────────────────────────────
 export async function voterLoginStep1(email: string, password: string) {
+  await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
-  return post<{ otp_session_token: string; hint: string; message: string }>(
-    "/auth/voter/login",
-    { email: cleanEmail, password }
-  );
+  return post<{ otp_session_token: string; hint: string; message: string }>("/auth/voter/login", {
+    email: cleanEmail,
+    password,
+  });
 }
 
 export async function voterLoginStep2(sessionToken: string, otp: string) {
-  return post<{ access_token: string; role: string; user_id: string; full_name: string; expires_in_seconds: number }>(
-    "/auth/voter/verify-otp",
-    { otp_session_token: sessionToken, otp }
-  );
+  await ensureDeviceFingerprint();
+  return post<{
+    access_token: string;
+    role: string;
+    user_id: string;
+    full_name: string;
+    expires_in_seconds: number;
+    csrf_token?: string;
+  }>("/auth/voter/verify-otp", { otp_session_token: sessionToken, otp });
 }
 
 // ── Candidate Login ──────────────────────────────────────────
 export async function candidateLoginStep1(email: string, mobile_number: string, password: string) {
+  await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
   return post<{ otp_session_token: string; hint: string; message: string }>(
     "/auth/candidate/login",
-    { email: cleanEmail, mobile_number: cleanMobile, password }
+    { email: cleanEmail, mobile_number: cleanMobile, password },
   );
 }
 
-export async function candidateLoginStep2(sessionToken: string, email_otp: string, sms_otp: string) {
-  return post<{ access_token: string; role: string; user_id: string; full_name: string; expires_in_seconds: number; is_registered?: boolean; department?: string; semester?: string; }>(
-    "/auth/candidate/verify-otp",
-    { otp_session_token: sessionToken, email_otp, sms_otp }
-  );
+export async function candidateLoginStep2(
+  sessionToken: string,
+  email_otp: string,
+  sms_otp: string,
+) {
+  await ensureDeviceFingerprint();
+  return post<{
+    access_token: string;
+    role: string;
+    user_id: string;
+    full_name: string;
+    expires_in_seconds: number;
+    is_registered?: boolean;
+    department?: string;
+    semester?: string;
+    csrf_token?: string;
+  }>("/auth/candidate/verify-otp", { otp_session_token: sessionToken, email_otp, sms_otp });
 }
 
 // ── Admin Login ──────────────────────────────────────────────
 export async function adminLoginStep1(email: string, mobile_number: string, password: string) {
+  await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
-  return post<{ otp_session_token: string; hint: string; message: string }>(
-    "/auth/admin/login",
-    { email: cleanEmail, mobile_number: cleanMobile, password }
-  );
+  return post<{ otp_session_token: string; hint: string; message: string }>("/auth/admin/login", {
+    email: cleanEmail,
+    mobile_number: cleanMobile,
+    password,
+  });
 }
 
 export async function adminLoginStep2(sessionToken: string, email_otp: string, sms_otp: string) {
-  return post<{ access_token: string; role: string; user_id: string; full_name: string; expires_in_seconds: number }>(
-    "/auth/admin/verify-otp",
-    { otp_session_token: sessionToken, email_otp, sms_otp }
-  );
+  await ensureDeviceFingerprint();
+  return post<{
+    access_token: string;
+    role: string;
+    user_id: string;
+    full_name: string;
+    expires_in_seconds: number;
+    csrf_token?: string;
+  }>("/auth/admin/verify-otp", { otp_session_token: sessionToken, email_otp, sms_otp });
+}
+
+// ── Voter Photo Upload (self-service) ─────────────────────────
+export async function uploadVoterOwnPhoto(file: File): Promise<{
+  success: boolean;
+  message: string;
+  pending_image_url?: string;
+}> {
+  await ensureDeviceFingerprint();
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/vote/upload-photo`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+  } catch (error) {
+    throw normalizeFetchError(error);
+  }
+
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Failed to upload photo. The server returned an unexpected response.");
+  }
+  if (!res.ok) throw new Error(data.detail ?? "Failed to upload photo");
+  return data;
 }
 
 // ── Vote Casting ──────────────────────────────────────────────
@@ -352,7 +474,7 @@ export async function verifyVoterId(verificationId: string) {
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
   if (fp) headers["X-Device-Fingerprint"] = fp;
-  const res = await fetch(`${BASE}/vote/verify-id`, {
+  const res = await fetch(`${API_BASE_URL}/vote/verify-id`, {
     method: "POST",
     headers,
     body: JSON.stringify({ verification_id: verificationId }),
@@ -381,7 +503,7 @@ export async function castVote(params: {
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
   if (fp) headers["X-Device-Fingerprint"] = fp;
-  const res = await fetch(`${BASE}/vote/cast`, {
+  const res = await fetch(`${API_BASE_URL}/vote/cast`, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -400,67 +522,67 @@ export async function castVote(params: {
   return data;
 }
 
-
 // ── Change Password ──────────────────────────────────────────
 export async function requestPasswordChange(currentPassword: string, newPassword: string) {
-  return post<{ otp_session_token: string; hint: string }>(
-    "/auth/change-password/request",
-    { current_password: currentPassword, new_password: newPassword }
-  );
+  return post<{ otp_session_token: string; hint: string }>("/auth/change-password/request", {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
 }
 
 export async function confirmPasswordChange(sessionToken: string, otp: string) {
-  return post<{ message: string }>(
-    "/auth/change-password/confirm",
-    { otp_session_token: sessionToken, otp }
-  );
+  return post<{ message: string }>("/auth/change-password/confirm", {
+    otp_session_token: sessionToken,
+    otp,
+  });
 }
 
 // ── Forgot Password ──────────────────────────────────────────
 export async function requestForgotPassword(email: string) {
   const cleanEmail = email.trim().toLowerCase();
-  return post<{ otp_session_token: string; hint: string }>(
-    "/auth/forgot-password/request",
-    { email: cleanEmail }
-  );
+  return post<{ otp_session_token: string; hint: string }>("/auth/forgot-password/request", {
+    email: cleanEmail,
+  });
 }
 
-export async function confirmForgotPassword(sessionToken: string, otp: string, newPassword: string) {
-  return post<{ message: string }>(
-    "/auth/forgot-password/confirm",
-    { otp_session_token: sessionToken, otp, new_password: newPassword }
-  );
+export async function confirmForgotPassword(
+  sessionToken: string,
+  otp: string,
+  newPassword: string,
+) {
+  return post<{ message: string }>("/auth/forgot-password/confirm", {
+    otp_session_token: sessionToken,
+    otp,
+    new_password: newPassword,
+  });
 }
 
 // ── Resend OTP ───────────────────────────────────────────────
 export async function resendVoterOtp(sessionToken: string) {
-  return post<{ otp_session_token: string; hint: string }>(
-    "/auth/voter/resend-otp",
-    { otp_session_token: sessionToken }
-  );
+  return post<{ otp_session_token: string; hint: string }>("/auth/voter/resend-otp", {
+    otp_session_token: sessionToken,
+  });
 }
 
 export async function resendCandidateOtp(sessionToken: string) {
-  return post<{ otp_session_token: string; hint: string }>(
-    "/auth/candidate/resend-otp",
-    { otp_session_token: sessionToken }
-  );
+  return post<{ otp_session_token: string; hint: string }>("/auth/candidate/resend-otp", {
+    otp_session_token: sessionToken,
+  });
 }
 
 export async function resendCandidateEmailOtp(sessionToken: string) {
   return post<{ otp_session_token: string; hint: string; message?: string }>(
     "/auth/candidate/resend-email-otp",
-    { otp_session_token: sessionToken }
+    { otp_session_token: sessionToken },
   );
 }
 
 export async function resendCandidateSmsOtp(sessionToken: string) {
   return post<{ otp_session_token: string; hint: string; message?: string }>(
     "/auth/candidate/resend-sms-otp",
-    { otp_session_token: sessionToken }
+    { otp_session_token: sessionToken },
   );
 }
-
 
 // ── Live Candidate Eligibility & Application ──────────────────
 export async function candidateCheckStatus(email: string, mobile_number: string) {
@@ -478,7 +600,11 @@ export async function candidateCheckStatus(email: string, mobile_number: string)
   }>("/auth/candidate/check", { email: cleanEmail, mobile_number: cleanMobile });
 }
 
-export async function candidateInitiateNew(email: string, mobile_number: string, year_of_study: number) {
+export async function candidateInitiateNew(
+  email: string,
+  mobile_number: string,
+  year_of_study: number,
+) {
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
   return post<{
@@ -490,7 +616,10 @@ export async function candidateInitiateNew(email: string, mobile_number: string,
 
 export async function checkCandidateEligibility(email: string, password: string) {
   const cleanEmail = email.trim().toLowerCase();
-  return post<{ otp_session_token: string; message: string }>("/candidates/eligibility-check", { email: cleanEmail, password });
+  return post<{ otp_session_token: string; message: string }>("/candidates/eligibility-check", {
+    email: cleanEmail,
+    password,
+  });
 }
 
 export async function verifyEligibilityOtp(sessionToken: string, otp: string) {
@@ -522,14 +651,13 @@ export async function registerCandidate(
     student_id?: string;
     vice_president?: string;
     secretary?: string;
-  }
+  },
 ) {
   return post<{ message: string; candidate_id: string; status: string }>("/candidates/register", {
     otp_session_token: sessionToken,
     ...details,
   });
 }
-
 
 // ── Admin Voter Permission Control ─────────────────────────────
 export async function fetchVotersForAdmin() {
@@ -539,18 +667,16 @@ export async function fetchVotersForAdmin() {
 export async function updateVoterPermission(voterId: string, permission: boolean) {
   return put<{ message: string; voter_id: string; vote_permission: boolean }>(
     `/vote/admin/voters/${voterId}/permission`,
-    { vote_permission: permission }
+    { vote_permission: permission },
   );
 }
 
 export async function setVoterVerificationCode(voterId: string, verificationId: string) {
   return put<{ message: string; voter_id: string; verification_id_set: boolean }>(
     `/vote/admin/voters/${voterId}/verification-code`,
-    { verification_code: verificationId }
+    { verification_code: verificationId },
   );
 }
-
-
 
 // ── Admin Election Control ──────────────────────────────────────
 export async function fetchCurrentElection() {
@@ -558,7 +684,13 @@ export async function fetchCurrentElection() {
 }
 
 export async function getCurrentPhase() {
-  return get<{ phase: string; next_phase: string; remaining_time: string; is_paused: boolean; auto_transition: boolean }>("/election/current-phase");
+  return get<{
+    phase: string;
+    next_phase: string;
+    remaining_time: string;
+    is_paused: boolean;
+    auto_transition: boolean;
+  }>("/election/current-phase");
 }
 
 export async function announceElectionSchedule(electionId: string) {
@@ -602,6 +734,16 @@ export async function updateElectionDates(
   return put<{ message: string; election: any }>(`/election/${electionId}`, details);
 }
 
+export async function createElection(details: {
+  title: string;
+  registration_start: string | null;
+  registration_end: string | null;
+  voting_start: string | null;
+  voting_end: string | null;
+}) {
+  return post<{ message: string; election: any }>("/election/", details);
+}
+
 // ── Security & Fraud Monitoring Endpoints (Phase 5) ─────────────
 export async function fetchAiAlerts() {
   return get<any[]>("/admin/ai-alerts");
@@ -615,17 +757,110 @@ export async function verifyLedger() {
   return get<any>("/admin/verify-ledger");
 }
 
-export async function fetchAuditLogs() {
-  return get<any[]>("/admin/audit-logs");
+export interface AuditLogEntry {
+  id: string;
+  ts: string | null;
+  ts_iso: string | null;
+  event: string;
+  actor: string;
+  ip: string;
+  desc: string | null;
+  level: "success" | "warning" | "security";
+}
+
+export interface AuditLogResponse {
+  logs: AuditLogEntry[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+export async function fetchAuditLogs(params?: {
+  skip?: number;
+  limit?: number;
+  event_type?: string;
+  actor?: string;
+  ip?: string;
+  date_from?: string;
+  date_to?: string;
+  q?: string;
+}): Promise<AuditLogResponse> {
+  const qs = new URLSearchParams();
+  if (params?.skip) qs.set("skip", String(params.skip));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.event_type) qs.set("event_type", params.event_type);
+  if (params?.actor) qs.set("actor", params.actor);
+  if (params?.ip) qs.set("ip", params.ip);
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  if (params?.q) qs.set("q", params.q);
+  const queryStr = qs.toString();
+  return get<AuditLogResponse>(`/admin/audit-logs${queryStr ? `?${queryStr}` : ""}`);
+}
+
+export async function fetchAuditLogDetail(logId: string) {
+  return get<AuditLogEntry>(`/admin/audit-logs/${logId}`);
+}
+
+// ── Admin Pending Photo Review ────────────────────────────────
+export async function fetchPendingPhotos() {
+  return get<any[]>("/admin/pending-photos");
+}
+
+export async function approvePendingPhoto(voterId: string) {
+  return post<{ success: boolean; message: string; current_image_url: string; previous_image_url: string }>(
+    `/admin/pending-photos/${voterId}/approve`,
+    {},
+  );
+}
+
+export async function rejectPendingPhoto(voterId: string) {
+  return post<{ success: boolean; message: string }>(
+    `/admin/pending-photos/${voterId}/reject`,
+    {},
+  );
+}
+
+export async function requestPhotoReupload(voterId: string) {
+  return post<{ success: boolean; message: string }>(
+    `/admin/pending-photos/${voterId}/request-reupload`,
+    {},
+  );
+}
+
+export async function fetchReuploadRequests() {
+  return get<any[]>("/admin/pending-photos/reupload-requests");
+}
+
+export async function clearReuploadRequest(voterId: string) {
+  return post<{ success: boolean; message: string }>(
+    `/admin/pending-photos/${voterId}/clear-reupload-request`,
+    {},
+  );
+}
+
+// ── Candidate Concerns Inbox (anonymized) ────────────────────
+export async function fetchCandidateConcernsInbox(params?: { page?: number; page_size?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.page_size) qs.set("page_size", String(params.page_size));
+  const queryStr = qs.toString();
+  return get<any>(`/concerns/candidate-inbox${queryStr ? `?${queryStr}` : ""}`);
 }
 
 // ── AI Admin Features (Features #3, #9) ────────────────────────
 export async function fetchIpClusters() {
-  return get<{ clusters: { subnet: string; sessions: number; flagged: boolean }[]; total_unique_ips: number }>("/admin/ip-clusters");
+  return get<{
+    clusters: { subnet: string; sessions: number; flagged: boolean }[];
+    total_unique_ips: number;
+  }>("/admin/ip-clusters");
 }
 
 export async function clusterConcerns() {
-  return post<{ message: string; clustered: number; groups: number }>("/admin/cluster-concerns", {});
+  return post<{ message: string; clustered: number; groups: number }>(
+    "/admin/cluster-concerns",
+    {},
+  );
 }
 
 export async function fetchCampusReport() {
@@ -677,9 +912,10 @@ export async function fetchClusteredConcerns() {
 }
 
 export async function fetchCandidateConcernReport() {
-  return get<{ categories: any[]; overall: { positive: number; neutral: number; negative: number } }>(
-    "/concerns/candidate-report"
-  );
+  return get<{
+    categories: any[];
+    overall: { positive: number; neutral: number; negative: number };
+  }>("/concerns/candidate-report");
 }
 
 // ── Announcements (Admin) ────────────────────────────────────
@@ -692,7 +928,6 @@ export async function analyzeAndStoreManifesto(content: string): Promise<any> {
   return post<any>("/candidates/me/manifesto/analyze", { content });
 }
 
-
 // ── Manifesto Media Upload ───────────────────────────────────
 export async function uploadManifestoMedia(file: File): Promise<{ url: string }> {
   const token = getAuthToken();
@@ -704,7 +939,7 @@ export async function uploadManifestoMedia(file: File): Promise<{ url: string }>
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
-  const res = await fetch(`${BASE}/candidates/me/manifesto/upload`, {
+  const res = await fetch(`${API_BASE_URL}/candidates/me/manifesto/upload`, {
     method: "POST",
     headers,
     body: formData,
@@ -714,7 +949,6 @@ export async function uploadManifestoMedia(file: File): Promise<{ url: string }>
   if (!res.ok) throw new Error(data.detail ?? "Failed to upload manifesto file");
   return data;
 }
-
 
 // ── Concern Attachment Upload ─────────────────────────────────
 export async function uploadConcernAttachment(file: File): Promise<{ url: string }> {
@@ -727,7 +961,7 @@ export async function uploadConcernAttachment(file: File): Promise<{ url: string
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
 
-  const res = await fetch(`${BASE}/concerns/upload`, {
+  const res = await fetch(`${API_BASE_URL}/concerns/upload`, {
     method: "POST",
     headers,
     body: formData,
@@ -738,14 +972,18 @@ export async function uploadConcernAttachment(file: File): Promise<{ url: string
   return data;
 }
 
-export async function createAnnouncement(payload: { title: string; body: string; recipients: string }) {
+export async function createAnnouncement(payload: {
+  title: string;
+  body: string;
+  recipients: string;
+}) {
   return post<any>("/announcements/", payload);
 }
 
 export async function deleteAnnouncement(announcementId: string) {
   const token = getAuthToken();
   const csrfToken = getCsrfToken();
-  const headers: Record<string, string> = { "Accept": "application/json" };
+  const headers: Record<string, string> = { Accept: "application/json" };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -758,7 +996,7 @@ export async function deleteAnnouncement(announcementId: string) {
   }
   let res: Response;
   try {
-    res = await fetchWithRetry(`${BASE}/announcements/${announcementId}`, {
+    res = await fetchWithRetry(`${API_BASE_URL}/announcements/${announcementId}`, {
       method: "DELETE",
       headers,
     });
@@ -781,6 +1019,10 @@ export async function deleteAnnouncement(announcementId: string) {
 // ── Results (Admin) ──────────────────────────────────────────
 export async function fetchElectionResults(electionId: string) {
   return get<any>(`/election/${electionId}/results`);
+}
+
+export async function fetchPublicResults() {
+  return get<any>("/election/public-results");
 }
 
 // ── Campaign Media Endpoints ───────────────────────────────────
@@ -812,7 +1054,11 @@ export async function submitCampaignMedia(formData: FormData) {
   return data;
 }
 
-export async function reviewCampaignMedia(mediaId: string, status: string, rejectionReason?: string) {
+export async function reviewCampaignMedia(
+  mediaId: string,
+  status: string,
+  rejectionReason?: string,
+) {
   const token = getAuthToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = {};
@@ -840,10 +1086,6 @@ export async function reviewCampaignMedia(mediaId: string, status: string, rejec
   if (!res.ok) throw new Error(data.detail ?? "Failed to review campaign media");
   return data;
 }
-
 export async function updateManifesto(content: string) {
   return put<{ message: string }>("/candidates/manifesto", { content });
 }
-
-
-

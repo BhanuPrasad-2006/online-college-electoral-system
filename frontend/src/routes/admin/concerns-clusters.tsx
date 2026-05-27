@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageLoader } from "@/components/PageLoader";
 import { useQuery } from "@tanstack/react-query";
 import { fetchClusteredConcerns } from "@/lib/api";
+import { useCandidates } from "@/hooks/use-election-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,9 +30,12 @@ import {
 
 const CATEGORY_COLORS: Record<string, string> = {
   academic: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-  infrastructure: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
-  campus_life: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
-  administration: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+  infrastructure:
+    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+  campus_life:
+    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+  administration:
+    "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800",
   other: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800",
   unknown: "bg-muted text-muted-foreground border-border",
 };
@@ -53,9 +57,12 @@ const CATEGORY_BAR_COLORS: Record<string, string> = {
 
 function sentimentLabel(s: string) {
   switch (s) {
-    case "positive": return "Positive";
-    case "negative": return "Negative";
-    default: return "Neutral";
+    case "positive":
+      return "Positive";
+    case "negative":
+      return "Negative";
+    default:
+      return "Neutral";
   }
 }
 
@@ -70,6 +77,7 @@ type ConcernItem = {
   sentiment: string;
   priority: number;
   submitted_at: string | null;
+  to_candidate_id?: string | null;
 };
 
 type Cluster = {
@@ -89,6 +97,8 @@ function Page() {
     refetchInterval: 60_000,
   });
 
+  const { data: candidates = [] } = useCandidates();
+
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -100,13 +110,12 @@ function Page() {
   const unclusteredCount = data?.unclustered_count ?? 0;
 
   const filteredClusters = searchQuery
-    ? clusters.filter((c) =>
-        c.representative_texts.some((t) =>
-          t.toLowerCase().includes(searchQuery.toLowerCase()),
-        ) ||
-        Object.keys(c.category_distribution).some((cat) =>
-          cat.toLowerCase().includes(searchQuery.toLowerCase()),
-        )
+    ? clusters.filter(
+        (c) =>
+          c.representative_texts.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          Object.keys(c.category_distribution).some((cat) =>
+            cat.toLowerCase().includes(searchQuery.toLowerCase()),
+          ),
       )
     : clusters;
 
@@ -117,7 +126,8 @@ function Page() {
         <div>
           <h1 className="text-2xl md:text-[28px] font-bold">Clustered Concerns</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Student concerns grouped by semantic similarity — detect duplicate reports and trending issues at a glance.
+            Student concerns grouped by semantic similarity — detect duplicate reports and trending
+            issues at a glance.
           </p>
         </div>
         <Link to="/admin/ai-monitoring">
@@ -159,7 +169,10 @@ function Page() {
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {totalConcerns > 0 ? ((totalConcerns - unclusteredCount) / totalConcerns * 100).toFixed(0) : 0}%
+                {totalConcerns > 0
+                  ? (((totalConcerns - unclusteredCount) / totalConcerns) * 100).toFixed(0)
+                  : 0}
+                %
               </p>
               <p className="text-xs text-muted-foreground">Clustered</p>
             </div>
@@ -198,7 +211,7 @@ function Page() {
           <p className="text-sm text-muted-foreground/60 mt-1 max-w-md mx-auto">
             {searchQuery
               ? "No clusters match your search. Try different keywords."
-              : "Concerns will appear here once students submit them. Use the \"Cluster Concerns\" button in AI Monitoring to group them."}
+              : 'Concerns will appear here once students submit them. Use the "Cluster Concerns" button in AI Monitoring to group them.'}
           </p>
           {!searchQuery && (
             <Link to="/admin/ai-monitoring">
@@ -212,12 +225,12 @@ function Page() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredClusters.map((cluster) => {
-            const topCategory = Object.entries(cluster.category_distribution).sort(
-              (a, b) => b[1] - a[1],
-            )[0]?.[0] ?? "unknown";
-            const dominantSentiment = Object.entries(cluster.sentiment_breakdown).sort(
-              (a, b) => b[1] - a[1],
-            )[0]?.[0] ?? "neutral";
+            const topCategory =
+              Object.entries(cluster.category_distribution).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+              "unknown";
+            const dominantSentiment =
+              Object.entries(cluster.sentiment_breakdown).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+              "neutral";
 
             return (
               <Card
@@ -269,7 +282,9 @@ function Page() {
                       </CardTitle>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-2xl font-bold tabular-nums text-[#6C63FF]">{cluster.size}</span>
+                      <span className="text-2xl font-bold tabular-nums text-[#6C63FF]">
+                        {cluster.size}
+                      </span>
                       <span className="text-xs text-muted-foreground">concerns</span>
                     </div>
                   </div>
@@ -312,14 +327,22 @@ function Page() {
                       })}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {Object.entries(cluster.category_distribution).slice(0, 4).map(([cat, count]) => (
-                        <span key={cat} className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      {Object.entries(cluster.category_distribution)
+                        .slice(0, 4)
+                        .map(([cat, count]) => (
                           <span
-                            className={cn("inline-block w-2 h-2 rounded-full", CATEGORY_BAR_COLORS[cat] ?? "bg-muted-foreground/30")}
-                          />
-                          {formatCategory(cat)}: {count}
-                        </span>
-                      ))}
+                            key={cat}
+                            className="text-[10px] text-muted-foreground flex items-center gap-1"
+                          >
+                            <span
+                              className={cn(
+                                "inline-block w-2 h-2 rounded-full",
+                                CATEGORY_BAR_COLORS[cat] ?? "bg-muted-foreground/30",
+                              )}
+                            />
+                            {formatCategory(cat)}: {count}
+                          </span>
+                        ))}
                     </div>
                   </div>
 
@@ -355,7 +378,9 @@ function Page() {
                         : "bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/20",
                     )}
                   >
-                    {selectedCluster.is_unclustered ? "Unclustered" : `Cluster \u2022 ${selectedCluster.size} concerns`}
+                    {selectedCluster.is_unclustered
+                      ? "Unclustered"
+                      : `Cluster \u2022 ${selectedCluster.size} concerns`}
                   </Badge>
                 </div>
                 <DialogTitle className="text-xl">
@@ -389,12 +414,16 @@ function Page() {
                   <div className="space-y-1">
                     {Object.entries(selectedCluster.category_distribution).map(([cat, count]) => (
                       <div key={cat} className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-24 truncate">{formatCategory(cat)}</span>
+                        <span className="text-xs text-muted-foreground w-24 truncate">
+                          {formatCategory(cat)}
+                        </span>
                         <Progress
                           value={(count / selectedCluster.size) * 100}
                           className="h-1.5 flex-1"
                         />
-                        <span className="text-xs font-mono text-muted-foreground w-8 text-right">{count}</span>
+                        <span className="text-xs font-mono text-muted-foreground w-8 text-right">
+                          {count}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -412,15 +441,23 @@ function Page() {
                           <span
                             className={cn(
                               "inline-block w-2 h-2 rounded-full",
-                              sent === "positive" ? "bg-emerald-500" : sent === "negative" ? "bg-destructive" : "bg-blue-500",
+                              sent === "positive"
+                                ? "bg-emerald-500"
+                                : sent === "negative"
+                                  ? "bg-destructive"
+                                  : "bg-blue-500",
                             )}
                           />
-                          <span className="text-xs text-muted-foreground capitalize w-16">{sent}</span>
+                          <span className="text-xs text-muted-foreground capitalize w-16">
+                            {sent}
+                          </span>
                           <Progress
                             value={(count / selectedCluster.size) * 100}
                             className="h-1.5 flex-1"
                           />
-                          <span className="text-xs font-mono text-muted-foreground w-8 text-right">{count}</span>
+                          <span className="text-xs font-mono text-muted-foreground w-8 text-right">
+                            {count}
+                          </span>
                         </div>
                       );
                     })}
@@ -442,16 +479,31 @@ function Page() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge
                           variant="outline"
-                          className={cn("text-[10px]", CATEGORY_COLORS[c.category] ?? CATEGORY_COLORS.unknown)}
+                          className={cn(
+                            "text-[10px]",
+                            CATEGORY_COLORS[c.category] ?? CATEGORY_COLORS.unknown,
+                          )}
                         >
                           {formatCategory(c.category)}
                         </Badge>
                         <Badge
                           variant="outline"
-                          className={cn("text-[10px]", SENTIMENT_COLORS[c.sentiment] ?? SENTIMENT_COLORS.neutral)}
+                          className={cn(
+                            "text-[10px]",
+                            SENTIMENT_COLORS[c.sentiment] ?? SENTIMENT_COLORS.neutral,
+                          )}
                         >
                           {sentimentLabel(c.sentiment)}
                         </Badge>
+                        {c.to_candidate_id && (
+                          <Badge variant="secondary" className="text-[9px]">
+                            To: {
+                              c.to_candidate_id === "admin"
+                                ? "Admin (General)"
+                                : candidates.find((x: any) => (x.candidate_id || x.id) === c.to_candidate_id)?.full_name || c.to_candidate_id
+                            }
+                          </Badge>
+                        )}
                         <span className="text-[10px] text-muted-foreground font-mono ml-auto">
                           P{c.priority}
                         </span>

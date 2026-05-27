@@ -21,13 +21,13 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
 
   function goToProfile() {
     if (role === "candidate") nav({ to: "/candidate/settings" });
-    else if (role === "admin") nav({ to: "/admin/dashboard" });
+    else if (role === "admin") nav({ to: "/admin/settings" });
     else nav({ to: "/voter/settings" });
   }
 
   function goToSettings() {
     if (role === "candidate") nav({ to: "/candidate/settings" });
-    else if (role === "admin") nav({ to: "/admin/dashboard" });
+    else if (role === "admin") nav({ to: "/admin/settings" });
     else nav({ to: "/voter/settings" });
   }
 

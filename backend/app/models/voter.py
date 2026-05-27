@@ -43,9 +43,26 @@ class Voter(Base):
 
     vote_permission = Column(Boolean, default=False)
 
+    # Current (admin-approved) reference image and face encoding
     reference_image_url = Column(String(500), nullable=True)
 
     face_encoding = Column(Text, nullable=True)
+
+    # Pending voter-submitted photo (awaiting admin approval)
+    pending_image_url = Column(String(500), nullable=True)
+
+    pending_face_encoding = Column(Text, nullable=True)
+
+    # Previous photo retained for security / audit trail
+    previous_image_url = Column(String(500), nullable=True)
+
+    previous_face_encoding = Column(Text, nullable=True)
+
+    # Number of times voter has submitted a photo re-upload request (max 2)
+    photo_reupload_count = Column(Integer, default=0, nullable=False)
+
+    # Admin has requested the voter to re-upload their photo
+    photo_reupload_requested = Column(Boolean, default=False, nullable=False)
 
     failed_attempts = Column(Integer, default=0, nullable=False)
 

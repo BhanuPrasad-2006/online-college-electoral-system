@@ -38,7 +38,9 @@ export async function getDeviceFingerprint(): Promise<string> {
     ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
     ctx.fillText("fp", 4, 45);
     signals.canvasFingerprint = canvas.toDataURL();
-  } catch { /* canvas unavailable */ }
+  } catch {
+    /* canvas unavailable */
+  }
 
   // WebGL fingerprint
   try {
@@ -48,7 +50,9 @@ export async function getDeviceFingerprint(): Promise<string> {
       signals.webglVendor = gl.getParameter(gl.VENDOR) ?? "";
       signals.webglRenderer = gl.getParameter(gl.RENDERER) ?? "";
     }
-  } catch { /* webgl unavailable */ }
+  } catch {
+    /* webgl unavailable */
+  }
 
   // Hash all signals into one fingerprint string
   const raw = Object.entries(signals)
@@ -59,7 +63,6 @@ export async function getDeviceFingerprint(): Promise<string> {
   const hash = await sha256(raw);
   return hash;
 }
-
 
 /** Compute SHA-256 digest of a string and return hex. */
 async function sha256(input: string): Promise<string> {

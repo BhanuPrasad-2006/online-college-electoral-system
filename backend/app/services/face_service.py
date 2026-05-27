@@ -12,15 +12,33 @@ import os
 import cv2
 import numpy as np
 import json
-from deepface import DeepFace
 from app.utils.logger import logger
+from app.core.config import settings
 
 MODEL_NAME = "Facenet"
 DISTANCE_METRIC = "euclidean_l2"
-THRESHOLD = 0.8  # Threshold for Facenet with euclidean_l2
 
 # EAR (Eye Aspect Ratio) thresholds for liveness detection
 EAR_THRESHOLD = 0.22  # Below this = eye considered "closed"
+
+# Wrap deepface import to give a clear user-facing error if it's missing
+_DeepFace = None
+_deepface_import_error = None
+try:
+    from deepface import DeepFace as _DeepFace
+except ImportError as e:
+    _deepface_import_error = f"DeepFace library is not installed. Run: pip install deepface==0.0.79 (Error: {e})"
+    logger.warning(_deepface_import_error)
+except Exception as e:
+    _deepface_import_error = f"DeepFace library failed to load: {e}"
+    logger.error(_deepface_import_error)
+
+
+def _ensure_deepface_available():
+    """Raise a clear service-unavailable error if deepface cannot be used."""
+    if _DeepFace is None:
+        msg = _deepface_import_error or "Face recognition module is not available on this server."
+        raise RuntimeError(msg)
 
 
 def _bytes_to_cv2(image_data: bytes) -> np.ndarray:
@@ -36,15 +54,18 @@ def extract_face_embedding(image_data: bytes) -> list[float]:
     Extracts face embedding from image bytes using DeepFace.
     Returns a list of floats (embedding vector).
     Raises ValueError if no face or multiple faces are found.
+    Raises RuntimeError if the face recognition module is unavailable.
     """
+    _ensure_deepface_available()
+
     img = _bytes_to_cv2(image_data)
     try:
-        objs = DeepFace.represent(img_path=img, model_name=MODEL_NAME, enforce_detection=True)
+        objs = _DeepFace.represent(img_path=img, model_name=MODEL_NAME, enforce_detection=True)
 
         if len(objs) == 0:
-            raise ValueError("No face detected in the image.")
+            raise ValueError("No face detected in the image. Make sure your face is clearly visible and well-lit.")
         if len(objs) > 1:
-            raise ValueError("Multiple faces detected. Only one face is allowed.")
+            raise ValueError("Multiple faces detected. Only one person should be in the frame.")
 
         embedding = objs[0]["embedding"]
         return embedding
@@ -52,8 +73,15 @@ def extract_face_embedding(image_data: bytes) -> list[float]:
         logger.error(f"Face extraction failed: {e}")
         raise ValueError(str(e))
     except Exception as e:
+        err_str = str(e).lower()
+        if "model" in err_str or "download" in err_str or "vgg-face" in err_str or "facenet" in err_str:
+            logger.error(f"DeepFace model error: {e}")
+            raise RuntimeError(
+                "Face recognition model is not downloaded yet. Please contact the election admin "
+                "so they can run the model setup on the server."
+            )
         logger.error(f"Unexpected error in face extraction: {e}")
-        raise ValueError("Failed to process face image.")
+        raise ValueError("Failed to process face image. Please try again with a clearer photo.")
 
 
 def compare_face_embeddings(emb1: list[float], emb2: list[float]) -> bool:
@@ -64,14 +92,25 @@ def compare_face_embeddings(emb1: list[float], emb2: list[float]) -> bool:
         return False
 
     try:
-        a = np.array(emb1)
-        b = np.array(emb2)
+        a = np.asarray(emb1, dtype=np.float32)
+        b = np.asarray(emb2, dtype=np.float32)
+        if a.shape != b.shape:
+            logger.warning("Face embeddings shape mismatch: %s vs %s", a.shape, b.shape)
+            return False
+
         distance = np.linalg.norm(a - b)
         logger.info(f"Face comparison distance: {distance}")
-
-        if distance <= THRESHOLD:
+        if distance <= settings.FACE_MATCH_THRESHOLD:
             return True
-        return False
+
+        # Fallback to cosine similarity for cases where distance is marginal
+        norm_a = np.linalg.norm(a)
+        norm_b = np.linalg.norm(b)
+        if norm_a == 0 or norm_b == 0:
+            return False
+        cosine_similarity = float(np.dot(a, b) / (norm_a * norm_b))
+        logger.info(f"Face cosine similarity: {cosine_similarity}")
+        return cosine_similarity >= settings.FACE_MATCH_COSINE_THRESHOLD
     except Exception as e:
         logger.error(f"Error comparing faces: {e}")
         return False

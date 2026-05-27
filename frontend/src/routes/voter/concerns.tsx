@@ -7,13 +7,35 @@ import { useCandidates, useVoterConcerns } from "@/hooks/use-election-data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquarePlus, Send, Paperclip, Image as ImageIcon, Video as VideoIcon, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  MessageSquarePlus,
+  Send,
+  Paperclip,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/voter/concerns")({ component: Page });
 
-const CATEGORIES = ["Wi-Fi & Infrastructure", "Placements", "Hostel Facilities", "Cafeteria", "Transportation", "Sports & Events", "Mental Health", "Other"];
+const CATEGORIES = [
+  "Wi-Fi & Infrastructure",
+  "Placements",
+  "Hostel Facilities",
+  "Cafeteria",
+  "Transportation",
+  "Sports & Events",
+  "Mental Health",
+  "Other",
+];
 
 function Page() {
   const { data: candidates = [], isPending: loadingCandidates } = useCandidates();
@@ -25,7 +47,9 @@ function Page() {
   const [sent, setSent] = useState<VoterConcern[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachment, setAttachment] = useState<{ name: string; url: string; type: string } | null>(null);
+  const [attachment, setAttachment] = useState<{ name: string; url: string; type: string } | null>(
+    null,
+  );
 
   if (loadingCandidates || loadingConcerns) return <PageLoader />;
 
@@ -40,9 +64,7 @@ function Page() {
     try {
       // Get the file from the input for Supabase upload
       const fileObj: File | undefined =
-        attachment && fileInputRef.current?.files?.[0]
-          ? fileInputRef.current.files[0]
-          : undefined;
+        attachment && fileInputRef.current?.files?.[0] ? fileInputRef.current.files[0] : undefined;
 
       const created = await submitConcern({
         toCandidateId: candidateId,
@@ -63,7 +85,7 @@ function Page() {
             : undefined,
       };
 
-      setSent((s) => [withAttachment, ...s.length ? s : initialConcerns]);
+      setSent((s) => [withAttachment, ...(s.length ? s : initialConcerns)]);
       setCategory("");
       setSubject("");
       setMessage("");
@@ -79,7 +101,10 @@ function Page() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-[28px] font-bold">Send a Concern</h1>
-        <p className="text-sm text-muted-foreground mt-1">Share campus issues directly with candidates. They review concerns to shape their manifesto.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Share campus issues directly with candidates. They review concerns to shape their
+          manifesto.
+        </p>
       </div>
 
       <div className="bg-card rounded-2xl shadow-sm p-5 md:p-6 space-y-4">
@@ -91,8 +116,11 @@ function Page() {
           <div>
             <label className="text-xs font-medium text-muted-foreground">Send To</label>
             <Select value={candidateId} onValueChange={setCandidateId}>
-              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select candidate" /></SelectTrigger>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Select candidate" />
+              </SelectTrigger>
               <SelectContent>
+                <SelectItem value="admin">Admin (General Concern)</SelectItem>
                 {candidates.map((c) => {
                   const cId = c.candidate_id || c.id;
                   const cName = c.full_name || c.name;
@@ -108,16 +136,28 @@ function Page() {
           <div>
             <label className="text-xs font-medium text-muted-foreground">Category</label>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectTrigger className="mt-1.5">
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
               <SelectContent>
-                {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Subject</label>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={120} placeholder="Short summary" className="mt-1.5" />
+          <Input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            maxLength={120}
+            placeholder="Short summary"
+            className="mt-1.5"
+          />
         </div>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Message</label>
@@ -133,7 +173,9 @@ function Page() {
 
         {/* ── File Attachment Section ── */}
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Attach Evidence (Photo or Video)</label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Attach Evidence (Photo or Video)
+          </label>
           <div className="flex items-center gap-3 mt-1.5">
             <Button
               type="button"
@@ -180,12 +222,18 @@ function Page() {
                 </button>
               </span>
             ) : (
-              <span className="text-xs text-muted-foreground">Supports images and videos up to 10MB</span>
+              <span className="text-xs text-muted-foreground">
+                Supports images and videos up to 10MB
+              </span>
             )}
           </div>
         </div>
 
-        <Button onClick={submit} disabled={submitting} className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 mt-2">
+        <Button
+          onClick={submit}
+          disabled={submitting}
+          className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 mt-2"
+        >
           <Send className="h-4 w-4 mr-2" /> Send Concern
         </Button>
       </div>
@@ -194,8 +242,11 @@ function Page() {
         <h2 className="text-base font-semibold mb-4">Recently Sent</h2>
         <div className="space-y-3">
           {concerns.map((c) => {
-            const to = candidates.find((x) => (x.candidate_id || x.id) === (c.toCandidateId || c.to_candidate_id));
-            const toName = to ? (to.full_name || to.name) : "—";
+            const recipientId = c.toCandidateId || c.to_candidate_id;
+            const to = candidates.find(
+              (x) => (x.candidate_id || x.id) === recipientId,
+            );
+            const toName = to ? to.full_name || to.name : (recipientId === "admin" || !recipientId ? "Admin (General)" : "—");
             return (
               <div key={c.id} className="p-4 bg-muted/40 rounded-lg">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -208,9 +259,17 @@ function Page() {
                 {c.attachment && (
                   <div className="mt-3 overflow-hidden rounded-lg border border-border bg-background max-w-md">
                     {c.attachment.type.startsWith("image/") ? (
-                      <img src={c.attachment.url} alt="Concern Attachment" className="max-h-64 w-full object-cover" />
+                      <img
+                        src={c.attachment.url}
+                        alt="Concern Attachment"
+                        className="max-h-64 w-full object-cover"
+                      />
                     ) : c.attachment.type.startsWith("video/") ? (
-                      <video src={c.attachment.url} controls className="max-h-64 w-full object-cover" />
+                      <video
+                        src={c.attachment.url}
+                        controls
+                        className="max-h-64 w-full object-cover"
+                      />
                     ) : (
                       <div className="p-3 text-xs text-muted-foreground flex items-center gap-2">
                         <Paperclip className="h-4 w-4" /> {c.attachment.name}

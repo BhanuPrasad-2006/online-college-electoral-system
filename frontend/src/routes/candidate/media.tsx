@@ -41,9 +41,15 @@ function Page() {
     return candidateId === profile?.candidate_id || candidateName === profileName;
   });
 
-  const candidateId = profile?.candidate_id || candidateRecord?.candidate_id || candidateRecord?.id || "";
-  const candidateName = profileName || candidateRecord?.full_name || candidateRecord?.name || "Candidate";
-  const candidateParty = profile?.party_symbol_url || candidateRecord?.party || candidateRecord?.party_symbol_url || "Independent";
+  const candidateId =
+    profile?.candidate_id || candidateRecord?.candidate_id || candidateRecord?.id || "";
+  const candidateName =
+    profileName || candidateRecord?.full_name || candidateRecord?.name || "Candidate";
+  const candidateParty =
+    profile?.party_symbol_url ||
+    candidateRecord?.party ||
+    candidateRecord?.party_symbol_url ||
+    "Independent";
 
   const mySubmissions = mediaItems.filter((item: any) => {
     if (candidateId && item.candidateId === candidateId) return true;
@@ -131,13 +137,15 @@ function Page() {
       <div>
         <h1 className="text-2xl md:text-[28px] font-bold">Campaign Media</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Candidates can submit media or video here. Admin approval is required before voters can see it.
+          Candidates can submit media or video here. Admin approval is required before voters can
+          see it.
         </p>
       </div>
 
       {!isApprovedCandidate ? (
         <div className="bg-card rounded-2xl border border-border p-6 text-sm text-muted-foreground">
-          Your candidacy is currently <span className="font-semibold text-foreground">{profile?.status || "Pending"}</span>.
+          Your candidacy is currently{" "}
+          <span className="font-semibold text-foreground">{profile?.status || "Pending"}</span>.
           Media submissions open after admin approval of the candidate profile.
         </div>
       ) : (
@@ -152,10 +160,18 @@ function Page() {
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Type</label>
                 <div className="mt-1.5 grid grid-cols-2 gap-2">
-                  <Button type="button" variant={type === "poster" ? "default" : "outline"} onClick={() => setType("poster")}>
+                  <Button
+                    type="button"
+                    variant={type === "poster" ? "default" : "outline"}
+                    onClick={() => setType("poster")}
+                  >
                     <ImageIcon className="h-4 w-4 mr-2" /> Media
                   </Button>
-                  <Button type="button" variant={type === "video" ? "default" : "outline"} onClick={() => setType("video")}>
+                  <Button
+                    type="button"
+                    variant={type === "video" ? "default" : "outline"}
+                    onClick={() => setType("video")}
+                  >
                     <Play className="h-4 w-4 mr-2" /> Video
                   </Button>
                 </div>
@@ -163,7 +179,12 @@ function Page() {
 
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Title</label>
-                <Input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1.5" maxLength={120} />
+                <Input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className="mt-1.5"
+                  maxLength={120}
+                />
               </div>
 
               <div>
@@ -176,7 +197,9 @@ function Page() {
                   className="mt-1.5 flex min-h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-border px-4 text-center"
                 >
                   <Upload className="h-8 w-8 text-muted-foreground" />
-                  <p className="mt-2 text-sm font-medium">{selectedFile ? selectedFile.name : "Choose file"}</p>
+                  <p className="mt-2 text-sm font-medium">
+                    {selectedFile ? selectedFile.name : "Choose file"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {type === "poster" ? "PNG/JPG up to 5MB" : "MP4 up to 20MB"}
                   </p>
@@ -200,7 +223,11 @@ function Page() {
                 />
               </div>
 
-              <Button type="submit" disabled={submitting} className="w-full bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+              >
                 {submitting ? "Submitting..." : "Submit for Approval"}
               </Button>
             </form>
@@ -210,11 +237,15 @@ function Page() {
             <div>
               <h2 className="text-base font-semibold">My Submissions</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Submitted by {candidateName}. Pending items are visible to admin, approved items are visible to voters.
+                Submitted by {candidateName}. Pending items are visible to admin, approved items are
+                visible to voters.
               </p>
             </div>
 
-            <Tabs value={tab} onValueChange={(value) => setTab(value as "all" | "poster" | "video")}>
+            <Tabs
+              value={tab}
+              onValueChange={(value) => setTab(value as "all" | "poster" | "video")}
+            >
               <TabsList>
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="poster">Media</TabsTrigger>
@@ -224,7 +255,9 @@ function Page() {
               <TabsContent value={tab} className="mt-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   {visibleSubmissions.map((item: any) => {
-                    const assetUrl = resolveApiAssetUrl(item.uploadedFileUrl || item.externalUrl || item.url);
+                    const assetUrl = resolveApiAssetUrl(
+                      item.uploadedFileUrl || item.externalUrl || item.url,
+                    );
                     const isVideo = item.type === "video";
                     const badgeClass =
                       item.status === "Approved"
@@ -234,13 +267,24 @@ function Page() {
                           : "bg-warning text-warning-foreground";
 
                     return (
-                      <div key={item.id} className="bg-card rounded-2xl border border-border overflow-hidden">
+                      <div
+                        key={item.id}
+                        className="bg-card rounded-2xl border border-border overflow-hidden"
+                      >
                         <div className="aspect-[16/10] bg-muted flex items-center justify-center overflow-hidden">
                           {assetUrl ? (
                             isVideo ? (
-                              <video src={assetUrl} controls className="h-full w-full object-cover" />
+                              <video
+                                src={assetUrl}
+                                controls
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
-                              <img src={assetUrl} alt={item.title} className="h-full w-full object-cover" />
+                              <img
+                                src={assetUrl}
+                                alt={item.title}
+                                className="h-full w-full object-cover"
+                              />
                             )
                           ) : (
                             <Film className="h-10 w-10 text-muted-foreground" />
@@ -252,16 +296,24 @@ function Page() {
                             <Badge className={badgeClass}>{item.status}</Badge>
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {item.type === "poster" ? "Media" : "Video"} • {formatSubmittedAt(item.submittedAt)}
+                            {item.type === "poster" ? "Media" : "Video"} •{" "}
+                            {formatSubmittedAt(item.submittedAt)}
                           </p>
                           {assetUrl ? (
-                            <a href={assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]">
+                            <a
+                              href={assetUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]"
+                            >
                               <LinkIcon className="h-3.5 w-3.5" />
                               Open submission
                             </a>
                           ) : null}
                           {item.rejectionReason ? (
-                            <p className="mt-3 text-xs text-destructive">Rejected: {item.rejectionReason}</p>
+                            <p className="mt-3 text-xs text-destructive">
+                              Rejected: {item.rejectionReason}
+                            </p>
                           ) : null}
                         </div>
                       </div>

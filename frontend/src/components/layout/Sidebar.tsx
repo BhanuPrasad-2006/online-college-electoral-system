@@ -22,12 +22,15 @@ import {
   ShieldCheck,
   Lock,
   TrendingUp,
+  Camera,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/context/NotificationStore";
 import { useCandidateProfile } from "@/hooks/use-election-data";
+import { fetchPendingPhotos } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface SidebarLink {
@@ -43,6 +46,7 @@ const VOTER_LINKS: SidebarLink[] = [
   { to: "/voter/media", label: "Campaign Gallery", icon: Film },
   { to: "/voter/concerns", label: "Send a Concern", icon: MessageSquarePlus },
   { to: "/voter/statistics", label: "Statistics", icon: BarChart2 },
+  { to: "/voter/results", label: "Results", icon: TrendingUp },
 ];
 
 const CANDIDATE_LINKS: SidebarLink[] = [
@@ -51,6 +55,7 @@ const CANDIDATE_LINKS: SidebarLink[] = [
   { to: "/candidate/media", label: "Campaign Media", icon: Film },
   { to: "/candidate/ai-report", label: "AI Report", icon: Brain },
   { to: "/candidate/status", label: "Application Status", icon: ListChecks },
+  { to: "/candidate/concerns", label: "Student Concerns", icon: MessageSquarePlus },
   { to: "/candidate/notifications", label: "Notifications", icon: Bell, badge: 2 },
   { to: "/candidate/settings", label: "Settings", icon: Settings },
 ];
@@ -66,6 +71,7 @@ const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/campus-report", label: "Campus Report", icon: BarChart2 },
   { to: "/admin/results", label: "Results", icon: TrendingUp },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
+  { to: "/admin/pending-photos", label: "Pending Photos", icon: Camera },
   { to: "/admin/announcements", label: "Announcements", icon: Megaphone },
 ];
 
@@ -89,6 +95,15 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
   const statusUpper = profile?.status?.toUpperCase() || "PENDING";
   const isApproved = statusUpper === "APPROVED";
 
+  // Fetch pending photo count for admin sidebar badge
+  const { data: pendingPhotosList } = useQuery({
+    queryKey: ["pending-photos"],
+    queryFn: fetchPendingPhotos,
+    staleTime: 30_000,
+    enabled: kind === "admin",
+  });
+  const pendingPhotoCount = Array.isArray(pendingPhotosList) ? pendingPhotosList.length : 0;
+
   return (
     <aside className="w-[260px] bg-sidebar text-sidebar-foreground h-screen fixed left-0 top-0 z-20 flex flex-col">
       <div className="px-6 py-5 flex items-center gap-2 border-b border-sidebar-border">
@@ -104,10 +119,14 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
         {links.map((l) => {
           const active = path === l.to;
           const Icon = l.icon;
-          const badge = l.to.endsWith("/notifications") ? unreadCount : "badge" in l ? l.badge : 0;
+          const badge = l.to.endsWith("/notifications") ? unreadCount : l.to.endsWith("/pending-photos") ? pendingPhotoCount : "badge" in l ? l.badge : 0;
 
           // Determine if this candidate link is locked (campaign features lock unless approved)
-          const isCampaignTab = ["/candidate/manifesto", "/candidate/media", "/candidate/ai-report"].includes(l.to);
+          const isCampaignTab = [
+            "/candidate/manifesto",
+            "/candidate/media",
+            "/candidate/ai-report",
+          ].includes(l.to);
           const isLocked = kind === "candidate" && isCampaignTab && !isApproved;
 
           if (isLocked) {
@@ -115,9 +134,12 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
               <button
                 key={l.to}
                 onClick={() => {
-                  toast.error(`Access Locked. The "${l.label}" will activate once your candidacy is approved by the admin.`, {
-                    description: `Current Status: ${profile?.status || "Pending review"}`,
-                  });
+                  toast.error(
+                    `Access Locked. The "${l.label}" will activate once your candidacy is approved by the admin.`,
+                    {
+                      description: `Current Status: ${profile?.status || "Pending review"}`,
+                    },
+                  );
                 }}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/30 hover:bg-sidebar-accent/10 hover:text-sidebar-foreground/40 transition-all duration-200 cursor-not-allowed",

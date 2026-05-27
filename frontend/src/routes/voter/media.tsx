@@ -18,7 +18,9 @@ function Page() {
     return <PageLoader />;
   }
 
-  const approvedItems = mediaItems.filter((item: any) => item.status === "Approved" && ["poster", "video"].includes(item.type));
+  const approvedItems = mediaItems.filter(
+    (item: any) => item.status === "Approved" && ["poster", "video"].includes(item.type),
+  );
   const groups = {
     all: approvedItems,
     poster: approvedItems.filter((item: any) => item.type === "poster"),
@@ -88,7 +90,12 @@ function MediaCard({ item }: { item: any }) {
         <p className="font-semibold text-sm">{item.title}</p>
 
         {assetUrl ? (
-          <a href={assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]">
+          <a
+            href={assetUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]"
+          >
             <LinkIcon className="h-3.5 w-3.5" />
             Open media
           </a>
@@ -96,7 +103,9 @@ function MediaCard({ item }: { item: any }) {
 
         <div className="mt-4 flex items-center gap-2 border-t pt-3">
           <Avatar className="h-7 w-7">
-            <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] text-[10px] font-semibold">{initials}</AvatarFallback>
+            <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] text-[10px] font-semibold">
+              {initials}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <p className="text-xs font-medium truncate">{item.candidateName}</p>

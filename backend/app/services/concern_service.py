@@ -35,6 +35,40 @@ COVERAGE_KEYWORDS: dict[ConcernCategoryEnum, list[str]] = {
     ConcernCategoryEnum.OTHER: ["student", "campus", "college"],
 }
 
+# Mapping from frontend display labels → enum values
+LABEL_TO_CATEGORY: dict[str, ConcernCategoryEnum] = {
+    # exact frontend labels (case-insensitive lookup applied below)
+    "placements": ConcernCategoryEnum.ACADEMIC,
+    "academics & placements": ConcernCategoryEnum.ACADEMIC,
+    "academic": ConcernCategoryEnum.ACADEMIC,
+    "wi-fi & infrastructure": ConcernCategoryEnum.INFRASTRUCTURE,
+    "infrastructure": ConcernCategoryEnum.INFRASTRUCTURE,
+    "hostel facilities": ConcernCategoryEnum.CAMPUS_LIFE,
+    "cafeteria": ConcernCategoryEnum.CAMPUS_LIFE,
+    "sports & events": ConcernCategoryEnum.CAMPUS_LIFE,
+    "mental health": ConcernCategoryEnum.CAMPUS_LIFE,
+    "campus life": ConcernCategoryEnum.CAMPUS_LIFE,
+    "campus_life": ConcernCategoryEnum.CAMPUS_LIFE,
+    "transportation": ConcernCategoryEnum.ADMINISTRATION,
+    "administration": ConcernCategoryEnum.ADMINISTRATION,
+    "other": ConcernCategoryEnum.OTHER,
+}
+
+
+def _map_category(raw: str) -> ConcernCategoryEnum:
+    """Map a raw category string (from frontend or DB) to a ConcernCategoryEnum."""
+    key = (raw or "").strip().lower()
+    # 1. Try direct enum value (e.g. "academic", "infrastructure")
+    try:
+        return ConcernCategoryEnum(key)
+    except ValueError:
+        pass
+    # 2. Try frontend display label lookup
+    if key in LABEL_TO_CATEGORY:
+        return LABEL_TO_CATEGORY[key]
+    # 3. Fallback
+    return ConcernCategoryEnum.OTHER
+
 
 class ConcernService:
     def __init__(self, db: AsyncSession):
@@ -50,29 +84,36 @@ class ConcernService:
         attachment_url: Optional[str] = None,
     ) -> dict:
         """Create a new concern with AI classification."""
+        import uuid as uuid_lib
         # Get current election for election_id
         election_result = await self.db.execute(
             select(Election).order_by(Election.created_at.desc())
         )
         election = election_result.scalars().first()
-        election_id = str(election.election_id) if election else None
+        election_id = election.election_id if election else None
 
-        # Map category string to enum
-        category_enum = None
-        try:
-            category_enum = ConcernCategoryEnum(category.lower())
-        except (ValueError, AttributeError):
-            category_enum = ConcernCategoryEnum.OTHER
+        # Map category string (supports both enum values and frontend display labels)
+        category_enum = _map_category(category)
+
+        # Convert IDs to UUIDs if they are string representation of UUIDs
+        voter_uuid = uuid_lib.UUID(user_id) if isinstance(user_id, str) else user_id
+        election_uuid = uuid_lib.UUID(str(election_id)) if election_id else None
 
         concern = Concern(
-            concern_id=str(uuid.uuid4()),
-            student_id=user_id,
-            election_id=election_id,
+            concern_id=uuid_lib.uuid4(),
+            student_id=voter_uuid,
+            election_id=election_uuid,
             content=f"{title}\n\n{description}",
             category=category_enum,
             priority=2,
+            to_candidate_id=candidate_id,
             attachment_url=attachment_url,
             submitted_at=datetime.now(timezone.utc),
+            subject=title,
+            message=description,
+            evidence_url=attachment_url,
+            status="pending",
+            created_at=datetime.now(timezone.utc),
         )
         self.db.add(concern)
         await self.db.commit()
@@ -80,11 +121,17 @@ class ConcernService:
 
         logger.info(f"Concern created: {concern.concern_id} by student {user_id} in category '{category}'")
         return {
-            "concern_id": concern.concern_id,
+            "concern_id": str(concern.concern_id),
             "content": concern.content,
             "category": concern.category.value if concern.category else "other",
+            "to_candidate_id": concern.to_candidate_id,
             "attachment_url": concern.attachment_url,
             "submitted_at": concern.submitted_at.isoformat() if concern.submitted_at else None,
+            "subject": concern.subject,
+            "message": concern.message,
+            "evidence_url": concern.evidence_url,
+            "status": concern.status,
+            "created_at": concern.created_at.isoformat() if concern.created_at else None,
         }
 
     async def list_concerns(
@@ -92,17 +139,23 @@ class ConcernService:
         page: int = 1,
         page_size: int = 20,
         election_id: Optional[str] = None,
+        student_id: Optional[str] = None,
     ) -> dict:
-        """List concerns with pagination."""
+        """List concerns with pagination, optionally filtered by student."""
         query = select(Concern).order_by(desc(Concern.submitted_at))
 
         if election_id:
             query = query.where(Concern.election_id == election_id)
 
+        if student_id:
+            query = query.where(Concern.student_id == student_id)
+
         # Get total count
         count_query = select(func.count()).select_from(Concern)
         if election_id:
             count_query = count_query.where(Concern.election_id == election_id)
+        if student_id:
+            count_query = count_query.where(Concern.student_id == student_id)
         total_result = await self.db.execute(count_query)
         total = total_result.scalar() or 0
 
@@ -116,12 +169,18 @@ class ConcernService:
         return {
             "concerns": [
                 {
-                    "concern_id": c.concern_id,
+                    "concern_id": str(c.concern_id),
                     "content": c.content,
                     "category": c.category.value if c.category else "other",
                     "priority": c.priority,
+                    "to_candidate_id": c.to_candidate_id,
                     "attachment_url": c.attachment_url,
                     "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
+                    "subject": c.subject,
+                    "message": c.message,
+                    "evidence_url": c.evidence_url,
+                    "status": c.status,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
                 }
                 for c in concerns
             ],

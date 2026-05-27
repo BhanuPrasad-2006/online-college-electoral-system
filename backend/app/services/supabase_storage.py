@@ -92,3 +92,16 @@ async def upload_manifesto_media(
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
     object_path = f"manifestos/{candidate_id}/{uuid.uuid4().hex}.{extension}"
     return await _do_upload(object_path=object_path, filename=filename, content_type=content_type, data=data)
+
+
+async def upload_voter_face(
+    *,
+    voter_id: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> UploadedStorageObject:
+    """Upload a voter face reference image to Supabase Storage."""
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    object_path = f"faces/{voter_id}/{uuid.uuid4().hex}.{extension}"
+    return await _do_upload(object_path=object_path, filename=filename, content_type=content_type, data=data)

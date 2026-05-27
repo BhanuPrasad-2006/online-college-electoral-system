@@ -2,9 +2,28 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Bold, Italic, List, Heading, Check, X, AlertCircle, Upload, Image, FileText, Trash2, AlertTriangle } from "lucide-react";
+import {
+  Brain,
+  Bold,
+  Italic,
+  List,
+  Heading,
+  Check,
+  X,
+  AlertCircle,
+  Upload,
+  Image,
+  FileText,
+  Trash2,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
-import { fetchCandidateProfile, saveManifesto, uploadManifestoMedia, analyzeAndStoreManifesto } from "@/lib/api";
+import {
+  fetchCandidateProfile,
+  saveManifesto,
+  uploadManifestoMedia,
+  analyzeAndStoreManifesto,
+} from "@/lib/api";
 
 interface Contradiction {
   statement_a: string;
@@ -65,7 +84,9 @@ function Page() {
         // ignore
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   async function analyze() {
@@ -182,7 +203,9 @@ function Page() {
           <div>
             <p className="text-sm font-semibold text-destructive">Manifesto rejected</p>
             <p className="text-sm text-muted-foreground mt-1">{adminRemarks}</p>
-            <p className="text-xs text-muted-foreground mt-2">Edit your manifesto and submit again for review.</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Edit your manifesto and submit again for review.
+            </p>
           </div>
         </div>
       )}
@@ -211,7 +234,12 @@ function Page() {
         <div className="lg:col-span-3 bg-card rounded-2xl shadow-sm p-5">
           <div className="flex items-center gap-1 pb-3 border-b border-border mb-3">
             {[Bold, Italic, List, Heading].map((I, i) => (
-              <button key={i} type="button" className="p-2 hover:bg-muted rounded-md" disabled={isLocked}>
+              <button
+                key={i}
+                type="button"
+                className="p-2 hover:bg-muted rounded-md"
+                disabled={isLocked}
+              >
                 <I className="h-4 w-4" />
               </button>
             ))}
@@ -293,8 +321,15 @@ function Page() {
           <div className="flex items-center justify-between pt-3 border-t border-border flex-wrap gap-2">
             <span className="text-xs text-muted-foreground">{text.length} characters</span>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={analyze} disabled={isLocked}>Analyze</Button>
-              <Button variant="outline" size="sm" disabled={saving || isLocked} onClick={() => persist(false)}>
+              <Button variant="outline" size="sm" onClick={analyze} disabled={isLocked}>
+                Analyze
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={saving || isLocked}
+                onClick={() => persist(false)}
+              >
                 {saving ? "Saving..." : "Save Draft"}
               </Button>
               <Button
@@ -319,13 +354,28 @@ function Page() {
               <div key={c.name} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    {c.covered ? <Check className="h-4 w-4 text-success" /> : <X className="h-4 w-4 text-destructive" />}
+                    {c.covered ? (
+                      <Check className="h-4 w-4 text-success" />
+                    ) : (
+                      <X className="h-4 w-4 text-destructive" />
+                    )}
                     <span>{c.name}</span>
                   </div>
-                  <span className={c.covered ? "text-success text-xs font-medium" : "text-destructive text-xs font-medium"}>{c.coverage}%</span>
+                  <span
+                    className={
+                      c.covered
+                        ? "text-success text-xs font-medium"
+                        : "text-destructive text-xs font-medium"
+                    }
+                  >
+                    {c.coverage}%
+                  </span>
                 </div>
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className={c.covered ? "h-full bg-success" : "h-full bg-destructive"} style={{ width: `${c.coverage}%` }} />
+                  <div
+                    className={c.covered ? "h-full bg-success" : "h-full bg-destructive"}
+                    style={{ width: `${c.coverage}%` }}
+                  />
                 </div>
               </div>
             ))}
@@ -338,7 +388,12 @@ function Page() {
                   key={s}
                   type="button"
                   disabled={isLocked}
-                  onClick={() => setText((t) => t + `\n\n${s.replace("Add: ", "## ")}\n[Outline a concrete plan here]\n`)}
+                  onClick={() =>
+                    setText(
+                      (t) =>
+                        t + `\n\n${s.replace("Add: ", "## ")}\n[Outline a concrete plan here]\n`,
+                    )
+                  }
                   className="block w-full text-left text-xs px-3 py-2 rounded-lg bg-[#6C63FF]/10 text-[#6C63FF] hover:bg-[#6C63FF]/15 disabled:opacity-50"
                 >
                   {s}

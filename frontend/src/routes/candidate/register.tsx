@@ -2,7 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Upload, QrCode, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -19,7 +25,7 @@ function getSemesterFromYear(yearStr: string): string {
   if (!match) return "";
   const year = parseInt(match[0], 10);
   if (isNaN(year)) return "";
-  const sem = (year * 2) - 1;
+  const sem = year * 2 - 1;
   const suffixes: Record<number, string> = { 1: "st", 2: "nd", 3: "rd" };
   const suffix = suffixes[sem] || "th";
   return `${sem}${suffix} Sem`;
@@ -49,9 +55,18 @@ function Register() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const prefillName = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("candidate-prefill-name") || "" : "";
-  const prefillDept = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("candidate-prefill-department") || "" : "";
-  const prefillSem = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("candidate-prefill-semester") || "" : "";
+  const prefillName =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("candidate-prefill-name") || ""
+      : "";
+  const prefillDept =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("candidate-prefill-department") || ""
+      : "";
+  const prefillSem =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("candidate-prefill-semester") || ""
+      : "";
   const isAutoCreated = !prefillName;
   const { mobile: sessionMobile, sessionToken } = getOtpSession();
 
@@ -73,7 +88,11 @@ function Register() {
     manifesto: "",
     newPassword: "",
     confirmPassword: "",
-    symbol: "", photo: "", payment: "", confirm: false, terms: false,
+    symbol: "",
+    photo: "",
+    payment: "",
+    confirm: false,
+    terms: false,
     vicePresident: "",
     secretary: "",
   });
@@ -107,7 +126,8 @@ function Register() {
             return {
               ...d,
               name: voter.name || d.name,
-              department: voter.department && voter.department !== "—" ? voter.department : d.department,
+              department:
+                voter.department && voter.department !== "—" ? voter.department : d.department,
               semester: semesterVal || d.semester,
               usn: voter.studentId && voter.studentId !== "—" ? voter.studentId : d.usn,
             };
@@ -228,14 +248,23 @@ function Register() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 py-8">
       <div className="w-full max-w-3xl bg-card rounded-2xl shadow-sm p-6 md:p-10">
         <h1 className="text-2xl font-bold">Candidate Registration</h1>
-        <p className="text-sm text-muted-foreground mt-1">Complete all steps to submit your candidacy.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Complete all steps to submit your candidacy.
+        </p>
 
         <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-2">
           {STEPS.map((s, i) => (
             <div key={s} className="flex items-center shrink-0">
-              <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium",
-                i < step ? "bg-success/15 text-success" : i === step ? "bg-[#1F3A6E] text-white" : "bg-muted text-muted-foreground"
-              )}>
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium",
+                  i < step
+                    ? "bg-success/15 text-success"
+                    : i === step
+                      ? "bg-[#1F3A6E] text-white"
+                      : "bg-muted text-muted-foreground",
+                )}
+              >
                 <span className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
                   {i < step ? "✓" : i + 1}
                 </span>
@@ -250,21 +279,27 @@ function Register() {
           {step === 0 && (
             <div className="space-y-4 max-w-md mx-auto py-4">
               <h2 className="text-base font-semibold text-center">Set Secure Candidate Password</h2>
-              <p className="text-xs text-muted-foreground text-center">Choose a secure password specifically for your candidate profile dashboard.</p>
-              
+              <p className="text-xs text-muted-foreground text-center">
+                Choose a secure password specifically for your candidate profile dashboard.
+              </p>
+
               <div className="space-y-4 mt-6">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">New Password</label>
                   <div className="mt-1.5 relative">
-                    <Input 
+                    <Input
                       type={showPassword ? "text" : "password"}
-                      required 
-                      placeholder="••••••••" 
-                      className="pr-10 h-11" 
-                      value={data.newPassword} 
-                      onChange={(e) => set("newPassword", e.target.value)} 
+                      required
+                      placeholder="••••••••"
+                      className="pr-10 h-11"
+                      value={data.newPassword}
+                      onChange={(e) => set("newPassword", e.target.value)}
                     />
-                    <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((s) => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
@@ -272,25 +307,62 @@ function Register() {
 
                 {/* Live Password Strength Checklist */}
                 <div className="mt-2 space-y-1.5 p-3.5 bg-muted/40 rounded-xl border border-border/60 text-xs">
-                  <p className="font-semibold text-muted-foreground mb-1">Password Strength Checklist:</p>
+                  <p className="font-semibold text-muted-foreground mb-1">
+                    Password Strength Checklist:
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className={cn("flex items-center gap-1.5", data.newPassword.length >= 8 ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        data.newPassword.length >= 8
+                          ? "text-green-600 dark:text-green-400 font-medium"
+                          : "text-muted-foreground",
+                      )}
+                    >
                       <span>{data.newPassword.length >= 8 ? "✓" : "○"}</span>
                       <span>At least 8 characters</span>
                     </div>
-                    <div className={cn("flex items-center gap-1.5", /[A-Z]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        /[A-Z]/.test(data.newPassword)
+                          ? "text-green-600 dark:text-green-400 font-medium"
+                          : "text-muted-foreground",
+                      )}
+                    >
                       <span>{/[A-Z]/.test(data.newPassword) ? "✓" : "○"}</span>
                       <span>At least 1 uppercase letter</span>
                     </div>
-                    <div className={cn("flex items-center gap-1.5", /[a-z]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        /[a-z]/.test(data.newPassword)
+                          ? "text-green-600 dark:text-green-400 font-medium"
+                          : "text-muted-foreground",
+                      )}
+                    >
                       <span>{/[a-z]/.test(data.newPassword) ? "✓" : "○"}</span>
                       <span>At least 1 lowercase letter</span>
                     </div>
-                    <div className={cn("flex items-center gap-1.5", /[0-9]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        /[0-9]/.test(data.newPassword)
+                          ? "text-green-600 dark:text-green-400 font-medium"
+                          : "text-muted-foreground",
+                      )}
+                    >
                       <span>{/[0-9]/.test(data.newPassword) ? "✓" : "○"}</span>
                       <span>At least 1 number</span>
                     </div>
-                    <div className={cn("flex items-center gap-1.5", /[@$!%*?&#_]/.test(data.newPassword) ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5",
+                        /[@$!%*?&#_]/.test(data.newPassword)
+                          ? "text-green-600 dark:text-green-400 font-medium"
+                          : "text-muted-foreground",
+                      )}
+                    >
                       <span>{/[@$!%*?&#_]/.test(data.newPassword) ? "✓" : "○"}</span>
                       <span>At least 1 special character</span>
                     </div>
@@ -298,14 +370,16 @@ function Register() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Confirm New Password</label>
-                  <Input 
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Confirm New Password
+                  </label>
+                  <Input
                     type={showPassword ? "text" : "password"}
-                    required 
-                    placeholder="••••••••" 
-                    className="mt-1.5 h-11" 
-                    value={data.confirmPassword} 
-                    onChange={(e) => set("confirmPassword", e.target.value)} 
+                    required
+                    placeholder="••••••••"
+                    className="mt-1.5 h-11"
+                    value={data.confirmPassword}
+                    onChange={(e) => set("confirmPassword", e.target.value)}
                   />
                 </div>
               </div>
@@ -315,17 +389,17 @@ function Register() {
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Full Name *">
-                <Input 
-                  value={data.name} 
-                  onChange={(e) => set("name", e.target.value)} 
+                <Input
+                  value={data.name}
+                  onChange={(e) => set("name", e.target.value)}
                   disabled={true}
                   className="bg-muted cursor-not-allowed opacity-70"
                   placeholder="e.g. John Doe"
                 />
               </Field>
               <Field label="Department *">
-                <Input 
-                  value={data.department} 
+                <Input
+                  value={data.department}
                   onChange={(e) => set("department", e.target.value)}
                   disabled={true}
                   className="bg-muted cursor-not-allowed opacity-70"
@@ -333,8 +407,8 @@ function Register() {
                 />
               </Field>
               <Field label="Current Semester *">
-                <Input 
-                  value={data.semester} 
+                <Input
+                  value={data.semester}
                   onChange={(e) => set("semester", e.target.value)}
                   disabled={true}
                   className="bg-muted cursor-not-allowed opacity-70"
@@ -342,8 +416,8 @@ function Register() {
                 />
               </Field>
               <Field label="USN / Student ID *">
-                <Input 
-                  value={data.usn} 
+                <Input
+                  value={data.usn}
                   onChange={(e) => set("usn", e.target.value)}
                   disabled={true}
                   className="bg-muted cursor-not-allowed opacity-70"
@@ -352,7 +426,9 @@ function Register() {
               </Field>
               <Field label="Target Election Position *">
                 <Select value={data.positionId} onValueChange={(v) => set("positionId", v)}>
-                  <SelectTrigger className="h-11"><SelectValue placeholder="Select Position" /></SelectTrigger>
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="Select Position" />
+                  </SelectTrigger>
                   <SelectContent>
                     {positions.map((p) => (
                       <SelectItem key={p.position_id} value={p.position_id}>
@@ -363,21 +439,25 @@ function Register() {
                 </Select>
               </Field>
               <Field label="Party / Group Name (optional)">
-                <Input value={data.party} onChange={(e) => set("party", e.target.value)} placeholder="e.g. Alliance Group" />
+                <Input
+                  value={data.party}
+                  onChange={(e) => set("party", e.target.value)}
+                  placeholder="e.g. Alliance Group"
+                />
               </Field>
               {isPresident && (
                 <>
                   <Field label="Vice President Name *">
-                    <Input 
-                      value={data.vicePresident} 
-                      onChange={(e) => set("vicePresident", e.target.value)} 
+                    <Input
+                      value={data.vicePresident}
+                      onChange={(e) => set("vicePresident", e.target.value)}
                       placeholder="e.g. Jane Doe"
                     />
                   </Field>
                   <Field label="Secretary Name *">
-                    <Input 
-                      value={data.secretary} 
-                      onChange={(e) => set("secretary", e.target.value)} 
+                    <Input
+                      value={data.secretary}
+                      onChange={(e) => set("secretary", e.target.value)}
                       placeholder="e.g. Bob Smith"
                     />
                   </Field>
@@ -385,16 +465,25 @@ function Register() {
               )}
               <div className="sm:col-span-2">
                 <Field label="Campaign Manifesto *">
-                  <textarea 
-                    value={data.manifesto} 
-                    onChange={(e) => set("manifesto", e.target.value)} 
-                    placeholder="Describe your vision, goals, and campaign promises..." 
+                  <textarea
+                    value={data.manifesto}
+                    onChange={(e) => set("manifesto", e.target.value)}
+                    placeholder="Describe your vision, goals, and campaign promises..."
                     className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[120px]"
                   />
                 </Field>
               </div>
-              <UploadBox label="Party Symbol (optional)" value={data.symbol} onSet={(v) => set("symbol", v)} simName="party-symbol.jpg" />
-              <UploadBox label="Candidate Photo" value={data.photo} onSet={(v) => set("photo", v)} />
+              <UploadBox
+                label="Party Symbol (optional)"
+                value={data.symbol}
+                onSet={(v) => set("symbol", v)}
+                simName="party-symbol.jpg"
+              />
+              <UploadBox
+                label="Candidate Photo"
+                value={data.photo}
+                onSet={(v) => set("photo", v)}
+              />
             </div>
           )}
 
@@ -409,7 +498,11 @@ function Register() {
                 <p className="text-xs text-muted-foreground mt-1">UPI ID: elections@college.upi</p>
               </div>
               <div className="mt-6 max-w-sm mx-auto">
-                <UploadBox label="Payment Screenshot" value={data.payment} onSet={(v) => set("payment", v)} />
+                <UploadBox
+                  label="Payment Screenshot"
+                  value={data.payment}
+                  onSet={(v) => set("payment", v)}
+                />
               </div>
               <p className="text-xs text-muted-foreground mt-4 italic">
                 Your application will be reviewed after payment verification.
@@ -420,15 +513,25 @@ function Register() {
           {step === 3 && (
             <div className="space-y-3">
               <h2 className="text-base font-semibold">Terms & Conditions</h2>
-              <p className="text-xs text-muted-foreground">Please read carefully — you must accept to continue.</p>
+              <p className="text-xs text-muted-foreground">
+                Please read carefully — you must accept to continue.
+              </p>
               <ol className="mt-3 space-y-2 max-h-[340px] overflow-y-auto pr-2 bg-muted/40 rounded-lg p-4 text-sm list-decimal list-inside">
                 {TERMS.map((t, i) => (
-                  <li key={i} className="leading-relaxed">{t}</li>
+                  <li key={i} className="leading-relaxed">
+                    {t}
+                  </li>
                 ))}
               </ol>
               <label className="flex items-start gap-2 mt-4 cursor-pointer">
-                <Checkbox checked={data.terms} onCheckedChange={(c) => set("terms", !!c)} className="mt-0.5" />
-                <span className="text-sm">I have read and agree to all the terms and conditions above.</span>
+                <Checkbox
+                  checked={data.terms}
+                  onCheckedChange={(c) => set("terms", !!c)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  I have read and agree to all the terms and conditions above.
+                </span>
               </label>
             </div>
           )}
@@ -439,7 +542,10 @@ function Register() {
               <Row k="Name" v={data.name || "—"} />
               <Row k="Department" v={data.department || "—"} />
               <Row k="Semester" v={data.semester || "—"} />
-              <Row k="Target Position" v={positions.find(p => p.position_id === data.positionId)?.title || "—"} />
+              <Row
+                k="Target Position"
+                v={positions.find((p) => p.position_id === data.positionId)?.title || "—"}
+              />
               {isPresident && (
                 <>
                   <Row k="Vice President" v={data.vicePresident || "—"} />
@@ -447,7 +553,10 @@ function Register() {
                 </>
               )}
               <Row k="Party" v={data.party || "Independent"} />
-              <Row k="Manifesto" v={data.manifesto ? `${data.manifesto.substring(0, 100)}...` : "—"} />
+              <Row
+                k="Manifesto"
+                v={data.manifesto ? `${data.manifesto.substring(0, 100)}...` : "—"}
+              />
               <Row k="Party Symbol" v={data.symbol || "Not uploaded"} />
               <Row k="Photo" v={data.photo || "Not uploaded"} />
               <Row k="Payment Screenshot" v={data.payment || "Not uploaded"} />
@@ -468,17 +577,25 @@ function Register() {
         )}
 
         <div className="flex justify-between gap-3 mt-8">
-          <Button variant="outline" disabled={step === 0 || loading} onClick={() => setStep((s) => s - 1)}>← Back</Button>
+          <Button
+            variant="outline"
+            disabled={step === 0 || loading}
+            onClick={() => setStep((s) => s - 1)}
+          >
+            ← Back
+          </Button>
           {step < STEPS.length - 1 ? (
             <Button
               className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
               disabled={step === 3 && !data.terms}
               onClick={handleNext}
-            >Next →</Button>
+            >
+              Next →
+            </Button>
           ) : (
-            <Button 
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" 
-              disabled={!data.confirm || !data.terms || loading} 
+            <Button
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+              disabled={!data.confirm || !data.terms || loading}
               onClick={submit}
             >
               {loading ? "Submitting..." : "Submit Application"}
@@ -503,12 +620,24 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between p-3 bg-muted/40 rounded-lg text-sm">
       <span className="text-muted-foreground">{k}</span>
-      <span className="font-medium max-w-[70%] text-right overflow-hidden text-ellipsis whitespace-nowrap">{v}</span>
+      <span className="font-medium max-w-[70%] text-right overflow-hidden text-ellipsis whitespace-nowrap">
+        {v}
+      </span>
     </div>
   );
 }
 
-function UploadBox({ label, value, onSet, simName }: { label: string; value: string; onSet: (v: string) => void; simName?: string }) {
+function UploadBox({
+  label,
+  value,
+  onSet,
+  simName,
+}: {
+  label: string;
+  value: string;
+  onSet: (v: string) => void;
+  simName?: string;
+}) {
   return (
     <div className="border-2 border-dashed border-border rounded-xl p-5 text-center">
       <p className="text-xs font-medium mb-2">{label}</p>
@@ -517,7 +646,10 @@ function UploadBox({ label, value, onSet, simName }: { label: string; value: str
           <CheckCircle2 className="h-4 w-4" /> {value}
         </div>
       ) : (
-        <button onClick={() => onSet(simName || `${label.toLowerCase().replace(/\s+/g, "-")}.jpg`)} className="inline-flex items-center gap-2 text-xs text-[#6C63FF] font-medium">
+        <button
+          onClick={() => onSet(simName || `${label.toLowerCase().replace(/\s+/g, "-")}.jpg`)}
+          className="inline-flex items-center gap-2 text-xs text-[#6C63FF] font-medium"
+        >
           <Upload className="h-4 w-4" /> Drag & drop or click
         </button>
       )}

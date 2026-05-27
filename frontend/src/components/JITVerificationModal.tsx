@@ -72,7 +72,12 @@ export function JITVerificationModal({
   }, [onOpenChange]);
 
   return (
-    <Dialog open={open} onOpenChange={(b) => { if (!b) handleCancel(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(b) => {
+        if (!b) handleCancel();
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <div className="flex flex-col items-center text-center pt-2">
           <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
@@ -111,14 +116,16 @@ export function JITVerificationModal({
 
               {photo && (
                 <div className="flex flex-col items-center gap-2">
-                  <img src={photo} alt="Captured" className="w-full max-w-[200px] rounded-lg border" />
+                  <img
+                    src={photo}
+                    alt="Captured"
+                    className="w-full max-w-[200px] rounded-lg border"
+                  />
                   <p className="text-xs text-muted-foreground">Photo captured successfully</p>
                 </div>
               )}
 
-              {cameraError && (
-                <p className="text-xs text-destructive mt-2">{cameraError}</p>
-              )}
+              {cameraError && <p className="text-xs text-destructive mt-2">{cameraError}</p>}
             </div>
           )}
 
@@ -131,16 +138,16 @@ export function JITVerificationModal({
             />
           )}
 
-          <p className="text-xs text-warning-foreground/80 mt-2">3 failed attempts will lock your session.</p>
+          <p className="text-xs text-warning-foreground/80 mt-2">
+            3 failed attempts will lock your session.
+          </p>
           <div className="flex gap-3 w-full mt-6">
             <Button variant="outline" className="flex-1" onClick={handleCancel}>
               Cancel
             </Button>
             <Button
               className="flex-1"
-              disabled={
-                livenessRequired ? !photo : val.length < 4
-              }
+              disabled={livenessRequired ? !photo : val.length < 4}
               onClick={onVerified}
             >
               {livenessRequired && !photo ? "Take Photo First" : "Verify & Proceed"}

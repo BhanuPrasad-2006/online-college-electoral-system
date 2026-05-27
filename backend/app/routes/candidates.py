@@ -34,6 +34,7 @@ from app.services.supabase_storage import (
     SupabaseStorageError,
     upload_manifesto_media,
 )
+from app.utils.image_validator import validate_image
 
 router = APIRouter()
 
@@ -193,7 +194,11 @@ async def list_candidates(
 
         voter = c.voter
         position = c.position
-
+        
+        # Filter out candidates whose voter is ineligible (1st/2nd year) — only for non-admins
+        if voter and voter.year_of_study in [1, 2] and not is_admin:
+            continue
+        
         sem_str = "—"
         if voter and voter.year_of_study is not None:
             sem_str = f"{voter.year_of_study * 2}th"
@@ -418,6 +423,8 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Candidate registration is currently closed."
         )
+
+
     import re
     def validate_strong_password(password: str) -> bool:
         if len(password) < 8:
@@ -462,6 +469,15 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Voter profile not found. You must be registered as a voter first."
         )
+
+    # Check department-specific election eligibility
+    if election.eligible_department:
+        _dept = (voter.department or "").strip().lower()
+        if _dept != election.eligible_department.strip().lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This election is restricted to the {election.eligible_department} department only."
+            )
 
     # Update voter details if they were empty and now provided
     if body.full_name:
@@ -744,6 +760,15 @@ async def upload_manifesto_file(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Security rejection: File contains disallowed content.",
+            )
+
+    # Validate image content (block AI-generated or malicious images)
+    if file.content_type and file.content_type.startswith("image/"):
+        validation = validate_image(file_data, file.filename)
+        if not validation.passed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=validation.reason,
             )
 
     # Upload to Supabase (or local fallback)

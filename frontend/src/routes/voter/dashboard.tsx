@@ -1,17 +1,33 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useCandidates, useVoterProfile, useKpi, useCurrentPhase } from "@/hooks/use-election-data";
+import { useCandidates, useVoterProfile, useKpi, useCurrentPhase, useElection } from "@/hooks/use-election-data";
 import { useNotifications } from "@/context/NotificationStore";
 import { PageLoader } from "@/components/PageLoader";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Users, TrendingUp, AlertCircle, Bell, ChevronRight, Lock, Clock, UserPlus, Vote, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  Users,
+  TrendingUp,
+  AlertCircle,
+  Bell,
+  ChevronRight,
+  Lock,
+  Clock,
+  Vote,
+  Sparkles,
+  Camera,
+  AlertTriangle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { resolveApiAssetUrl } from "@/lib/api";
 // ── helpers for election phase ─────────────────────────────────
-function pad2(n: number) { return String(n).padStart(2, "0"); }
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
 function fmtCountdown(ms: number) {
   const t = Math.max(0, ms);
   const d = Math.floor(t / 86_400_000);
@@ -23,6 +39,55 @@ function fmtCountdown(ms: number) {
     : `${pad2(h)}h ${pad2(m)}m ${pad2(s)}s`;
 }
 
+function deriveFallbackPhase(election: any) {
+  if (!election) return { phase: "unknown", remaining_time: "" };
+  const now = Date.now();
+  const regStart = election.registration_start
+    ? new Date(election.registration_start).getTime()
+    : election.votingStart
+      ? null
+      : null;
+  const regEnd = election.registration_end
+    ? new Date(election.registration_end).getTime()
+    : election.registrationEnd
+      ? new Date(election.registrationEnd).getTime()
+      : null;
+  const votStart = election.voting_start
+    ? new Date(election.voting_start).getTime()
+    : election.votingStart
+      ? new Date(election.votingStart).getTime()
+      : null;
+  const votEnd = election.voting_end
+    ? new Date(election.voting_end).getTime()
+    : election.votingEnd
+      ? new Date(election.votingEnd).getTime()
+      : null;
+
+  if (regStart && now < regStart) return { phase: "pre_registration", remaining_time: fmtCountdown(regStart - now) };
+  if (regStart && regEnd && now >= regStart && now < regEnd) return { phase: "registration_open", remaining_time: fmtCountdown(regEnd - now) };
+  if (votStart && now < votStart) return { phase: "registration_closed", remaining_time: fmtCountdown(votStart - now) };
+  if (votStart && votEnd && now >= votStart && now < votEnd) return { phase: "voting_open", remaining_time: fmtCountdown(votEnd - now) };
+  return { phase: "voting_closed", remaining_time: "" };
+}
+
+function reconcilePhase(livePhase: any, election: any) {
+  const fallback = deriveFallbackPhase(election);
+  if (!livePhase?.phase) return fallback;
+
+  // Prefer the election-date-derived phase when it is more current than a lagging phase endpoint.
+  if (fallback.phase === "voting_open" && livePhase.phase !== "voting_open") {
+    return fallback;
+  }
+  if (fallback.phase === "registration_open" && livePhase.phase === "pre_registration") {
+    return fallback;
+  }
+
+  return {
+    ...livePhase,
+    remaining_time: livePhase.remaining_time || fallback.remaining_time,
+  };
+}
+
 export const Route = createFileRoute("/voter/dashboard")({ component: VoterDash });
 
 function VoterDash() {
@@ -31,17 +96,20 @@ function VoterDash() {
   const { data: voter, isPending } = useVoterProfile();
   const { data: candidates = [] } = useCandidates();
   const { data: kpi } = useKpi();
+  const { data: election } = useElection();
   const { data: phaseData } = useCurrentPhase();
   const { notifications = [] } = useNotifications();
   const [timeLeft, setTimeLeft] = useState<string>("");
 
-  const isRegOpen  = phaseData?.phase === "registration_open";
-  const isVoteOpen = phaseData?.phase === "voting_open";
-  const regOpensSoon = phaseData?.phase === "pre_registration";
-  const voteOpensSoon = phaseData?.phase === "registration_closed" || phaseData?.phase === "campaign_period";
+  const effectivePhase = reconcilePhase(phaseData, election);
+  const isRegOpen = effectivePhase?.phase === "registration_open";
+  const isVoteOpen = effectivePhase?.phase === "voting_open";
+  const regOpensSoon = effectivePhase?.phase === "pre_registration";
+  const voteOpensSoon =
+    effectivePhase?.phase === "registration_closed" || effectivePhase?.phase === "campaign_period";
   const isPaused = phaseData?.is_paused;
 
-  const remainingTimeStr = phaseData?.remaining_time || "";
+  const remainingTimeStr = effectivePhase?.remaining_time || "";
 
   useEffect(() => {
     // Decode JWT from sessionStorage and start the countdown timer
@@ -81,15 +149,18 @@ function VoterDash() {
   }, [logout, nav]);
 
   if (isPending || !voter) return <PageLoader />;
-  
+
   // Show only approved candidates
   const approvedCandidates = candidates.filter(
-    (c) => (c.status || "").toLowerCase() === "approved"
+    (c) => (c.status || "").toLowerCase() === "approved",
   );
   const matched = [...approvedCandidates].sort((a, b) => (b.match || 75) - (a.match || 75));
   const firstName = voter.name.split(" ")[0];
 
-  const hasVoted = voter.voted || (typeof localStorage !== "undefined" && localStorage.getItem("collegevote-has-voted") === "true");
+  const hasVoted =
+    voter.voted ||
+    (typeof localStorage !== "undefined" &&
+      localStorage.getItem("collegevote-has-voted") === "true");
   const votePermission = voter.vote_permission;
 
   function handleVoteNowClick() {
@@ -102,8 +173,7 @@ function VoterDash() {
         <PageHeader
           title={`Welcome back, ${firstName}`}
           subtitle="Here's what's happening with the election."
-        />
-        {timeLeft && (
+        />                        {timeLeft && isVoteOpen && (
           <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border/60 rounded-2xl shadow-sm text-sm">
             <Clock className="h-4 w-4 text-[#6C63FF]" />
             <span className="text-muted-foreground">Session Ends:</span>
@@ -125,9 +195,18 @@ function VoterDash() {
                 Candidate Registration is Open!
               </h3>
               <p className="text-sm text-foreground/80 max-w-xl">
-                {voter.vote_permission 
-                    ? <>You are eligible to register as a candidate — closes in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span></>
-                    : <>Registration is open — closes in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span> — contact admin for permission</>}
+                {voter.vote_permission ? (
+                  <>
+                    You are eligible to register as a candidate — closes in{" "}
+                    <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+                  </>
+                ) : (
+                  <>
+                    Registration is open — closes in{" "}
+                    <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span> —
+                    contact admin for permission
+                  </>
+                )}
               </p>
             </div>
             {voter.vote_permission && (
@@ -153,7 +232,8 @@ function VoterDash() {
                 Voting is Live!
               </h3>
               <p className="text-sm text-foreground/80 max-w-xl">
-                Cast your ballot securely — closes in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+                Cast your ballot securely — closes in{" "}
+                <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
               </p>
             </div>
             {!hasVoted && (
@@ -179,7 +259,8 @@ function VoterDash() {
                 Registration Opens Soon
               </h3>
               <p className="text-sm text-foreground/80 max-w-xl">
-                Candidate registration begins in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+                Candidate registration begins in{" "}
+                <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
               </p>
             </div>
           </div>
@@ -197,7 +278,8 @@ function VoterDash() {
                 Voting Opens Soon
               </h3>
               <p className="text-sm text-foreground/80 max-w-xl">
-                The polls will open in <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
+                The polls will open in{" "}
+                <span className="font-mono font-bold text-[#6C63FF]">{remainingTimeStr}</span>
               </p>
             </div>
           </div>
@@ -223,15 +305,138 @@ function VoterDash() {
           delay={100}
         />
         <StatCard
-          icon={hasVoted ? CheckCircle2 : (votePermission ? AlertCircle : Lock)}
+          icon={hasVoted ? CheckCircle2 : votePermission ? AlertCircle : Lock}
           label="Your Status"
-          value={hasVoted ? "Voted ✓" : (votePermission ? "Authorized to Vote" : "Pending Admin Permission")}
-          tone={hasVoted ? "bg-success/15 text-success" : (votePermission ? "bg-[#6C63FF]/10 text-[#6C63FF]" : "bg-warning/20 text-warning-foreground")}
+          value={
+            hasVoted
+              ? "Voted ✓"
+              : votePermission
+                ? "Authorized to Vote"
+                : "Pending Admin Permission"
+          }
+          subtext={voter.verification_id_set ? "Verification ID: Set" : "Verification ID: Not Set"}
+          tone={
+            hasVoted
+              ? "bg-success/15 text-success"
+              : votePermission
+                ? "bg-[#6C63FF]/10 text-[#6C63FF]"
+                : "bg-warning/20 text-warning-foreground"
+          }
           delay={150}
         />
       </div>
 
+{/* ── Admin Re-upload Request Banner ── */}
+      {voter.photo_reupload_requested && (
+        <div className="relative overflow-hidden rounded-2xl border border-[#6C63FF]/30 bg-gradient-to-r from-[#6C63FF]/10 to-indigo-500/5 shadow-sm animate-fade-in mb-6">
+          <div className="absolute inset-y-0 left-0 w-1 bg-[#6C63FF]" />
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 z-10">
+              <h3 className="text-lg font-bold text-[#6C63FF] flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Photo Re-upload Requested by Admin
+              </h3>
+              <p className="text-sm text-foreground/80 max-w-xl">
+                The election admin has requested you to upload a new profile photo.
+              </p>
+              <Link
+                to="/voter/settings"
+                className="inline-flex items-center gap-1.5 px-4 py-2 mt-2 rounded-lg bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 transition-colors text-xs font-semibold shadow-md"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                Upload Photo in Settings
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
+{/* ── Face / Photo Verification Status with Reference Image ── */}
+      <div className="bg-card border border-border/60 rounded-xl p-4 flex items-start gap-4 animate-fade-in">
+        {/* Reference photo display */}
+        <div className="flex flex-col items-center shrink-0">
+          {voter.reference_image_url ? (
+            <div className="relative">
+              <Avatar className="h-20 w-20 ring-2 ring-[#6C63FF]/30 rounded-xl">
+                <AvatarImage
+                  src={resolveApiAssetUrl(voter.reference_image_url)}
+                  alt="Reference photo"
+                  className="object-cover rounded-xl"
+                />
+                <AvatarFallback className="bg-muted rounded-xl">
+                  <Camera className="h-6 w-6 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-success border-2 border-card flex items-center justify-center">
+                <CheckCircle2 className="h-3 w-3 text-white" />
+              </span>
+            </div>
+          ) : (
+            <div className="h-20 w-20 shrink-0 rounded-xl bg-warning/15 flex items-center justify-center ring-2 ring-warning/20">
+              <AlertTriangle className="h-8 w-8 text-warning" />
+            </div>
+          )}
+          {voter.photo_reupload_count !== undefined && (
+            <span className="text-[10px] text-muted-foreground mt-1.5 font-medium">
+              {voter.photo_reupload_count}/2 re-uploads used
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          {voter.pending_face_enrolled ? (
+            <>
+              <p className="text-sm font-semibold text-warning-foreground flex items-center gap-1.5">
+                <Clock className="h-4 w-4 text-warning" />
+                Photo Pending Admin Review
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your uploaded photo is awaiting approval from the election admin. Once approved, it will replace your current photo (if any).
+              </p>
+              {voter.reference_image_url && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  You still have an existing photo on file — it will remain active until the new one is approved.
+                </p>
+              )}
+            </>
+          ) : voter.face_enrolled ? (
+            <>
+              <p className="text-sm font-semibold text-success flex items-center gap-1.5">
+                <Camera className="h-4 w-4" />
+                Photo Verified ✓
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your reference photo is enrolled for Just-In-Time face verification during voting.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-warning-foreground">Photo Not Enrolled</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isRegOpen
+                  ? "Go to Settings to upload a photo, or contact the election admin."
+                  : "No reference photo on file. Contact the election admin to enroll your photo."
+                }
+              </p>
+            </>
+          )}
+          {voter.photo_reupload_requested && (
+            <p className="text-xs font-medium text-[#6C63FF] mt-1.5 flex items-center gap-1">
+              <Camera className="h-3 w-3" />
+              Admin has requested a new photo — manage it in Settings
+            </p>
+          )}
+        </div>
+        {/* Self-service upload is on the Settings page */}
+        <div className="shrink-0">
+          <Link
+            to="/voter/settings"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6C63FF]/10 text-[#6C63FF] hover:bg-[#6C63FF]/20 transition-colors text-xs font-medium"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Manage Photo
+          </Link>
+        </div>
+      </div>
 
       <div className="flex justify-center items-center w-full py-8 my-4 bg-transparent z-10">
         {hasVoted ? (
@@ -250,7 +455,8 @@ function VoterDash() {
             <div>
               <p className="font-bold text-warning-foreground text-lg">Voting Blocked</p>
               <p className="text-sm text-muted-foreground mt-1">
-                The election admin has not authorized your student profile to vote yet. Please wait for approval or contact the election coordinator.
+                The election admin has not authorized your student profile to vote yet. Please wait
+                for approval or contact the election coordinator.
               </p>
             </div>
             {timeLeft && (

@@ -26,7 +26,7 @@ from app.services.otp_service import (
 )
 
 from app.services.email_service import send_otp_email
-from app.services.sms_service import send_otp_sms, send_custom_sms
+from app.services.sms_service import send_otp_sms
 
 from app.enums.otp_type import OTPTypeEnum
 from app.enums.roles import UserRoleEnum
@@ -60,21 +60,22 @@ def _mask_mobile(mobile: str) -> str:
 
 
 async def _get_token_expiry_minutes(db: AsyncSession) -> int:
-    """
-    Get token expiration minutes: 5 minutes if any election is in VOTING_OPEN status,
-    15 minutes otherwise.
-    """
-    try:
-        result = await db.execute(
-            select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN)
-        )
-        voting_open_election = result.scalars().first()
-        if voting_open_election:
-            return 5
-        return 15
-    except Exception as e:
-        logger.error(f"Error checking voting_open election status: {e}")
-        return 15
+        """
+        Get token expiration minutes: 15 minutes during active voting
+        (enough time to browse candidates, read manifestos, and do face auth),
+        180 minutes (3 hours) otherwise.
+        """
+        try:
+            result = await db.execute(
+                select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN)
+            )
+            voting_open_election = result.scalars().first()
+            if voting_open_election:
+                return 15
+            return 180
+        except Exception as e:
+            logger.error(f"Error checking voting_open election status: {e}")
+            return 180
 
 
 # =========================================================
@@ -248,13 +249,7 @@ async def voter_login_step2(
         device_fingerprint=device_fingerprint,
     )
 
-    # Trigger login security alert SMS if mobile number exists
-    if mobile_number:
-        try:
-            msg = "Security Alert: You have successfully logged in to CollegeVote. If this wasn't you, please secure your account or change your password immediately."
-            asyncio.create_task(send_custom_sms(mobile_number, msg))
-        except Exception:
-            pass
+    # Login security alert SMS removed per user preference
 
     return {
         "access_token": access_token,

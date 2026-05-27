@@ -5,7 +5,7 @@ import uuid as uuid_mod
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, desc
 from pydantic import BaseModel
 
 from app.db.session import get_db
@@ -13,6 +13,7 @@ from app.api.deps import get_current_user, get_candidate_user
 from app.models.election import Election
 from app.models.candidate import Candidate
 from app.models.manifesto import Manifesto
+from app.models.concern import Concern
 from app.services.concern_service import ConcernService
 from app.services.supabase_storage import (
     SupabaseStorageError,
@@ -147,12 +148,17 @@ async def list_concerns(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all concerns with pagination."""
+    """List concerns submitted by the current voter with pagination."""
+    voter_id = current_user.get("user_id")
+    if not voter_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     service = ConcernService(db)
     election_result = await db.execute(select(Election).order_by(Election.created_at.desc()))
     election = election_result.scalars().first()
     election_id = str(election.election_id) if election else None
-    result = await service.list_concerns(page=page, page_size=page_size, election_id=election_id)
+    result = await service.list_concerns(
+        page=page, page_size=page_size, election_id=election_id, student_id=voter_id
+    )
     return result
 
 
@@ -166,6 +172,30 @@ async def create_concern(
     voter_id = current_user.get("user_id")
     if not voter_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    
+    logger.info(f"Voter {voter_id} initiating concern submission. Target candidate: {body.to_candidate_id}, Category: {body.category}")
+
+    # Validate active election exists
+    election_result = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = election_result.scalars().first()
+    if not election:
+        logger.error(f"Concern submission failed: No active election found in database.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active election found")
+
+    # Validate candidate profile if target is a candidate
+    if body.to_candidate_id and body.to_candidate_id != "admin":
+        import uuid as uuid_mod
+        try:
+            cand_uuid = uuid_mod.UUID(body.to_candidate_id)
+        except (ValueError, TypeError):
+            logger.error(f"Concern submission failed: Invalid candidate ID format '{body.to_candidate_id}'.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid candidate ID format")
+        
+        cand_res = await db.execute(select(Candidate).where(Candidate.candidate_id == cand_uuid))
+        if not cand_res.scalar_one_or_none():
+            logger.error(f"Concern submission failed: Candidate '{body.to_candidate_id}' does not exist.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected candidate does not exist")
+
     service = ConcernService(db)
     try:
         result = await service.create(
@@ -176,9 +206,14 @@ async def create_concern(
             candidate_id=body.to_candidate_id,
             attachment_url=body.attachment_url,
         )
+        logger.info(f"Concern submission successfully processed and saved. Concern ID: {result['concern_id']}")
         return result
     except ValueError as e:
+        logger.error(f"Concern submission failed: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Database insert failure for voter {voter_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to persist concern in database")
 
 
 @router.get("/categories", status_code=status.HTTP_200_OK)
@@ -218,6 +253,98 @@ async def get_concern_report(
     return {
         "categories": categories,
         "overall": ConcernService.compute_overall_sentiment(categories),
+    }
+
+
+@router.get("/candidate-inbox", status_code=status.HTTP_200_OK)
+async def get_candidate_concerns_inbox(
+    current_user: dict = Depends(get_candidate_user),
+    db: AsyncSession = Depends(get_db),
+    page: int = 1,
+    page_size: int = 20,
+):
+    """
+    Return anonymized concerns addressed to the logged-in candidate.
+    Personal voter information (student_id, name, email) is excluded.
+    Only concerns whose to_candidate_id matches this candidate are shown.
+    """
+    # Resolve the candidate_id for this user (voter_id -> candidate record)
+    import uuid as uuid_mod
+    user_id = current_user.get("user_id")
+    try:
+        voter_uuid = uuid_mod.UUID(user_id)
+    except (ValueError, TypeError):
+        logger.error(f"Candidate inbox fetch failed: Invalid user ID format '{user_id}'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user id")
+
+    cand_res = await db.execute(
+        select(Candidate).where(Candidate.voter_id == voter_uuid)
+    )
+    candidate = cand_res.scalar_one_or_none()
+    if not candidate:
+        logger.error(f"Candidate inbox fetch failed: Candidate profile not found for voter {user_id}")
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    candidate_id_str = str(candidate.candidate_id)
+
+    # Get the current election
+    election_result = await db.execute(
+        select(Election).order_by(Election.created_at.desc())
+    )
+    election = election_result.scalars().first()
+    if not election:
+        logger.error("Candidate inbox fetch failed: No active election found.")
+        raise HTTPException(status_code=404, detail="No active election found")
+
+    election_id = election.election_id
+
+    # Base filter: this election + directed to this candidate
+    base_filter = (
+        Concern.election_id == election_id,
+        Concern.to_candidate_id == candidate_id_str,
+    )
+
+    # Count total concerns for this candidate
+    count_query = select(func.count()).select_from(Concern).where(*base_filter)
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    logger.info(f"Candidate user {user_id} (Candidate ID: {candidate_id_str}) fetching inbox page {page} with page size {page_size}. Total concerns: {total}")
+
+    # Fetch concerns with pagination — NO voter personal info returned
+    offset = (page - 1) * page_size
+    query = (
+        select(Concern)
+        .where(*base_filter)
+        .order_by(desc(Concern.submitted_at))
+        .offset(offset)
+        .limit(page_size)
+    )
+    result = await db.execute(query)
+    concerns = result.scalars().all()
+
+    return {
+        "concerns": [
+            {
+                "concern_id": str(c.concern_id),
+                "content": c.content,
+                "category": c.category.value if c.category else "other",
+                "priority": c.priority,
+                "sentiment": c.sentiment.value if c.sentiment else "neutral",
+                "attachment_url": c.attachment_url,
+                "submitted_at": c.submitted_at.isoformat() if c.submitted_at else None,
+                "subject": c.subject,
+                "message": c.message,
+                "evidence_url": c.evidence_url,
+                "status": c.status,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                # NO student_id, no voter name, no email, no USN, no department — fully anonymized
+            }
+            for c in concerns
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
     }
 
 

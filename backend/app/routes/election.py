@@ -44,6 +44,46 @@ async def _get_latest_election_row(db: AsyncSession) -> Election | None:
     return election
 
 
+def _reset_election_cache() -> None:
+    _election_row_cache["row"] = None
+    _election_row_cache["expires_at"] = 0.0
+
+
+def _validate_election_schedule(payload: ElectionSaveRequest) -> None:
+    if payload.registration_start and payload.registration_end:
+        if payload.registration_end <= payload.registration_start:
+            raise HTTPException(
+                status_code=400,
+                detail="Registration closes must be after registration opens."
+            )
+
+    if payload.document_deadline:
+        if payload.registration_end and payload.document_deadline <= payload.registration_end:
+            raise HTTPException(
+                status_code=400,
+                detail="Document deadline must be after registration closes."
+            )
+        if payload.voting_start and payload.document_deadline >= payload.voting_start:
+            raise HTTPException(
+                status_code=400,
+                detail="Document deadline must be before voting opens."
+            )
+
+    if payload.registration_end and payload.voting_start:
+        if payload.voting_start <= payload.registration_end:
+            raise HTTPException(
+                status_code=400,
+                detail="Voting opens must be after registration closes."
+            )
+
+    if payload.voting_start and payload.voting_end:
+        if payload.voting_end <= payload.voting_start:
+            raise HTTPException(
+                status_code=400,
+                detail="Voting closes must be after voting opens."
+            )
+
+
 async def notify_registration_open(election: Election):
     """Notify all voters and candidates that registration is open and provide the schedule."""
     try:
@@ -392,6 +432,43 @@ async def get_notifications(
     notifications.append({"id": 2, "title": "Welcome to the real-time election portal", "time": "1 min ago", "unread": False, "type": "system"})
     return notifications
 
+
+@router.post("/")
+async def create_election(
+    payload: ElectionSaveRequest,
+    admin: dict = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new election record when none exists yet."""
+    _validate_election_schedule(payload)
+
+    admin_id = admin.get("user_id")
+    created_by = None
+    if admin_id:
+        try:
+            created_by = uuid.UUID(admin_id)
+        except ValueError:
+            created_by = None
+
+    election = Election(
+        title=payload.title,
+        registration_start=payload.registration_start,
+        registration_end=payload.registration_end,
+        document_deadline=payload.document_deadline,
+        voting_start=payload.voting_start,
+        voting_end=payload.voting_end,
+        eligible_department=payload.eligible_department,
+        status=ElectionStatusEnum.UPCOMING.value,
+        created_by=created_by,
+    )
+
+    db.add(election)
+    await db.commit()
+    await db.refresh(election)
+    _reset_election_cache()
+
+    return {"message": "Election created successfully.", "election": election}
+
 @router.post("/{election_id}/announce")
 async def announce_election_schedule(
     election_id: str,
@@ -431,6 +508,7 @@ async def pause_election(
         raise HTTPException(status_code=404, detail="Not found")
     election.is_paused = True
     await db.commit()
+    _reset_election_cache()
     return {"message": "Election paused."}
 
 
@@ -451,6 +529,7 @@ async def resume_election(
         raise HTTPException(status_code=404, detail="Not found")
     election.is_paused = False
     await db.commit()
+    _reset_election_cache()
     return {"message": "Election resumed."}
 
 
@@ -473,6 +552,7 @@ async def emergency_stop_election(
     election.voting_end = datetime.now(timezone.utc)
     election.status = ElectionStatusEnum.CLOSED.value
     await db.commit()
+    _reset_election_cache()
     return {"message": "Emergency stop executed. Voting closed."}
 
 
@@ -498,6 +578,7 @@ async def open_voting(
     
     await db.commit()
     await db.refresh(election)
+    _reset_election_cache()
     
     # Notify voters in background
     asyncio.create_task(notify_voting_started(election.title))
@@ -527,6 +608,7 @@ async def close_voting(
     
     await db.commit()
     await db.refresh(election)
+    _reset_election_cache()
     
     return {"message": "Voting successfully closed", "status": election.status}
 
@@ -555,11 +637,99 @@ async def publish_results(
     
     await db.commit()
     await db.refresh(election)
+    _reset_election_cache()
     
     # Notify voters in background
     asyncio.create_task(notify_results_published(election.title))
     
     return {"message": "Results successfully published", "status": election.status}
+
+
+@router.get("/public-results")
+async def get_public_results(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Public results endpoint — only returns data when results are published.
+    During voting or before, returns a "not available yet" response.
+    """
+    election = await _get_latest_election_row(db)
+    if not election:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No election found."
+        )
+
+    current_phase = PhaseEngine.get_current_phase(election)
+
+    # Only show full results in results_announced phase
+    if current_phase != "results_announced":
+        return {
+            "phase": current_phase,
+            "published": False,
+            "message": "Results are not yet available.",
+            "results": None,
+        }
+
+    # Compute results
+    result_service = ResultService(db)
+    raw = await result_service.compute_results(str(election.election_id))
+
+    position_ids = []
+    candidate_ids = []
+    for position_id, tallies in raw.items():
+        try:
+            position_ids.append(uuid.UUID(position_id))
+        except ValueError:
+            pass
+        for entry in tallies:
+            cand_id = entry["candidate_id"]
+            if cand_id and cand_id != "NOTA":
+                try:
+                    candidate_ids.append(uuid.UUID(cand_id))
+                except ValueError:
+                    pass
+
+    position_map: dict = {}
+    if position_ids:
+        pos_res = await db.execute(select(Position).where(Position.position_id.in_(position_ids)))
+        position_map = {str(p.position_id): p for p in pos_res.scalars().all()}
+
+    candidate_map: dict = {}
+    if candidate_ids:
+        cand_res = await db.execute(
+            select(Candidate)
+            .options(joinedload(Candidate.voter))
+            .where(Candidate.candidate_id.in_(candidate_ids))
+        )
+        candidate_map = {str(c.candidate_id): c for c in cand_res.scalars().unique().all()}
+
+    formatted = []
+    for position_id, tallies in raw.items():
+        position = position_map.get(position_id)
+        position_title = position.title if position else f"Position {position_id[:8]}"
+
+        candidates_data = []
+        for entry in tallies:
+            cand_id = entry["candidate_id"]
+            name = "NOTA"
+            if cand_id and cand_id != "NOTA":
+                candidate_obj = candidate_map.get(cand_id)
+                if candidate_obj and candidate_obj.voter:
+                    name = candidate_obj.voter.full_name
+                else:
+                    name = "Unknown"
+            candidates_data.append({"name": name, "votes": entry["vote_count"]})
+
+        formatted.append({"position": position_title, "candidates": candidates_data})
+
+    return {
+        "phase": current_phase,
+        "published": True,
+        "election_id": str(election.election_id),
+        "election_title": election.title,
+        "results": formatted,
+    }
 
 
 @router.get("/{election_id}/results")
@@ -659,36 +829,19 @@ async def update_election_dates(
     if not election:
         raise HTTPException(status_code=404, detail="Election not found")
         
-    # Validation checks
-    if payload.registration_start and payload.registration_end:
-        if payload.registration_end <= payload.registration_start:
-            raise HTTPException(
-                status_code=400,
-                detail="Registration closes must be after registration opens."
-            )
-            
-    if payload.registration_end and payload.voting_start:
-        if payload.voting_start <= payload.registration_end:
-            raise HTTPException(
-                status_code=400,
-                detail="Voting opens must be after registration closes."
-            )
-            
-    if payload.voting_start and payload.voting_end:
-        if payload.voting_end <= payload.voting_start:
-            raise HTTPException(
-                status_code=400,
-                detail="Voting closes must be after voting opens."
-            )
-            
+    _validate_election_schedule(payload)
+
     election.title = payload.title
     election.registration_start = payload.registration_start
     election.registration_end = payload.registration_end
+    election.document_deadline = payload.document_deadline
     election.voting_start = payload.voting_start
     election.voting_end = payload.voting_end
+    election.eligible_department = payload.eligible_department
     
     await db.commit()
     await db.refresh(election)
+    _reset_election_cache()
     
     return {"message": "Election details saved successfully.", "election": election}
 

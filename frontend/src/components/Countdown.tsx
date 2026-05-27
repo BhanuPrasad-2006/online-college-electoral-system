@@ -15,5 +15,9 @@ export function Countdown({ seconds, onEnd }: { seconds: number; onEnd?: () => v
   }, [s, onEnd]);
   const m = Math.floor(s / 60);
   const sec = s % 60;
-  return <span className="tabular-nums">{String(m).padStart(2, "0")}:{String(sec).padStart(2, "0")}</span>;
+  return (
+    <span className="tabular-nums">
+      {String(m).padStart(2, "0")}:{String(sec).padStart(2, "0")}
+    </span>
+  );
 }

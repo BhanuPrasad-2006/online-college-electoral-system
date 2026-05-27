@@ -48,6 +48,7 @@ from app.services.auth_service import (
     resend_candidate_email_otp,
     resend_candidate_sms_otp,
 )
+from app.exceptions.auth_exceptions import MobileEmailMismatchError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -127,6 +128,10 @@ async def candidate_check(
                     "reason": "Invalid email or mobile number."
                 }
             # Existing candidate
+            stored_mobile = candidate.mobile_number.replace("+91", "").replace(" ", "").replace("-", "").strip()
+            entered_mobile = mobile_norm.replace("+91", "").replace(" ", "").replace("-", "").strip()
+            if stored_mobile != entered_mobile:
+                raise MobileEmailMismatchError("Mobile number does not match registered candidate mobile.")
             return {"status": "exists"}
 
         # Eligible voter but not candidate
@@ -361,6 +366,13 @@ async def get_voter_profile(
         "voter_code": voter.voter_code or "—",
         "voted": voter.has_voted,
         "vote_permission": voter.vote_permission,
+        "verification_id_set": voter.verification_id is not None,
+        "reference_image_url": voter.reference_image_url or None,
+        "face_enrolled": voter.reference_image_url is not None and voter.face_encoding is not None,
+        "pending_image_url": voter.pending_image_url or None,
+        "pending_face_enrolled": voter.pending_image_url is not None and voter.pending_face_encoding is not None,
+        "photo_reupload_count": voter.photo_reupload_count,
+        "photo_reupload_requested": voter.photo_reupload_requested,
     }
 
 

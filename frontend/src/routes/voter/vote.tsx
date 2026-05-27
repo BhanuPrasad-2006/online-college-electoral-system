@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Webcam from "react-webcam";
 import { PageLoader } from "@/components/PageLoader";
-import { useCandidates, useVoterProfile } from "@/hooks/use-election-data";
+import { useCandidates, useVoterProfile, useCurrentPhase, useElection } from "@/hooks/use-election-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock } from "lucide-react";
@@ -28,6 +28,9 @@ function VotePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [antiReplayToken, setAntiReplayToken] = useState<string>("");
+  const [webcamReady, setWebcamReady] = useState(false);
+  const [webcamError, setWebcamError] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   // ── Honeypot (bot detection) fields ──────────────────────
   const [hpField1, setHpField1] = useState("");
@@ -47,6 +50,40 @@ function VotePage() {
 
   const { data: candidates = [], isPending } = useCandidates();
   const { data: voter, isPending: isVoterPending } = useVoterProfile();
+  const { data: phaseData } = useCurrentPhase();
+  const { data: election } = useElection();
+
+  // ── Reconcile phase the same way the dashboard does ──────
+  // Prefer date-derived phase when it shows voting_open
+  // but the backend phase endpoint hasn't caught up yet.
+  // Memoized to avoid creating a new object reference every render.
+  const effectivePhase = useMemo(() => {
+    if (!phaseData?.phase) return phaseData;
+    if (!election) return phaseData;
+    const now = Date.now();
+    const votStart = (election as any).voting_start
+      ? new Date((election as any).voting_start).getTime()
+      : (election as any).votingStart
+        ? new Date((election as any).votingStart).getTime()
+        : null;
+    const votEnd = (election as any).voting_end
+      ? new Date((election as any).voting_end).getTime()
+      : (election as any).votingEnd
+        ? new Date((election as any).votingEnd).getTime()
+        : null;
+    if (votStart && votEnd && now >= votStart && now < votEnd && phaseData.phase !== "voting_open") {
+      return { ...phaseData, phase: "voting_open" };
+    }
+    return phaseData;
+  }, [phaseData, election]);
+
+  // ── Phase gate: redirect if voting is not open ────────────
+  useEffect(() => {
+    if (effectivePhase && effectivePhase.phase !== "voting_open") {
+      toast.error("Voting is not currently open.");
+      nav({ to: "/voter/dashboard" });
+    }
+  }, [effectivePhase, nav]);
 
   useEffect(() => {
     // JWT Session Timer
@@ -102,12 +139,7 @@ function VotePage() {
           <p className="text-xs text-muted-foreground">
             Please wait for admin approval on the dashboard or contact the election coordinator.
           </p>
-          {timeLeft && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-destructive/10 text-destructive text-xs font-mono font-semibold rounded-full">
-              <Clock className="h-3 w-3" />
-              Session Expiration: {timeLeft}
-            </div>
-          )}
+          {/* Session timer only shown during voting — hidden on blocked screen */}
           <div className="pt-4">
             <Button
               className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-3 font-semibold"
@@ -121,7 +153,9 @@ function VotePage() {
     );
   }
 
-  const presidents = candidates.filter((c) => c.position === "President" && (c.status || "").toLowerCase() === "approved");
+  const presidents = candidates.filter(
+    (c) => c.position === "President" && (c.status || "").toLowerCase() === "approved",
+  );
 
   async function tryVerify() {
     const idToVerify = verificationCode.trim();
@@ -129,7 +163,7 @@ function VotePage() {
       toast.error("Verification ID must be exactly 8 uppercase letters and numbers.");
       return;
     }
-    
+
     setIsVerifying(true);
     try {
       const res = await verifyVoterId(idToVerify);
@@ -155,22 +189,40 @@ function VotePage() {
     }
   }
 
+  async function captureScreenshot(): Promise<string | null> {
+    // Try up to 3 times with 500ms delay to let the webcam initialize
+    for (let i = 0; i < 3; i++) {
+      if (webcamRef.current) {
+        const src = webcamRef.current.getScreenshot();
+        if (src) return src;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    return null;
+  }
+
   async function handleCastVote() {
-    if (!webcamRef.current) {
-      toast.error("Please allow camera access to verify your identity.");
+    if (!webcamReady && !webcamError) {
+      toast.error("Camera is still loading. Please wait a moment and try again.");
       return;
     }
+
+    if (webcamError) {
+      toast.error("Camera is not available. Please retry or check your browser permissions.");
+      return;
+    }
+
+    setIsCapturing(true);
+    const imageSrc = await captureScreenshot();
+    setIsCapturing(false);
     
-    const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc) {
-      toast.error("Failed to capture face. Please make sure your camera is working.");
+      toast.error("Failed to capture face. Please make sure your camera is working and try again.");
       return;
     }
 
     // Calculate elapsed time since review screen appeared (bot detection timing check)
-    const elapsedMs = reviewStartRef.current > 0
-      ? Date.now() - reviewStartRef.current
-      : 99999;
+    const elapsedMs = reviewStartRef.current > 0 ? Date.now() - reviewStartRef.current : 99999;
 
     setIsSubmitting(true);
     try {
@@ -191,8 +243,12 @@ function VotePage() {
     } catch (e: any) {
       console.error(e);
       toast.error(e.message || "Failed to cast vote. Please try again.");
-      // If verification code was wrong, go back to verification screen
-      if (e.message?.toLowerCase().includes("verification code")) {
+      // If verification code was wrong or anti-replay token expired, go back to verification screen
+      if (
+        e.message?.toLowerCase().includes("verification code") ||
+        e.message?.toLowerCase().includes("anti-replay token") ||
+        e.message?.toLowerCase().includes("verify your id again")
+      ) {
         setVerified(false);
         setAttempts((a) => a + 1);
       }
@@ -203,7 +259,11 @@ function VotePage() {
 
   if (confirmed) {
     // Persist voted status so dashboard reflects it (localStorage survives tab close)
-    try { localStorage.setItem("collegevote-has-voted", "true"); } catch { /* ignore */ }
+    try {
+      localStorage.setItem("collegevote-has-voted", "true");
+    } catch {
+      /* ignore */
+    }
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -212,9 +272,18 @@ function VotePage() {
             <CheckCircle2 className="h-12 w-12 text-success" />
           </div>
           <h1 className="text-2xl font-bold mt-5">Vote Cast Successfully!</h1>
-          <p className="text-sm text-muted-foreground mt-2">Your vote has been cast securely and anonymously.</p>
-          <p className="text-xs text-muted-foreground mt-1">Your status on the dashboard will now show <strong>Voted ✓</strong>.</p>
-          <Button className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90" onClick={() => nav({ to: "/voter/dashboard" })}>Return to Dashboard</Button>
+          <p className="text-sm text-muted-foreground mt-2">
+            Your vote has been cast securely and anonymously.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Your status on the dashboard will now show <strong>Voted ✓</strong>.
+          </p>
+          <Button
+            className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+            onClick={() => nav({ to: "/voter/dashboard" })}
+          >
+            Return to Dashboard
+          </Button>
         </div>
       </div>
     );
@@ -231,21 +300,34 @@ function VotePage() {
           <p className="text-sm text-muted-foreground mt-2">
             Enter the <strong>Verification Code</strong> given to you by the election coordinator.
           </p>
-          <Input 
-            value={verificationCode} 
-            onChange={(e) => setVerificationCode(e.target.value.toUpperCase())} 
-            placeholder="e.g. A7K9P2XQ" 
+          <Input
+            value={verificationCode}
+            onChange={(e) => setVerificationCode(e.target.value.toUpperCase())}
+            placeholder="e.g. A7K9P2XQ"
             maxLength={8}
-            className="mt-5 text-center h-12 tracking-widest font-mono text-lg animate-in fade-in slide-in-from-bottom-2 duration-350" 
+            className="mt-5 text-center h-12 tracking-widest font-mono text-lg animate-in fade-in slide-in-from-bottom-2 duration-350"
             onKeyDown={(e) => e.key === "Enter" && tryVerify()}
           />
-          {attempts > 0 && <p className="text-xs text-destructive mt-2">Invalid code. {3 - attempts} attempts remaining.</p>}
-          <p className="text-xs text-muted-foreground mt-2">3 failed attempts will lock your session.</p>
+          {attempts > 0 && (
+            <p className="text-xs text-destructive mt-2">
+              Invalid code. {3 - attempts} attempts remaining.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            3 failed attempts will lock your session.
+          </p>
           <div className="flex gap-3 mt-6">
-            <Button variant="outline" className="flex-1 rounded-xl" onClick={() => nav({ to: "/voter/dashboard" })} disabled={isVerifying}>Cancel</Button>
-            <Button 
-              className="flex-1 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white rounded-xl font-semibold shadow-sm transition-all" 
-              onClick={tryVerify} 
+            <Button
+              variant="outline"
+              className="flex-1 rounded-xl"
+              onClick={() => nav({ to: "/voter/dashboard" })}
+              disabled={isVerifying}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white rounded-xl font-semibold shadow-sm transition-all"
+              onClick={tryVerify}
               disabled={!verificationCode.trim() || isVerifying || verificationCode.length !== 8}
             >
               {isVerifying ? "Verifying..." : "Verify & Proceed"}
@@ -257,9 +339,7 @@ function VotePage() {
   }
 
   const selectedCandidate =
-    selected === NOTA_ID
-      ? null
-      : presidents.find((c) => (c.candidate_id || c.id) === selected);
+    selected === NOTA_ID ? null : presidents.find((c) => (c.candidate_id || c.id) === selected);
 
   return (
     <div className="min-h-screen bg-background">
@@ -273,7 +353,12 @@ function VotePage() {
                 Session: {timeLeft}
               </div>
             )}
-            <button onClick={() => nav({ to: "/voter/dashboard" })} className="p-2 hover:bg-muted rounded-md"><X className="h-4 w-4" /></button>
+            <button
+              onClick={() => nav({ to: "/voter/dashboard" })}
+              className="p-2 hover:bg-muted rounded-md"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>
@@ -283,8 +368,8 @@ function VotePage() {
           <>
             <h2 className="text-xl md:text-2xl font-bold mb-1">Choose your President</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              The Vice President and General Secretary are part of each presidential ticket.
-              Select one ticket, or choose NOTA.
+              The Vice President and General Secretary are part of each presidential ticket. Select
+              one ticket, or choose NOTA.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {presidents.map((c) => {
@@ -296,7 +381,9 @@ function VotePage() {
                     onClick={() => setSelected(cId)}
                     className={cn(
                       "text-left bg-card rounded-2xl shadow-sm p-5 transition-all border-2",
-                      isSel ? "border-[#6C63FF] ring-2 ring-[#6C63FF]/30" : "border-transparent hover:shadow-md"
+                      isSel
+                        ? "border-[#6C63FF] ring-2 ring-[#6C63FF]/30"
+                        : "border-transparent hover:shadow-md",
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -305,33 +392,53 @@ function VotePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold truncate">{c.full_name || c.name}</p>
-                        <p className="text-[11px] text-muted-foreground italic truncate">{c.party}</p>
-                        <p className="text-[11px] text-muted-foreground">{c.semester} Sem · {c.department}</p>
+                        <p className="text-[11px] text-muted-foreground italic truncate">
+                          {c.party}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {c.semester} Sem · {c.department}
+                        </p>
                       </div>
                     </div>
                     <div className="mt-4 pt-3 border-t border-border space-y-1.5">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Running mates</p>
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+                        Running mates
+                      </p>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Vice President</span>
-                        <span className="font-medium">{c.vice_president ?? c.runningMates?.vicePresident ?? "—"}</span>
+                        <span className="font-medium">
+                          {c.vice_president ?? c.runningMates?.vicePresident ?? "—"}
+                        </span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Gen. Secretary</span>
-                        <span className="font-medium">{c.secretary ?? c.runningMates?.secretary ?? "—"}</span>
+                        <span className="font-medium">
+                          {c.secretary ?? c.runningMates?.secretary ?? "—"}
+                        </span>
                       </div>
                     </div>
                     {c.manifesto ? (
                       <details className="mt-3 text-xs">
-                        <summary className="cursor-pointer font-medium text-[#6C63FF]">Read manifesto</summary>
-                        <p className="mt-2 text-muted-foreground leading-relaxed whitespace-pre-wrap">{c.manifesto}</p>
+                        <summary className="cursor-pointer font-medium text-[#6C63FF]">
+                          Read manifesto
+                        </summary>
+                        <p className="mt-2 text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {c.manifesto}
+                        </p>
                       </details>
                     ) : (
-                      <p className="mt-3 text-xs text-muted-foreground italic">Manifesto not yet approved for public viewing.</p>
+                      <p className="mt-3 text-xs text-muted-foreground italic">
+                        Manifesto not yet approved for public viewing.
+                      </p>
                     )}
-                    <div className={cn(
-                      "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
-                      isSel ? "bg-[#6C63FF] text-white border-[#6C63FF]" : "bg-background border-border"
-                    )}>
+                    <div
+                      className={cn(
+                        "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
+                        isSel
+                          ? "bg-[#6C63FF] text-white border-[#6C63FF]"
+                          : "bg-background border-border",
+                      )}
+                    >
                       {isSel ? "● Selected" : "○ Select this ticket"}
                     </div>
                   </button>
@@ -343,7 +450,9 @@ function VotePage() {
                 onClick={() => setSelected(NOTA_ID)}
                 className={cn(
                   "text-left bg-card rounded-2xl shadow-sm p-5 transition-all border-2 flex flex-col",
-                  selected === NOTA_ID ? "border-destructive ring-2 ring-destructive/30" : "border-dashed border-border hover:shadow-md"
+                  selected === NOTA_ID
+                    ? "border-destructive ring-2 ring-destructive/30"
+                    : "border-dashed border-border hover:shadow-md",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -356,20 +465,26 @@ function VotePage() {
                   </div>
                 </div>
                 <p className="mt-4 text-xs text-muted-foreground leading-relaxed flex-1">
-                  Choose this if you do not wish to vote for any of the listed candidates.
-                  Your vote is still counted and recorded.
+                  Choose this if you do not wish to vote for any of the listed candidates. Your vote
+                  is still counted and recorded.
                 </p>
-                <div className={cn(
-                  "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
-                  selected === NOTA_ID ? "bg-destructive text-destructive-foreground border-destructive" : "bg-background border-border"
-                )}>
+                <div
+                  className={cn(
+                    "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
+                    selected === NOTA_ID
+                      ? "bg-destructive text-destructive-foreground border-destructive"
+                      : "bg-background border-border",
+                  )}
+                >
                   {selected === NOTA_ID ? "● Selected" : "○ Select NOTA"}
                 </div>
               </button>
             </div>
 
             <div className="flex justify-between mt-8 gap-3">
-              <Button variant="outline" onClick={() => nav({ to: "/voter/dashboard" })}>← Cancel</Button>
+              <Button variant="outline" onClick={() => nav({ to: "/voter/dashboard" })}>
+                ← Cancel
+              </Button>
               <Button
                 disabled={!selected}
                 className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
@@ -384,7 +499,17 @@ function VotePage() {
         {review && (
           <div className="bg-card rounded-2xl shadow-sm p-6 md:p-8 max-w-2xl mx-auto">
             {/* ── Honeypot fields (invisible to humans, traps bots) ── */}
-            <div aria-hidden="true" className="hp-field-confirm" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }}>
+            <div
+              aria-hidden="true"
+              className="hp-field-confirm"
+              style={{
+                position: "absolute",
+                left: "-9999px",
+                opacity: 0,
+                height: 0,
+                overflow: "hidden",
+              }}
+            >
               <input
                 type="text"
                 name="verification_field_confirm"
@@ -410,7 +535,7 @@ function VotePage() {
                 onChange={(e) => setHpField3(e.target.value)}
               />
               {/* Hidden submit button traps form-submission bots */}
-              <button type="button" tabIndex={-1} style={{ display: 'none' }} />
+              <button type="button" tabIndex={-1} style={{ display: "none" }} />
             </div>
 
             <h2 className="text-xl font-bold mb-2">Review Your Selection</h2>
@@ -431,22 +556,44 @@ function VotePage() {
                     {selectedCandidate.symbol ?? "🎓"}
                   </div>
                   <div>
-                    <p className="font-semibold">{selectedCandidate.full_name || selectedCandidate.name} <span className="text-xs text-muted-foreground">— President</span></p>
-                    <p className="text-xs text-muted-foreground italic">{selectedCandidate.party}</p>
+                    <p className="font-semibold">
+                      {selectedCandidate.full_name || selectedCandidate.name}{" "}
+                      <span className="text-xs text-muted-foreground">— President</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground italic">
+                      {selectedCandidate.party}
+                    </p>
                   </div>
                 </div>
                 <div className="text-xs space-y-1 pt-2 border-t border-border">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Vice President</span><span className="font-medium">{selectedCandidate.vice_president ?? selectedCandidate.runningMates?.vicePresident ?? "—"}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Gen. Secretary</span><span className="font-medium">{selectedCandidate.secretary ?? selectedCandidate.runningMates?.secretary ?? "—"}</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Vice President</span>
+                    <span className="font-medium">
+                      {selectedCandidate.vice_president ??
+                        selectedCandidate.runningMates?.vicePresident ??
+                        "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Gen. Secretary</span>
+                    <span className="font-medium">
+                      {selectedCandidate.secretary ??
+                        selectedCandidate.runningMates?.secretary ??
+                        "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : null}
 
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex gap-3 mb-6">
               <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <p className="text-sm text-destructive">This action is permanent and cannot be reversed. By proceeding, your live face will be matched against your enrolled student ID photo.</p>
+              <p className="text-sm text-destructive">
+                This action is permanent and cannot be reversed. By proceeding, your live face will
+                be matched against your enrolled student ID photo.
+              </p>
             </div>
-            
+
             <div className="mb-6 rounded-xl overflow-hidden border-2 border-border relative bg-muted/30">
               <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded-md z-10 flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
@@ -455,18 +602,56 @@ function VotePage() {
                 </span>
                 Live Verification
               </div>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: "user" }}
-                className="w-full h-auto max-h-[300px] object-cover"
-                onUserMediaError={() => toast.error("Camera access denied or unavailable. Please enable permissions.")}
-              />
+              {webcamError ? (
+                <div className="w-full h-[250px] flex flex-col items-center justify-center bg-muted/40 rounded-xl border-2 border-dashed border-destructive/50 gap-3 p-6">
+                  <AlertTriangle className="h-8 w-8 text-destructive" />
+                  <p className="text-sm text-destructive font-medium text-center">
+                    {webcamError}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setWebcamError(null);
+                      setWebcamReady(false);
+                    }}
+                  >
+                    Retry Camera
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {!webcamReady && (
+                    <div className="w-full h-[250px] flex items-center justify-center bg-muted/40 rounded-xl">
+                      <div className="text-center space-y-2">
+                        <div className="animate-spin h-6 w-6 border-2 border-[#6C63FF] border-t-transparent rounded-full mx-auto" />
+                        <p className="text-xs text-muted-foreground">Starting camera...</p>
+                      </div>
+                    </div>
+                  )}
+                  <Webcam
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    screenshotQuality={0.95}
+                    videoConstraints={{ facingMode: "user", width: 640, height: 480 }}
+                    className={`w-full h-auto max-h-[300px] object-cover ${webcamReady ? "" : "hidden"}`}
+                    onUserMedia={() => setWebcamReady(true)}
+                    onUserMediaError={() => {
+                      setWebcamError(
+                        "Camera access denied or unavailable. Please enable camera permissions in your browser settings and refresh.",
+                      );
+                      toast.error("Camera access denied. Please enable permissions to vote.");
+                    }}
+                  />
+                </>
+              )}
             </div>
-            
+
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setReview(false)}>← Back</Button>
+              <Button variant="outline" onClick={() => setReview(false)}>
+                ← Back
+              </Button>
               <Button
                 className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={handleCastVote}

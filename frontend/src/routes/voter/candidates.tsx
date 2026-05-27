@@ -7,7 +7,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Search, Check, Minus, Brain, FileText, AlertTriangle } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 
@@ -60,7 +66,11 @@ function Page() {
     const nameStr = c.full_name || c.name || "";
     const status = (c.status || "").toLowerCase();
     const isVisible = status === "approved";
-    return isVisible && (pos === "all" || c.position === pos) && nameStr.toLowerCase().includes(q.toLowerCase());
+    return (
+      isVisible &&
+      (pos === "all" || c.position === pos) &&
+      nameStr.toLowerCase().includes(q.toLowerCase())
+    );
   });
 
   const active = candidates.find((c) => (c.candidate_id || c.id) === open);
@@ -69,15 +79,24 @@ function Page() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-[28px] font-bold">Candidates & Manifestos</h1>
-        <p className="text-sm text-muted-foreground mt-1">Browse approved candidates and read their manifestos.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Browse approved candidates and read their manifestos.
+        </p>
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search candidates" className="pl-9" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search candidates"
+            className="pl-9"
+          />
         </div>
         <Select value={pos} onValueChange={setPos}>
-          <SelectTrigger className="w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Positions</SelectItem>
             <SelectItem value="President">President</SelectItem>
@@ -91,8 +110,16 @@ function Page() {
         {filtered.map((c) => {
           const nameStr = c.full_name || c.name || "Candidate";
           const candId = c.candidate_id || c.id;
-          const initials = nameStr.split(" ").map((n: string) => n[0] || "").join("");
-          const tone = (c.match || 75) >= 70 ? "bg-success/15 text-success" : (c.match || 75) >= 40 ? "bg-warning/20 text-warning-foreground" : "bg-muted text-muted-foreground";
+          const initials = nameStr
+            .split(" ")
+            .map((n: string) => n[0] || "")
+            .join("");
+          const tone =
+            (c.match || 75) >= 70
+              ? "bg-success/15 text-success"
+              : (c.match || 75) >= 40
+                ? "bg-warning/20 text-warning-foreground"
+                : "bg-muted text-muted-foreground";
           const isPendingStatus = (c.status || "").toLowerCase() === "pending";
           return (
             <button
@@ -103,23 +130,38 @@ function Page() {
                 "bg-card rounded-2xl shadow-sm p-5 text-left transition-all w-full border border-transparent",
                 isPendingStatus
                   ? "opacity-60 cursor-not-allowed border-dashed border-border"
-                  : "hover:shadow-md hover:border-solid hover:border-border/60"
+                  : "hover:shadow-md hover:border-solid hover:border-border/60",
               )}
             >
               <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14"><AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">{initials}</AvatarFallback></Avatar>
+                <Avatar className="h-14 w-14">
+                  <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] font-semibold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{nameStr}</p>
-                  <p className="text-xs text-muted-foreground">{c.department} · {c.semester} Sem</p>
-                  <p className="text-[11px] text-muted-foreground italic mt-0.5 truncate">{c.party}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.department} · {c.semester} Sem
+                  </p>
+                  <p className="text-[11px] text-muted-foreground italic mt-0.5 truncate">
+                    {c.party}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-3">
                 <Badge variant="outline">{c.position}</Badge>
                 {isPendingStatus ? (
-                  <Badge variant="secondary" className="bg-warning/15 text-warning-foreground border border-warning/25 font-semibold">Pending Approval</Badge>
+                  <Badge
+                    variant="secondary"
+                    className="bg-warning/15 text-warning-foreground border border-warning/25 font-semibold"
+                  >
+                    Pending Approval
+                  </Badge>
                 ) : (
-                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>Match {c.match || 75}%</span>
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${tone}`}>
+                    Match {c.match || 75}%
+                  </span>
                 )}
               </div>
             </button>
@@ -133,11 +175,40 @@ function Page() {
             <>
               <SheetHeader>
                 <SheetTitle>{active.full_name || active.name}</SheetTitle>
-                <p className="text-sm text-muted-foreground">{active.position} · {active.department} · {active.party}</p>
+                <p className="text-sm text-muted-foreground">
+                  {active.position} · {active.department} · {active.party}
+                </p>
               </SheetHeader>
               <div className="mt-6 space-y-6">
+                {/* Party Members */}
+                <div className="bg-card rounded-xl border border-border/60 p-4">
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#6C63FF]" />
+                    Running Mates
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-background rounded-lg p-3 border border-border/40">
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+                        Vice President
+                      </p>
+                      <p className="font-medium text-sm">
+                        {active.vice_president ?? active.runningMates?.vicePresident ?? "—"}
+                      </p>
+                    </div>
+                    <div className="bg-background rounded-lg p-3 border border-border/40">
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+                        Gen. Secretary
+                      </p>
+                      <p className="font-medium text-sm">
+                        {active.secretary ?? active.runningMates?.secretary ?? "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="bg-success/10 border border-success/30 rounded-lg p-3 inline-block text-xs font-semibold text-success">
-                  Covers {Math.round((active.coverage || 78) / 100 * COVERAGE_CATS.length)}/{COVERAGE_CATS.length} student concerns
+                  Covers {Math.round(((active.coverage || 78) / 100) * COVERAGE_CATS.length)}/
+                  {COVERAGE_CATS.length} student concerns
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold mb-2">Manifesto</h3>
@@ -154,12 +225,18 @@ function Page() {
                           <span className="text-sm font-medium">View Attached PDF</span>
                         </a>
                       ) : (
-                        <img src={active.manifesto_image_url} alt="Manifesto media" className="w-full max-h-60 object-contain bg-muted/20" />
+                        <img
+                          src={active.manifesto_image_url}
+                          alt="Manifesto media"
+                          className="w-full max-h-60 object-contain bg-muted/20"
+                        />
                       )}
                     </div>
                   )}
                   {active.manifesto ? (
-                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{active.manifesto}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                      {active.manifesto}
+                    </p>
                   ) : (
                     <p className="text-sm text-muted-foreground italic">
                       {active.manifesto_status === "Pending Review"
@@ -189,19 +266,29 @@ function Page() {
                   <h3 className="text-sm font-semibold mb-3">AI Coverage Breakdown</h3>
                   <div className="space-y-2">
                     {COVERAGE_CATS.map((cat, i) => {
-                      const covered = i < Math.round(((active.coverage || 78) / 100) * COVERAGE_CATS.length);
+                      const covered =
+                        i < Math.round(((active.coverage || 78) / 100) * COVERAGE_CATS.length);
                       const pct = covered ? 60 + ((i * 11) % 35) : 5 + ((i * 7) % 20);
                       return (
                         <div key={cat}>
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className="flex items-center gap-1.5">
-                              {covered ? <Check className="h-3.5 w-3.5 text-success" /> : <Minus className="h-3.5 w-3.5 text-muted-foreground" />}
+                              {covered ? (
+                                <Check className="h-3.5 w-3.5 text-success" />
+                              ) : (
+                                <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
                               {cat}
                             </span>
                             <span className="text-muted-foreground">{pct}%</span>
                           </div>
                           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className={covered ? "h-full bg-success" : "h-full bg-muted-foreground/40"} style={{ width: `${pct}%` }} />
+                            <div
+                              className={
+                                covered ? "h-full bg-success" : "h-full bg-muted-foreground/40"
+                              }
+                              style={{ width: `${pct}%` }}
+                            />
                           </div>
                         </div>
                       );
@@ -216,27 +303,29 @@ function Page() {
                       <h3 className="text-sm font-semibold">Contradictions Detected</h3>
                     </div>
                     <div className="space-y-2">
-                      {((active as any).contradictions as Contradiction[]).map((c: Contradiction, i: number) => (
-                        <div
-                          key={i}
-                          className={`rounded-lg border p-3 text-xs space-y-1.5 ${severityColor(c.severity)}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider">
-                              {severityLabel(c.severity)} Priority
-                            </span>
+                      {((active as any).contradictions as Contradiction[]).map(
+                        (c: Contradiction, i: number) => (
+                          <div
+                            key={i}
+                            className={`rounded-lg border p-3 text-xs space-y-1.5 ${severityColor(c.severity)}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                                {severityLabel(c.severity)} Priority
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="font-medium text-[11px]">Statement A:</p>
+                              <p className="italic">&ldquo;{c.statement_a}&rdquo;</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="font-medium text-[11px]">Statement B:</p>
+                              <p className="italic">&ldquo;{c.statement_b}&rdquo;</p>
+                            </div>
+                            <p className="text-muted-foreground mt-1">{c.explanation}</p>
                           </div>
-                          <div className="space-y-1">
-                            <p className="font-medium text-[11px]">Statement A:</p>
-                            <p className="italic">&ldquo;{c.statement_a}&rdquo;</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="font-medium text-[11px]">Statement B:</p>
-                            <p className="italic">&ldquo;{c.statement_b}&rdquo;</p>
-                          </div>
-                          <p className="text-muted-foreground mt-1">{c.explanation}</p>
-                        </div>
-                      ))}
+                        ),
+                      )}
                     </div>
                   </div>
                 )}
@@ -248,4 +337,3 @@ function Page() {
     </div>
   );
 }
-

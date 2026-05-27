@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import asyncio
@@ -6,8 +6,10 @@ import uuid
 import hashlib
 import re
 import base64
+import os
 from datetime import timezone
-from app.services.face_service import extract_face_embedding, compare_face_embeddings, deserialize_embedding
+from app.services.face_service import extract_face_embedding, compare_face_embeddings, deserialize_embedding, serialize_embedding
+from app.utils.image_validator import validate_image
 
 from app.db.session import get_db
 from app.api.deps import get_current_user, get_admin_user
@@ -17,12 +19,15 @@ from app.models.election import Election
 from app.models.position import Position
 from app.models.vote import Vote
 from app.enums.election_status import ElectionStatusEnum
-from app.services.sms_service import send_custom_sms
 from app.services.email_service import send_election_email
+from app.services.supabase_storage import SupabaseStorageError, upload_voter_face as supabase_upload_voter_face
 from app.utils.logger import logger
+from app.core.config import settings
 from pydantic import BaseModel
 from typing import Optional, List
 from app.middleware.rate_limit import limiter
+from app.models.audit_log import AuditLog
+from datetime import datetime
 
 router = APIRouter()
 
@@ -71,22 +76,19 @@ async def cast_vote(
             status_code = status.HTTP_404_NOT_FOUND
         raise HTTPException(status_code=status_code, detail=err_msg)
 
-    # ── Anti-Replay Token Verification ───────────────────────
-    if not body.anti_replay_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Anti-replay token is missing."
-        )
-    from app.security.anti_replay_service import AntiReplayService
-    is_token_valid = await AntiReplayService.validate_and_consume(body.anti_replay_token, voter_id, db)
-    if not is_token_valid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired anti-replay token. Please verify your ID again."
-        )
 
-    # ── Verification ID Check Bypassed for Testing ───────────
-    logger.info(f"Bypassing verification ID check for voter {voter.voter_id} to check face auth directly.")
+    # ── Verification ID Check ────────────────────────────────
+    from app.security.password_service import verify_password
+    if not voter.verification_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No verification ID set for your account. Contact the election admin."
+        )
+    if not verify_password(body.verification_id, voter.verification_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verification ID does not match. Please re-enter your verification code."
+        )
 
     # ── Face Verification ────────────────────────────────────
     if voter.face_encoding:
@@ -112,25 +114,35 @@ async def cast_vote(
             stored_emb = deserialize_embedding(voter.face_encoding)
             
             if not compare_face_embeddings(live_emb, stored_emb):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Face verification failed. Captured face does not match registered student photo."
+                raise ValueError(
+                    "Face verification failed. Captured face does not match registered student photo."
                 )
         except ValueError as ve:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(ve)
             )
+        except RuntimeError as re:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(re)
+            )
+        except ImportError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Face verification is temporarily unavailable. The face recognition module is not fully installed on the server."
+            )
+        except HTTPException:
+            raise  # Re-raise FastAPI HTTP exceptions (shouldn't happen but just in case)
+        except Exception as e:
+            logger.error(f"Face verification failed unexpectedly: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Face verification encountered an unexpected error. Please try again or contact the election admin."
+            )
 
-    # Fetch the active election
-    election_query = select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN.value)
-    election_result = await db.execute(election_query)
-    election = election_result.scalar_one_or_none()
-    if not election:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="There is no active election open for voting at this time."
-        )
+    # Keep using the same validated current election so casting follows
+    # the same date/phase logic shown throughout the frontend.
 
     candidate = None
     position_id = None
@@ -170,11 +182,24 @@ async def cast_vote(
             )
         position_id = position_record.position_id
 
+    # ── Anti-Replay Token Verification (Deferred until all other checks succeed) ──
+    if not body.anti_replay_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Anti-replay token is missing."
+        )
+    from app.security.anti_replay_service import AntiReplayService
+    is_token_valid = await AntiReplayService.validate_and_consume(body.anti_replay_token, voter_id, db)
+    if not is_token_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired anti-replay token. Please verify your ID again."
+        )
+
     # Generate cryptographic anonymous token hash
     random_token = str(uuid.uuid4())
     voter_token_hash = hashlib.sha256(random_token.encode("utf-8")).hexdigest()
 
-    from datetime import datetime
     from sqlalchemy import func, text
     from app.services.ledger_service import calculate_vote_hash, append_to_secure_vault
 
@@ -262,15 +287,7 @@ async def cast_vote(
     }
     await append_to_secure_vault(vote_data, current_hash)
 
-    # Trigger custom SMS confirmation
-    if voter.mobile_number:
-        try:
-            msg = f"Thank you {voter.full_name} for voting in the Student Council Election! Your vote has been recorded securely. Results will be announced soon. -ELCVOT"
-            asyncio.create_task(send_custom_sms(voter.mobile_number, msg))
-        except Exception:
-            pass
-
-    # Trigger custom Email confirmation
+    # Trigger Email confirmation (SMS alerts removed per user preference)
     if voter.college_email:
         try:
             voted_at_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
@@ -342,6 +359,183 @@ async def cast_vote(
     }
 
 
+@router.post("/upload-photo")
+@limiter.limit("5/minute")
+async def upload_voter_own_photo(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Voter-facing endpoint to upload/update their own reference photo before voting.
+    Only allowed before the voting phase opens.
+    """
+    voter_id = current_user.get("user_id")
+    if not voter_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    # Fetch voter
+    query = select(Voter).where(Voter.voter_id == voter_id)
+    result = await db.execute(query)
+    voter = result.scalar_one_or_none()
+    if not voter:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter not found")
+
+    # Phase gate — allow upload if admin has requested re-upload, otherwise only before voting opens
+    election_result = await db.execute(
+        select(Election).order_by(Election.created_at.desc()).limit(1)
+    )
+    election = election_result.scalars().first()
+    
+    # If admin requested re-upload, allow upload regardless of phase (except after results)
+    if voter.photo_reupload_requested:
+        if election:
+            election_status = election.status
+            if hasattr(election_status, 'value'):
+                election_status = election_status.value
+            if election_status == ElectionStatusEnum.RESULTS_PUBLISHED.value:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot upload photos after results have been published."
+                )
+    else:
+        if election:
+            election_status = election.status
+            if hasattr(election_status, 'value'):
+                election_status = election_status.value
+            if election_status in [
+                ElectionStatusEnum.VOTING_OPEN.value,
+                ElectionStatusEnum.CLOSED.value,
+                ElectionStatusEnum.RESULTS_PUBLISHED.value,
+            ]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Photo can only be updated before the voting phase begins. Contact the election admin if you need to update your photo."
+                )
+
+    # Re-upload limit check — max 2 re-upload attempts
+    if voter.photo_reupload_count >= 2:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You have reached the maximum of 2 photo re-upload attempts. Please contact the election admin for assistance."
+        )
+
+    # Validate file type and size
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Only images are allowed.")
+
+    image_data = await file.read()
+    if len(image_data) > 5 * 1024 * 1024:  # 5MB
+        raise HTTPException(status_code=400, detail="Image size exceeds 5MB limit.")
+
+    # Validate image (block AI-generated / malicious content)
+    validation = validate_image(image_data, file.filename or "face.jpg")
+    if not validation.passed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=validation.reason)
+
+    # Extract face embedding
+    try:
+        embedding = extract_face_embedding(image_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
+    except ImportError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Face recognition is temporarily unavailable. The face recognition module is not fully installed on the server.",
+        )
+    except Exception as e:
+        logger.error(f"Face verification failed unexpectedly during upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Face processing encountered an unexpected error. Please try again or contact the election admin.",
+        )
+
+    # Upload to Supabase Storage (with local fallback) — save as PENDING only
+    # The admin must approve the new photo before it becomes active
+    supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)
+    if supabase_enabled:
+        try:
+            uploaded = await supabase_upload_voter_face(
+                voter_id=voter_id,
+                filename=f"pending_{file.filename or 'face.jpg'}",
+                content_type=file.content_type,
+                data=image_data,
+            )
+            voter.pending_image_url = uploaded.public_url
+            voter.pending_face_encoding = serialize_embedding(embedding)
+        except SupabaseStorageError as exc:
+            logger.error(f"Supabase voter face upload failed: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upload photo to storage. Please try again.",
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error during Supabase face upload: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected error occurred while saving your photo. Please try again.",
+            )
+    else:
+        # Local fallback for development
+        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
+        safe_filename = f"pending_voter_{voter_id}{file_ext}"
+        file_path = os.path.join("uploads/faces", safe_filename)
+        os.makedirs("uploads/faces", exist_ok=True)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(image_data)
+            voter.pending_image_url = f"/{file_path.replace(os.sep, '/')}"
+            voter.pending_face_encoding = serialize_embedding(embedding)
+        except PermissionError:
+            logger.error(f"Permission denied writing face image to {file_path}")
+            raise HTTPException(status_code=500, detail="Server configuration error: cannot write uploads. Contact the election admin.")
+        except OSError as e:
+            logger.error(f"OS error saving face image: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save image file due to a server error. Please try again.")
+        except Exception as e:
+            logger.error(f"Failed to save voter face image: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save image file.")
+
+    # Increment re-upload count and clear the admin re-upload request flag
+    voter.photo_reupload_count += 1
+    voter.photo_reupload_requested = False
+
+    # Extract real IP from request (not spoofable by client)
+    ip_addr = request.client.host if request.client else "127.0.0.1"
+    x_forwarded = request.headers.get("x-forwarded-for")
+    if x_forwarded:
+        ip_addr = x_forwarded.split(",")[0].strip()
+
+    # Audit log — alert admin that a voter submitted a new photo for review
+    audit_entry = AuditLog(
+        event_type="PHOTO_UPLOAD_SUBMITTED",
+        actor_id=uuid.UUID(voter_id) if isinstance(voter_id, str) else voter_id,
+        description=f"Voter {voter.full_name} ({voter.college_email}) submitted a new photo for review ({voter.photo_reupload_count}/2 attempts)",
+        ip_address=ip_addr,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit_entry)
+
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to commit voter face data: {e}")
+        raise HTTPException(status_code=500, detail="Database error while saving face data.")
+
+    return {
+        "success": True,
+        "message": f"Photo submitted for admin review ({voter.photo_reupload_count}/2 attempts used). It will be active once approved by the election admin.",
+        "pending_image_url": voter.pending_image_url,
+    }
+
+
 @router.get("/status")
 async def vote_status(
     current_user: dict = Depends(get_current_user),
@@ -391,7 +585,8 @@ async def list_voters_for_admin(
             "is_verified": v.is_verified,
             "has_voted": v.has_voted,
             "vote_permission": v.vote_permission,
-            "verification_id_set": v.verification_id is not None
+            "verification_id_set": v.verification_id is not None,
+            "face_enrolled": v.reference_image_url is not None and v.face_encoding is not None
         }
         for v in voters
     ]
@@ -511,8 +706,18 @@ async def verify_voter_id(
             detail="You have already cast your vote."
         )
 
-    # ── Verification ID Check Bypassed for Testing ───────────
-    logger.info(f"Bypassing verification ID check for voter {voter.voter_id} to fetch anti-replay token directly.")
+    # ── Verification ID Check ────────────────────────────────
+    from app.security.password_service import verify_password
+    if not voter.verification_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No verification ID set for your account. Contact the election admin."
+        )
+    if not verify_password(body.verification_id, voter.verification_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verification ID does not match. Please re-enter your verification code."
+        )
 
     # Generate anti-replay token
     from app.security.anti_replay_service import AntiReplayService
