@@ -289,11 +289,11 @@ export async function reviewManifesto(
 
 
 // ── Voter Login ──────────────────────────────────────────────
-export async function voterLoginStep1(email: string, password: string) {
+export async function voterLoginStep1(email: string, password: string, g_recaptcha_response: string) {
   const cleanEmail = email.trim().toLowerCase();
   return post<{ otp_session_token: string; hint: string; message: string }>(
     "/auth/voter/login",
-    { email: cleanEmail, password }
+    { email: cleanEmail, password, g_recaptcha_response }
   );
 }
 
@@ -305,12 +305,12 @@ export async function voterLoginStep2(sessionToken: string, otp: string) {
 }
 
 // ── Candidate Login ──────────────────────────────────────────
-export async function candidateLoginStep1(email: string, mobile_number: string, password: string) {
+export async function candidateLoginStep1(email: string, mobile_number: string, password: string, g_recaptcha_response: string) {
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
   return post<{ otp_session_token: string; hint: string; message: string }>(
     "/auth/candidate/login",
-    { email: cleanEmail, mobile_number: cleanMobile, password }
+    { email: cleanEmail, mobile_number: cleanMobile, password, g_recaptcha_response }
   );
 }
 

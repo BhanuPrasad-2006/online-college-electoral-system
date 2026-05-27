@@ -9,6 +9,7 @@ from typing import Optional
 class VoterLoginRequest(BaseModel):
     email: EmailStr
     password: str
+    g_recaptcha_response: Optional[str] = None
 
 
 class VoterOTPVerifyRequest(BaseModel):
@@ -24,6 +25,7 @@ class CandidateLoginRequest(BaseModel):
     email: EmailStr
     mobile_number: str
     password: str
+    g_recaptcha_response: Optional[str] = None
 
 
 class CandidateOTPVerifyRequest(BaseModel):

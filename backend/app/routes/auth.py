@@ -1,9 +1,11 @@
+import os
 import uuid
 import jwt
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, status, HTTPException, Request
 from app.middleware.rate_limit import limiter
 from app.security.device_fingerprint import generate_fingerprint
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -70,6 +72,27 @@ async def voter_login(
     body: VoterLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    # ── reCAPTCHA v2 verification (optional) ────────────────────
+    # If a token is provided, verify it against Google.
+    # If no token (script blocked / adblocker), allow proceed.
+    recaptcha_token = body.g_recaptcha_response
+    if recaptcha_token:
+        recaptcha_secret = os.getenv("RECAPTCHA_SECRET_KEY", "")
+        async with httpx.AsyncClient() as client:
+            verify_response = await client.post(
+                "https://www.google.com/recaptcha/api/siteverify",
+                data={
+                    "secret": recaptcha_secret,
+                    "response": recaptcha_token,
+                },
+            )
+        verify_data = verify_response.json()
+        if not verify_data.get("success", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="reCAPTCHA verification failed. Please try again.",
+            )
+    # ── Proceed with credential verification ───────────────────
     result = await voter_login_step1(db, body.email, body.password)
     return OTPSentResponse(
         message="OTP sent to your registered email address.",
@@ -246,6 +269,27 @@ async def candidate_login(
     body: CandidateLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    # ── reCAPTCHA v2 verification (optional) ────────────────────
+    # If a token is provided, verify it against Google.
+    # If no token (script blocked / adblocker), allow proceed.
+    recaptcha_token = body.g_recaptcha_response
+    if recaptcha_token:
+        recaptcha_secret = os.getenv("RECAPTCHA_SECRET_KEY", "")
+        async with httpx.AsyncClient() as client:
+            verify_response = await client.post(
+                "https://www.google.com/recaptcha/api/siteverify",
+                data={
+                    "secret": recaptcha_secret,
+                    "response": recaptcha_token,
+                },
+            )
+        verify_data = verify_response.json()
+        if not verify_data.get("success", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="reCAPTCHA verification failed. Please try again.",
+            )
+    # ── Proceed with credential verification ───────────────────
     result = await candidate_login_step1(
         db, body.email, body.mobile_number, body.password
     )

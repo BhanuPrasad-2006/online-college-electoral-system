@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import ReCAPTCHA from "react-google-recaptcha";
 import { Eye, EyeOff, GraduationCap, ShieldCheck, Sparkles, AlertCircle, ArrowLeft, Mail, Key } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,16 @@ function Login() {
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  // reCAPTCHA tokens — one ref per login flow
+  const voterRecaptchaRef = useRef<ReCAPTCHA>(null);
+  const candidateRecaptchaRef = useRef<ReCAPTCHA>(null);
+  const [voterRecaptchaToken, setVoterRecaptchaToken] = useState<string | null>(null);
+  const [candidateRecaptchaToken, setCandidateRecaptchaToken] = useState<string | null>(null);
+  const [voterRecaptchaLoaded, setVoterRecaptchaLoaded] = useState(false);
+  const [voterRecaptchaError, setVoterRecaptchaError] = useState(false);
+  const [candidateRecaptchaLoaded, setCandidateRecaptchaLoaded] = useState(false);
+  const [candidateRecaptchaError, setCandidateRecaptchaError] = useState(false);
   const [rejectionRemarks, setRejectionRemarks] = useState("");
 
   // Candidate Sub-Steps
@@ -64,6 +75,15 @@ function Login() {
     setRejectionRemarks("");
     setCandidateYear("");
     setPassword("");
+    // Reset reCAPTCHA widgets when switching tabs
+    voterRecaptchaRef.current?.reset();
+    candidateRecaptchaRef.current?.reset();
+    setVoterRecaptchaToken(null);
+    setCandidateRecaptchaToken(null);
+    setVoterRecaptchaLoaded(false);
+    setVoterRecaptchaError(false);
+    setCandidateRecaptchaLoaded(false);
+    setCandidateRecaptchaError(false);
   }, [tab]);
 
   // Mode: "login" | "forgot_email" | "forgot_otp" | "forgot_reset"
@@ -84,7 +104,7 @@ function Login() {
     setRejectionRemarks("");
     try {
       if (tab === "voter") {
-        const res = await voterLoginStep1(email, password);
+        const res = await voterLoginStep1(email, password, voterRecaptchaToken ?? "");
         saveOtpSession(res.otp_session_token, email);
         toast.success(res.hint);
         nav({ to: "/voter/otp-verify" });
@@ -115,7 +135,7 @@ function Login() {
             setLoading(false);
           }
         } else if (candidateStep === "password") {
-          const res = await candidateLoginStep1(email, mobileNum, password);
+          const res = await candidateLoginStep1(email, mobileNum, password, candidateRecaptchaToken ?? "");
           saveOtpSession(res.otp_session_token, email, mobileNum);
           toast.success(res.hint);
           nav({ to: "/candidate/otp-verify" });
@@ -321,7 +341,40 @@ function Login() {
                         </button>
                       </div>
                     </div>
-                    <Button type="submit" disabled={loading} className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white">
+                    <div className="flex justify-center mt-4">
+                      {!voterRecaptchaLoaded && !voterRecaptchaError && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                          Loading security check...
+                        </div>
+                      )}
+                      {voterRecaptchaError && (
+                        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2.5">
+                          <AlertCircle className="h-4 w-4 shrink-0" />
+                          <span>CAPTCHA unavailable — you can proceed without it.</span>
+                        </div>
+                      )}
+                      {!voterRecaptchaError && (
+                        <ReCAPTCHA
+                          ref={voterRecaptchaRef}
+                          sitekey="6LeIxAcTAAAAAJcZVRqyTRR7Kg3J-RqyPG6J4B1Y"
+                          onChange={(token) => setVoterRecaptchaToken(token)}
+                          onExpired={() => setVoterRecaptchaToken(null)}
+                          onErrored={() => {
+                            setVoterRecaptchaError(true);
+                            setVoterRecaptchaLoaded(true);
+                          }}
+                          asyncScriptOnLoad={() => {
+                            setVoterRecaptchaLoaded(true);
+                          }}
+                        />
+                      )}
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={loading || (!voterRecaptchaToken && !voterRecaptchaError)}
+                      className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
+                    >
                       {loading ? "Signing in..." : "Login"}
                     </Button>
                   </>
@@ -377,6 +430,35 @@ function Login() {
                             </button>
                           </div>
                         </div>
+                        <div className="flex justify-center mt-4">
+                          {!candidateRecaptchaLoaded && !candidateRecaptchaError && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                              Loading security check...
+                            </div>
+                          )}
+                          {candidateRecaptchaError && (
+                            <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2.5">
+                              <AlertCircle className="h-4 w-4 shrink-0" />
+                              <span>CAPTCHA unavailable — you can proceed without it.</span>
+                            </div>
+                          )}
+                          {!candidateRecaptchaError && (
+                            <ReCAPTCHA
+                              ref={candidateRecaptchaRef}
+                              sitekey="6LeIxAcTAAAAAJcZVRqyTRR7Kg3J-RqyPG6J4B1Y"
+                              onChange={(token) => setCandidateRecaptchaToken(token)}
+                              onExpired={() => setCandidateRecaptchaToken(null)}
+                              onErrored={() => {
+                                setCandidateRecaptchaError(true);
+                                setCandidateRecaptchaLoaded(true);
+                              }}
+                              asyncScriptOnLoad={() => {
+                                setCandidateRecaptchaLoaded(true);
+                              }}
+                            />
+                          )}
+                        </div>
                         <div className="flex gap-3 mt-2">
                           <Button
                             type="button"
@@ -384,13 +466,19 @@ function Login() {
                               setCandidateStep("email_mobile");
                               setError("");
                               setPassword("");
+                              candidateRecaptchaRef.current?.reset();
+                              setCandidateRecaptchaToken(null);
                             }}
                             variant="outline"
                             className="flex-1 h-11 border border-border hover:bg-muted"
                           >
                             Back
                           </Button>
-                          <Button type="submit" disabled={loading} className="flex-1 h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white">
+                          <Button
+                            type="submit"
+                            disabled={loading || (!candidateRecaptchaToken && !candidateRecaptchaError)}
+                            className="flex-1 h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
+                          >
                             {loading ? "Signing in..." : "Login"}
                           </Button>
                         </div>

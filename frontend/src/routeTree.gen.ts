@@ -30,6 +30,7 @@ import { Route as CandidateManifestoRouteImport } from './routes/candidate/manif
 import { Route as CandidateDashboardRouteImport } from './routes/candidate/dashboard'
 import { Route as CandidateApplyRouteImport } from './routes/candidate/apply'
 import { Route as CandidateAiReportRouteImport } from './routes/candidate/ai-report'
+import { Route as CandidateIdRouteImport } from './routes/candidate.$id'
 import { Route as AdminResultsRouteImport } from './routes/admin/results'
 import { Route as AdminOtpVerifyRouteImport } from './routes/admin/otp-verify'
 import { Route as AdminMediaRouteImport } from './routes/admin/media'
@@ -149,6 +150,11 @@ const CandidateAiReportRoute = CandidateAiReportRouteImport.update({
   path: '/candidate/ai-report',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CandidateIdRoute = CandidateIdRouteImport.update({
+  id: '/candidate/$id',
+  path: '/candidate/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminResultsRoute = AdminResultsRouteImport.update({
   id: '/admin/results',
   path: '/admin/results',
@@ -230,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AdminMediaRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
+  '/candidate/$id': typeof CandidateIdRoute
   '/candidate/ai-report': typeof CandidateAiReportRoute
   '/candidate/apply': typeof CandidateApplyRoute
   '/candidate/dashboard': typeof CandidateDashboardRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AdminMediaRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
+  '/candidate/$id': typeof CandidateIdRoute
   '/candidate/ai-report': typeof CandidateAiReportRoute
   '/candidate/apply': typeof CandidateApplyRoute
   '/candidate/dashboard': typeof CandidateDashboardRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/admin/media': typeof AdminMediaRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/results': typeof AdminResultsRoute
+  '/candidate/$id': typeof CandidateIdRoute
   '/candidate/ai-report': typeof CandidateAiReportRoute
   '/candidate/apply': typeof CandidateApplyRoute
   '/candidate/dashboard': typeof CandidateDashboardRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/otp-verify'
     | '/admin/results'
+    | '/candidate/$id'
     | '/candidate/ai-report'
     | '/candidate/apply'
     | '/candidate/dashboard'
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/otp-verify'
     | '/admin/results'
+    | '/candidate/$id'
     | '/candidate/ai-report'
     | '/candidate/apply'
     | '/candidate/dashboard'
@@ -413,6 +424,7 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/otp-verify'
     | '/admin/results'
+    | '/candidate/$id'
     | '/candidate/ai-report'
     | '/candidate/apply'
     | '/candidate/dashboard'
@@ -450,6 +462,7 @@ export interface RootRouteChildren {
   AdminMediaRoute: typeof AdminMediaRoute
   AdminOtpVerifyRoute: typeof AdminOtpVerifyRoute
   AdminResultsRoute: typeof AdminResultsRoute
+  CandidateIdRoute: typeof CandidateIdRoute
   CandidateAiReportRoute: typeof CandidateAiReportRoute
   CandidateApplyRoute: typeof CandidateApplyRoute
   CandidateDashboardRoute: typeof CandidateDashboardRoute
@@ -621,6 +634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CandidateAiReportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/candidate/$id': {
+      id: '/candidate/$id'
+      path: '/candidate/$id'
+      fullPath: '/candidate/$id'
+      preLoaderRoute: typeof CandidateIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/results': {
       id: '/admin/results'
       path: '/admin/results'
@@ -730,6 +750,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminMediaRoute: AdminMediaRoute,
   AdminOtpVerifyRoute: AdminOtpVerifyRoute,
   AdminResultsRoute: AdminResultsRoute,
+  CandidateIdRoute: CandidateIdRoute,
   CandidateAiReportRoute: CandidateAiReportRoute,
   CandidateApplyRoute: CandidateApplyRoute,
   CandidateDashboardRoute: CandidateDashboardRoute,
