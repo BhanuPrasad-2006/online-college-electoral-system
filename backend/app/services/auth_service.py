@@ -293,6 +293,19 @@ async def candidate_login_step1(
     if not voter:
         raise InvalidCredentialsError("Voter profile not found. You must be registered as a voter first.")
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if voter.lockout_until:
+        lockout_until = voter.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     if not verify_password(password, voter.password_hash):
         raise InvalidCredentialsError("Invalid credentials. Please check your email and password.")
 
@@ -328,14 +341,14 @@ async def candidate_login_step1(
             db=db,
             recipient=voter.college_email,
             otp_type=OTPTypeEnum.EMAIL,
-            expires_in_minutes=10,
+            expires_in_minutes=5,
         )
 
         sms_otp_record, sms_otp = await create_and_store_otp(
             db=db,
             recipient=candidate.mobile_number,
             otp_type=OTPTypeEnum.SMS,
-            expires_in_minutes=10,
+            expires_in_minutes=5,
         )
 
         # Send OTPs
@@ -366,7 +379,7 @@ async def candidate_login_step1(
             voter_id=voter_id_str,
             email=college_email,
             otp_id=otp_id_str,
-            expires_in_minutes=10,
+            expires_in_minutes=5,
             is_registered=True,
             mobile_number=cand_mobile,
         )
@@ -398,14 +411,14 @@ async def candidate_login_step1(
             db=db,
             recipient=voter.college_email,
             otp_type=OTPTypeEnum.EMAIL,
-            expires_in_minutes=10,
+            expires_in_minutes=5,
         )
 
         sms_otp_record, sms_otp = await create_and_store_otp(
             db=db,
             recipient=full_mobile,
             otp_type=OTPTypeEnum.SMS,
-            expires_in_minutes=10,
+            expires_in_minutes=5,
         )
 
         # Send OTPs
@@ -435,7 +448,7 @@ async def candidate_login_step1(
             voter_id=voter_id_str,
             email=college_email,
             otp_id=otp_id_str,
-            expires_in_minutes=10,
+            expires_in_minutes=5,
             is_registered=False,
             mobile_number=full_mobile,
         )
@@ -483,6 +496,19 @@ async def candidate_login_step2(
     if not voter:
         raise InvalidCredentialsError("Voter profile not found")
 
+    # Check lockout
+    now = datetime.now(timezone.utc)
+    if voter.lockout_until:
+        lockout_until = voter.lockout_until
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        if now < lockout_until:
+            remaining = int((lockout_until - now).total_seconds())
+            raise OTPError(
+                f"Account locked due to multiple failed OTP attempts. "
+                f"Try again in {remaining // 60}m {remaining % 60}s."
+            )
+
     # 1. Verify Email OTP
     email_ok, email_msg = await verify_otp(
         db=db,
@@ -490,8 +516,6 @@ async def candidate_login_step2(
         plain_otp=email_otp,
         otp_type=OTPTypeEnum.EMAIL,
     )
-    if not email_ok:
-        raise OTPError(email_msg)
 
     # 2. Verify SMS OTP
     sms_ok, sms_msg = await verify_otp(
@@ -500,8 +524,24 @@ async def candidate_login_step2(
         plain_otp=sms_otp,
         otp_type=OTPTypeEnum.SMS,
     )
-    if not sms_ok:
-        raise OTPError(sms_msg)
+
+    if not email_ok or not sms_ok:
+        voter.failed_attempts = (voter.failed_attempts or 0) + 1
+        if voter.failed_attempts >= 3:
+            voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+            await db.commit()
+            raise OTPError(
+                "Account locked. Too many failed attempts. Please try again after 15 minutes."
+            )
+        await db.commit()
+        if not email_ok:
+            raise OTPError(email_msg)
+        else:
+            raise OTPError(sms_msg)
+
+    # Reset lockout on success
+    voter.failed_attempts = 0
+    voter.lockout_until = None
 
     college_email = voter.college_email
     voter_id_str = str(voter.voter_id)
@@ -1160,14 +1200,14 @@ async def resend_candidate_otp(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
     )
 
     sms_otp_record, sms_otp = await create_and_store_otp(
         db=db,
         recipient=candidate.mobile_number,
         otp_type=OTPTypeEnum.SMS,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
     )
 
     # Dispatch in background
@@ -1199,7 +1239,7 @@ async def resend_candidate_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
         is_registered=True,
         mobile_number=mobile_num,
     )
@@ -1244,7 +1284,7 @@ async def resend_candidate_email_otp(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
     )
 
     # Dispatch in background
@@ -1272,7 +1312,7 @@ async def resend_candidate_email_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
         is_registered=is_registered,
         mobile_number=mobile_number,
     )
@@ -1322,7 +1362,7 @@ async def resend_candidate_sms_otp(
         db=db,
         recipient=candidate.mobile_number,
         otp_type=OTPTypeEnum.SMS,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
     )
 
     # Dispatch in background
@@ -1350,7 +1390,7 @@ async def resend_candidate_sms_otp(
         voter_id=voter_id_str,
         email=college_email,
         otp_id=otp_id_str,
-        expires_in_minutes=10,
+        expires_in_minutes=5,
         is_registered=is_registered,
         mobile_number=mobile_number,
     )

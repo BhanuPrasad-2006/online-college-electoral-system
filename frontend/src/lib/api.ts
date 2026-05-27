@@ -266,6 +266,10 @@ export async function fetchCandidateProfile() {
   return get<any>("/candidates/me");
 }
 
+export async function fetchConcernCategories() {
+  return get<any[]>("/ai/concern-categories");
+}
+
 export async function saveManifesto(manifesto: string, submit = false, imageUrl?: string | null) {
   const body: Record<string, any> = { manifesto, submit, image_url: imageUrl ?? null };
   return put<{ message: string; manifesto_status: string }>("/candidates/me/manifesto", body);
@@ -836,5 +840,10 @@ export async function reviewCampaignMedia(mediaId: string, status: string, rejec
   if (!res.ok) throw new Error(data.detail ?? "Failed to review campaign media");
   return data;
 }
+
+export async function updateManifesto(content: string) {
+  return put<{ message: string }>("/candidates/manifesto", { content });
+}
+
 
 
