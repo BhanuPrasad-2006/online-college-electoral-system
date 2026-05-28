@@ -44,6 +44,7 @@ from app.models.candidate import Candidate
 from app.models.concern import Concern
 from app.models.manifesto import Manifesto
 from app.services.ai_proxy_service import AIProxyService
+from app.enums.candidate_status import CandidateStatusEnum
 from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
@@ -90,16 +91,79 @@ def _get_gemini_client():
 
 # ── Mock fallback responses ────────────────────────────────────────────────────
 
-def _build_mock_system_preview() -> str:
+def _format_candidate_summary(candidate_data: Optional[dict] = None) -> str:
+    if not candidate_data:
+        return "No candidates are currently available in the portal database."
+
+    lines = []
+    for name, info in candidate_data.items():
+        position = info.get("position") or "Position not set"
+        department = info.get("department") or "Department not set"
+        year = info.get("year") or "Year not set"
+        manifesto = info.get("manifesto_content")
+        manifesto_note = "Manifesto submitted" if manifesto else "Manifesto not submitted"
+        lines.append(f"- **{name}** — {position}, {department}, {year}. {manifesto_note}.")
+    return "\n".join(lines)
+
+
+def _status_value(value) -> str:
+    return value.value if hasattr(value, "value") else str(value)
+
+
+async def _fetch_live_candidate_data(db: Optional[AsyncSession]) -> dict:
+    if db is None:
+        return {}
+
+    try:
+        query = (
+            select(Candidate)
+            .options(joinedload(Candidate.voter), joinedload(Candidate.position))
+            .order_by(Candidate.applied_at.desc())
+        )
+        result = await db.execute(query)
+        candidates = result.scalars().unique().all()
+
+        candidate_data = {}
+        for candidate in candidates:
+            if _status_value(candidate.status) != CandidateStatusEnum.APPROVED.value:
+                continue
+
+            voter = candidate.voter
+            position = candidate.position
+            if not voter:
+                continue
+
+            manifesto_result = await db.execute(
+                select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id)
+            )
+            manifesto = manifesto_result.scalar_one_or_none()
+
+            year = f"{voter.year_of_study} Year" if voter.year_of_study else "Year not set"
+            candidate_data[voter.full_name] = {
+                "position": position.title if position else "Position not set",
+                "department": voter.department or "Department not set",
+                "year": year,
+                "party": "Not specified",
+                "status": _status_value(candidate.status),
+                "manifesto_content": manifesto.content if manifesto and manifesto.content else None,
+                "image_url": manifesto.image_url if manifesto else None,
+            }
+
+        return candidate_data
+    except Exception as e:
+        logger.warning("Could not fetch live candidate data for chatbot: %s", e)
+        return {}
+
+
+def _build_mock_system_preview(candidate_data: Optional[dict] = None) -> str:
     """Build a preview of the system knowledge for mock mode."""
-    candidate_names = list(CANDIDATE_MANIFESTOS.keys())
     concern_names = list(STUDENT_CONCERNS.keys())
     phase_names = [p["label"] for p in ELECTION_PHASES]
 
     return (
         "**Demo Mode Active** — I don't have a live Gemini API key yet.\n\n"
         "In production, I can answer questions about:\n\n"
-        f"**Candidates:** {', '.join(candidate_names)}\n"
+        f"**Candidates:**\n{_format_candidate_summary(candidate_data)}\n"
         f"**Student Concerns:** {', '.join(concern_names[:4])}, and more\n"
         f"**Election Phases:** {', '.join(phase_names)}\n\n"
         "**Try asking me:**\n"
@@ -113,7 +177,7 @@ def _build_mock_system_preview() -> str:
 
 _mock_counter = 0
 
-def _mock_response(message: str) -> str:
+def _mock_response(message: str, candidate_data: Optional[dict] = None) -> str:
     global _mock_counter
     message_lower = message.lower().strip()
 
@@ -130,14 +194,9 @@ def _mock_response(message: str) -> str:
         )
 
     if any(w in message_lower for w in ["manifesto", "platform", "candidate", "compare"]):
-        candidates_info = "\n".join(
-            f"• **{n}** — {info['party']} ({info['department']}, {info['year']})"
-            for n, info in CANDIDATE_MANIFESTOS.items()
-        )
         return (
-            f"**Demo Mode** — Current candidates in this election:\n\n{candidates_info}\n\n"
-            "Ask me to compare them on topics like Wi-Fi, Placements, Sports, or Mental Health!\n"
-            "(Set GEMINI_API_KEY for live AI responses.)"
+            f"**Current candidates in the portal:**\n\n{_format_candidate_summary(candidate_data)}\n\n"
+            "Ask me about a candidate's submitted manifesto or compare candidates on a specific issue."
         )
 
     if any(w in message_lower for w in ["concern", "issue", "problem", "student"]):
@@ -162,7 +221,7 @@ def _mock_response(message: str) -> str:
 
     # Default fallback
     _mock_counter += 1
-    return _build_mock_system_preview()
+    return _build_mock_system_preview(candidate_data)
 
 
 def _is_transient_gemini_error(error: Exception) -> bool:
@@ -220,7 +279,7 @@ class SuggestionsResponse(BaseModel):
 SUGGESTED_QUESTIONS = {
     "Candidates & Manifestos": [
         "Compare all candidates on Wi-Fi improvements",
-        "Tell me about Arjun Mehta's platform",
+        "Tell me about a candidate's platform",
         "Who has plans for mental health support?",
         "Which candidate focuses on sports facilities?",
         "Compare candidates on cafeteria improvements",
@@ -248,7 +307,10 @@ FLAT_SUGGESTIONS = [
 
 # ── Helper: Build system instruction with dynamic context ──────────────────────
 
-async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> str:
+async def _build_contextual_instruction(
+    db: Optional[AsyncSession] = None,
+    candidate_data: Optional[dict] = None,
+) -> str:
     """Build the system instruction with live election data if available."""
     dynamic_ctx = {}
 
@@ -284,18 +346,20 @@ async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> st
             logger.warning(f"Could not fetch dynamic context: {e}")
 
     return build_system_instruction(
-        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None
+        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None,
+        candidate_data=candidate_data,
     )
 
 
 # ── Simple query type classifier ──────────────────────────────────────────────
 
-def classify_query(message: str) -> str:
+def classify_query(message: str, candidate_data: Optional[dict] = None) -> str:
     """Simple keyword-based query type classification."""
     msg = message.lower().strip()
 
     # Candidate/manifesto queries
-    candidate_names = [n.lower().split()[0] for n in CANDIDATE_MANIFESTOS.keys()]
+    source = candidate_data if candidate_data else CANDIDATE_MANIFESTOS
+    candidate_names = [n.lower().split()[0] for n in source.keys()]
     if any(name in msg for name in candidate_names):
         return "manifesto"
     if any(w in msg for w in ["manifesto", "platform", "stance", "promise", "compare", "candidate"]):
@@ -367,8 +431,10 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             detail="Message cannot be empty."
         )
 
+    candidate_data = await _fetch_live_candidate_data(db)
+
     # Classify the query
-    query_type = classify_query(request.message)
+    query_type = classify_query(request.message, candidate_data)
 
     # Resolve or create session ID
     session_id = request.session_id
@@ -382,7 +448,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         _chat_sessions[session_id] = None  # Register session even in mock
         return ChatResponse(
             session_id=session_id,
-            reply=_mock_response(request.message),
+            reply=_mock_response(request.message, candidate_data),
             is_mock=True,
             query_type=query_type,
         )
@@ -390,10 +456,14 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     # ── Live Gemini mode ──────────────────────────────────────────────────────
     try:
         # Build the contextual system instruction with live election data
-        instruction = await _build_contextual_instruction(db)
+        instruction = await _build_contextual_instruction(db, candidate_data)
 
         # Get or create a Gemini Chat session for this session_id
-        if session_id not in _chat_sessions or _chat_sessions[session_id] is None:
+        if (
+            session_id not in _chat_sessions
+            or _chat_sessions[session_id] is None
+            or _chat_sessions[session_id].get("instruction") != instruction
+        ):
             chat_session = client.chats.create(
                 model="gemini-2.5-flash",
                 config=genai_types.GenerateContentConfig(
