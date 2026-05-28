@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import loginBg from "@/assets/login-bg.jpg";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/admin/login")({
   head: () => ({
     meta: [
       { title: "Election Administration Portal — CollegeVote" },
