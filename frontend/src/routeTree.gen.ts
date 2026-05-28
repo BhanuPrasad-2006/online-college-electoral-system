@@ -36,6 +36,8 @@ import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminResultsRouteImport } from './routes/admin/results'
 import { Route as AdminPendingPhotosRouteImport } from './routes/admin/pending-photos'
 import { Route as AdminOtpVerifyRouteImport } from './routes/admin/otp-verify'
+import { Route as AdminNoticesRouteImport } from './routes/admin/notices'
+import { Route as AdminMeetingsRouteImport } from './routes/admin/meetings'
 import { Route as AdminMediaRouteImport } from './routes/admin/media'
 import { Route as AdminManifestosRouteImport } from './routes/admin/manifestos'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
@@ -183,6 +185,16 @@ const AdminOtpVerifyRoute = AdminOtpVerifyRouteImport.update({
   path: '/admin/otp-verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminNoticesRoute = AdminNoticesRouteImport.update({
+  id: '/admin/notices',
+  path: '/admin/notices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMeetingsRoute = AdminMeetingsRouteImport.update({
+  id: '/admin/meetings',
+  path: '/admin/meetings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminMediaRoute = AdminMediaRouteImport.update({
   id: '/admin/media',
   path: '/admin/media',
@@ -252,6 +264,8 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/manifestos': typeof AdminManifestosRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
+  '/admin/notices': typeof AdminNoticesRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/pending-photos': typeof AdminPendingPhotosRoute
   '/admin/results': typeof AdminResultsRoute
@@ -292,6 +306,8 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/manifestos': typeof AdminManifestosRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
+  '/admin/notices': typeof AdminNoticesRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/pending-photos': typeof AdminPendingPhotosRoute
   '/admin/results': typeof AdminResultsRoute
@@ -333,6 +349,8 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/manifestos': typeof AdminManifestosRoute
   '/admin/media': typeof AdminMediaRoute
+  '/admin/meetings': typeof AdminMeetingsRoute
+  '/admin/notices': typeof AdminNoticesRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
   '/admin/pending-photos': typeof AdminPendingPhotosRoute
   '/admin/results': typeof AdminResultsRoute
@@ -375,6 +393,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/manifestos'
     | '/admin/media'
+    | '/admin/meetings'
+    | '/admin/notices'
     | '/admin/otp-verify'
     | '/admin/pending-photos'
     | '/admin/results'
@@ -415,6 +435,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/manifestos'
     | '/admin/media'
+    | '/admin/meetings'
+    | '/admin/notices'
     | '/admin/otp-verify'
     | '/admin/pending-photos'
     | '/admin/results'
@@ -455,6 +477,8 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/manifestos'
     | '/admin/media'
+    | '/admin/meetings'
+    | '/admin/notices'
     | '/admin/otp-verify'
     | '/admin/pending-photos'
     | '/admin/results'
@@ -496,6 +520,8 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminManifestosRoute: typeof AdminManifestosRoute
   AdminMediaRoute: typeof AdminMediaRoute
+  AdminMeetingsRoute: typeof AdminMeetingsRoute
+  AdminNoticesRoute: typeof AdminNoticesRoute
   AdminOtpVerifyRoute: typeof AdminOtpVerifyRoute
   AdminPendingPhotosRoute: typeof AdminPendingPhotosRoute
   AdminResultsRoute: typeof AdminResultsRoute
@@ -715,6 +741,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminOtpVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/notices': {
+      id: '/admin/notices'
+      path: '/admin/notices'
+      fullPath: '/admin/notices'
+      preLoaderRoute: typeof AdminNoticesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/meetings': {
+      id: '/admin/meetings'
+      path: '/admin/meetings'
+      fullPath: '/admin/meetings'
+      preLoaderRoute: typeof AdminMeetingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/media': {
       id: '/admin/media'
       path: '/admin/media'
@@ -808,6 +848,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminManifestosRoute: AdminManifestosRoute,
   AdminMediaRoute: AdminMediaRoute,
+  AdminMeetingsRoute: AdminMeetingsRoute,
+  AdminNoticesRoute: AdminNoticesRoute,
   AdminOtpVerifyRoute: AdminOtpVerifyRoute,
   AdminPendingPhotosRoute: AdminPendingPhotosRoute,
   AdminResultsRoute: AdminResultsRoute,

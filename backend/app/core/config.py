@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     USE_REDIS: bool = False
 
+    # Google reCAPTCHA
+    RECAPTCHA_SECRET_KEY: str = ""
+
     # AI Chatbot (Gemini 2.5 Flash)
     # Get your free API key at: https://aistudio.google.com/app/apikey
     # Then paste it in backend/.env as: GEMINI_API_KEY=your_key_here
@@ -68,7 +71,10 @@ class Settings(BaseSettings):
     # FaceNet128 with euclidean_l2: typical range 0–4. Verified same person = ~0.3–0.9, different = 1.0+
     # Standard recommended threshold: 1.1–1.2 (DeepFace default is 0.8 which is too strict for webcam)
     FACE_MATCH_THRESHOLD: float = 1.15
-    FACE_MATCH_COSINE_THRESHOLD: float = 0.7
+    # Cosine threshold lowered to 0.45 — webcam compressed frames vs enrollment photo
+    # typically score 0.55–0.75. 0.68 was rejecting real matches.
+    FACE_MATCH_COSINE_THRESHOLD: float = 0.45
+    ENABLE_FACE_VERIFICATION: bool = True
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",

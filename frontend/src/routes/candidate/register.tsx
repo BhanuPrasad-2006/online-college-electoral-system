@@ -9,12 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, QrCode, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/context/AuthContext";
-import { fetchPositions, registerCandidate, getOtpSession, getAuthToken } from "@/lib/api";
+import { fetchPositions, registerCandidate, getOtpSession } from "@/lib/api";
 import { fetchVoterProfile } from "@/lib/demo-api";
 
 export const Route = createFileRoute("/candidate/register")({ component: Register });
@@ -31,7 +31,19 @@ function getSemesterFromYear(yearStr: string): string {
   return `${sem}${suffix} Sem`;
 }
 
-const STEPS = ["Set Password", "Basic Details", "Payment", "Terms", "Review"];
+// Save voter details to sessionStorage so register.tsx can read them
+function savePrefillToSession(name: string, dept: string, sem: string, usn: string) {
+  try {
+    sessionStorage.setItem("candidate-prefill-name", name);
+    sessionStorage.setItem("candidate-prefill-department", dept);
+    sessionStorage.setItem("candidate-prefill-semester", sem);
+    sessionStorage.setItem("candidate-prefill-usn", usn);
+  } catch {
+    /* ignore */
+  }
+}
+
+const STEPS = ["Set Password", "Candidate Details", "Terms", "Review"];
 
 const TERMS = [
   "You must be a currently enrolled student and eligible under college election rules.",
@@ -53,6 +65,8 @@ function Register() {
   const [positions, setPositions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [positionsLoading, setPositionsLoading] = useState(true);
+  const [positionsError, setPositionsError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const prefillName =
@@ -67,7 +81,10 @@ function Register() {
     typeof sessionStorage !== "undefined"
       ? sessionStorage.getItem("candidate-prefill-semester") || ""
       : "";
-  const isAutoCreated = !prefillName;
+  const prefillUsn =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("candidate-prefill-usn") || ""
+      : "";
   const { mobile: sessionMobile, sessionToken } = getOtpSession();
 
   // Redirect to eligibility check if no OTP session token
@@ -82,40 +99,67 @@ function Register() {
     name: prefillName,
     department: prefillDept,
     semester: prefillSem,
-    usn: "",
+    usn: prefillUsn,
     positionId: "",
-    party: "",
     manifesto: "",
     newPassword: "",
     confirmPassword: "",
-    symbol: "",
     photo: "",
-    payment: "",
     confirm: false,
     terms: false,
-    vicePresident: "",
-    secretary: "",
   });
   const set = (k: string, v: any) => setData((d) => ({ ...d, [k]: v }));
 
   const selectedPosition = positions.find((p) => p.position_id === data.positionId);
-  const isPresident = selectedPosition?.title?.toLowerCase() === "president";
 
   useEffect(() => {
     async function loadPositions() {
+      setPositionsLoading(true);
+      setPositionsError("");
       try {
-        const list = await fetchPositions();
+        // Race the fetch against a 15-second timeout to prevent infinite loading
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out. Backend may be unavailable.")), 15000)
+        );
+        const list = await Promise.race([fetchPositions(), timeoutPromise]);
         setPositions(list);
+        // Auto-select if only one position available
+        if (list.length === 1) {
+          setData((d) => ({ ...d, positionId: list[0].position_id }));
+        }
       } catch (err: any) {
-        toast.error("Failed to load election positions.");
+        const msg = err.message || "Failed to load election positions.";
+        setPositionsError(msg);
+        toast.error(msg);
+      } finally {
+        setPositionsLoading(false);
       }
     }
     loadPositions();
   }, []);
 
+  // Load voter profile from demo-api (works with or without auth token)
   useEffect(() => {
     async function loadVoterDetails() {
       try {
+        // Try fetching from sessionStorage first (saved by apply.tsx OTP flow)
+        const savedName = sessionStorage.getItem("candidate-prefill-name");
+        const savedDept = sessionStorage.getItem("candidate-prefill-department");
+        const savedSem = sessionStorage.getItem("candidate-prefill-semester");
+        const savedUsn = sessionStorage.getItem("candidate-prefill-usn");
+
+        if (savedName || savedUsn) {
+          setData((d) => ({
+            ...d,
+            name: d.name || savedName || "",
+            department: d.department || savedDept || "",
+            semester: d.semester || savedSem || "",
+            usn: d.usn || savedUsn || "",
+          }));
+          return; // Already have data from session storage
+        }
+
+        // Fallback: fetch from voter profile API (demo or live)
         const voter = await fetchVoterProfile();
         if (voter) {
           setData((d) => {
@@ -123,13 +167,20 @@ function Register() {
             if (voter.year && voter.year !== "—") {
               semesterVal = getSemesterFromYear(voter.year);
             }
+            const newName = d.name || voter.name;
+            const newDept = d.department || (voter.department && voter.department !== "—" ? voter.department : "");
+            const newSem = d.semester || semesterVal;
+            const newUsn = d.usn || (voter.studentId && voter.studentId !== "—" ? voter.studentId : "");
+
+            // Save to sessionStorage for persistence across navigation
+            savePrefillToSession(newName, newDept, newSem, newUsn);
+
             return {
               ...d,
-              name: voter.name || d.name,
-              department:
-                voter.department && voter.department !== "—" ? voter.department : d.department,
-              semester: semesterVal || d.semester,
-              usn: voter.studentId && voter.studentId !== "—" ? voter.studentId : d.usn,
+              name: newName,
+              department: newDept,
+              semester: newSem,
+              usn: newUsn,
             };
           });
         }
@@ -169,32 +220,14 @@ function Register() {
         toast.error("Please enter your department.");
         return;
       }
-      if (!data.usn.trim()) {
-        toast.error("Please enter your USN / Student ID.");
-        return;
-      }
+      // USN is auto-filled from voter profile via sessionStorage + fetchVoterProfile
+      // If USN is empty after loading, it may not be available in the voter's record — still allow proceeding
       if (!data.positionId) {
         toast.error("Please select a target position.");
         return;
       }
-      if (isPresident) {
-        if (!data.vicePresident?.trim()) {
-          toast.error("Please enter Vice President name.");
-          return;
-        }
-        if (!data.secretary?.trim()) {
-          toast.error("Please enter Secretary name.");
-          return;
-        }
-      }
       if (!data.manifesto) {
         toast.error("Please write a campaign manifesto.");
-        return;
-      }
-    }
-    if (step === 2) {
-      if (!data.payment) {
-        toast.error("Please upload payment screenshot.");
         return;
       }
     }
@@ -217,17 +250,12 @@ function Register() {
 
       await registerCandidate(sessionToken, {
         position_id: data.positionId,
-        party_name: data.party || "Independent",
-        party_symbol_url: data.symbol || "/placeholder-symbol.jpg",
         manifesto: data.manifesto,
-        payment_screenshot_url: data.payment || "/payment-screenshot.jpg",
         mobile_number: mobileNum,
         new_password: data.newPassword || undefined,
-        full_name: isAutoCreated ? data.name : undefined,
-        department: isAutoCreated ? data.department : undefined,
-        student_id: isAutoCreated ? data.usn : undefined,
-        vice_president: isPresident ? data.vicePresident : undefined,
-        secretary: isPresident ? data.secretary : undefined,
+        full_name: data.name || undefined,
+        department: data.department || undefined,
+        student_id: data.usn || undefined,
       });
 
       // Update auth context state
@@ -388,7 +416,7 @@ function Register() {
 
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Full Name *">
+              <Field label="Full Name">
                 <Input
                   value={data.name}
                   onChange={(e) => set("name", e.target.value)}
@@ -397,7 +425,7 @@ function Register() {
                   placeholder="e.g. John Doe"
                 />
               </Field>
-              <Field label="Department *">
+              <Field label="Department">
                 <Input
                   value={data.department}
                   onChange={(e) => set("department", e.target.value)}
@@ -406,7 +434,7 @@ function Register() {
                   placeholder="e.g. Computer Science"
                 />
               </Field>
-              <Field label="Current Semester *">
+              <Field label="Current Semester">
                 <Input
                   value={data.semester}
                   onChange={(e) => set("semester", e.target.value)}
@@ -415,7 +443,7 @@ function Register() {
                   placeholder="e.g. 6th"
                 />
               </Field>
-              <Field label="USN / Student ID *">
+              <Field label="USN / Student ID">
                 <Input
                   value={data.usn}
                   onChange={(e) => set("usn", e.target.value)}
@@ -425,44 +453,36 @@ function Register() {
                 />
               </Field>
               <Field label="Target Election Position *">
-                <Select value={data.positionId} onValueChange={(v) => set("positionId", v)}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Select Position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions.map((p) => (
-                      <SelectItem key={p.position_id} value={p.position_id}>
-                        {p.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {positionsLoading ? (
+                  <div className="h-11 flex items-center px-3 rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">
+                    Loading available positions...
+                  </div>
+                ) : positionsError ? (
+                  <div className="h-11 flex items-center px-3 rounded-md border border-destructive/50 bg-destructive/5 text-sm text-destructive">
+                    Unable to load election positions.
+                  </div>
+                ) : positions.length === 0 ? (
+                  <div className="h-11 flex items-center px-3 rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">
+                    No active election positions available.
+                  </div>
+                ) : (
+                  <Select
+                    value={data.positionId}
+                    onValueChange={(v) => set("positionId", v)}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select Position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {positions.map((p) => (
+                        <SelectItem key={p.position_id} value={p.position_id}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Field>
-              <Field label="Party / Group Name (optional)">
-                <Input
-                  value={data.party}
-                  onChange={(e) => set("party", e.target.value)}
-                  placeholder="e.g. Alliance Group"
-                />
-              </Field>
-              {isPresident && (
-                <>
-                  <Field label="Vice President Name *">
-                    <Input
-                      value={data.vicePresident}
-                      onChange={(e) => set("vicePresident", e.target.value)}
-                      placeholder="e.g. Jane Doe"
-                    />
-                  </Field>
-                  <Field label="Secretary Name *">
-                    <Input
-                      value={data.secretary}
-                      onChange={(e) => set("secretary", e.target.value)}
-                      placeholder="e.g. Bob Smith"
-                    />
-                  </Field>
-                </>
-              )}
               <div className="sm:col-span-2">
                 <Field label="Campaign Manifesto *">
                   <textarea
@@ -474,12 +494,6 @@ function Register() {
                 </Field>
               </div>
               <UploadBox
-                label="Party Symbol (optional)"
-                value={data.symbol}
-                onSet={(v) => set("symbol", v)}
-                simName="party-symbol.jpg"
-              />
-              <UploadBox
                 label="Candidate Photo"
                 value={data.photo}
                 onSet={(v) => set("photo", v)}
@@ -488,29 +502,6 @@ function Register() {
           )}
 
           {step === 2 && (
-            <div className="text-center">
-              <h2 className="text-base font-semibold">Pay Registration Fee</h2>
-              <div className="mt-5 inline-flex flex-col items-center bg-muted/40 rounded-xl p-6">
-                <div className="h-44 w-44 bg-white border border-border rounded-lg flex items-center justify-center">
-                  <QrCode className="h-32 w-32 text-foreground" />
-                </div>
-                <p className="text-sm font-medium mt-4">Scan to pay ₹500 via UPI</p>
-                <p className="text-xs text-muted-foreground mt-1">UPI ID: elections@college.upi</p>
-              </div>
-              <div className="mt-6 max-w-sm mx-auto">
-                <UploadBox
-                  label="Payment Screenshot"
-                  value={data.payment}
-                  onSet={(v) => set("payment", v)}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-4 italic">
-                Your application will be reviewed after payment verification.
-              </p>
-            </div>
-          )}
-
-          {step === 3 && (
             <div className="space-y-3">
               <h2 className="text-base font-semibold">Terms & Conditions</h2>
               <p className="text-xs text-muted-foreground">
@@ -536,7 +527,7 @@ function Register() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <div className="space-y-3">
               <h2 className="text-base font-semibold">Review your information</h2>
               <Row k="Name" v={data.name || "—"} />
@@ -546,20 +537,11 @@ function Register() {
                 k="Target Position"
                 v={positions.find((p) => p.position_id === data.positionId)?.title || "—"}
               />
-              {isPresident && (
-                <>
-                  <Row k="Vice President" v={data.vicePresident || "—"} />
-                  <Row k="Secretary" v={data.secretary || "—"} />
-                </>
-              )}
-              <Row k="Party" v={data.party || "Independent"} />
               <Row
                 k="Manifesto"
                 v={data.manifesto ? `${data.manifesto.substring(0, 100)}...` : "—"}
               />
-              <Row k="Party Symbol" v={data.symbol || "Not uploaded"} />
               <Row k="Photo" v={data.photo || "Not uploaded"} />
-              <Row k="Payment Screenshot" v={data.payment || "Not uploaded"} />
               <Row k="Terms Accepted" v={data.terms ? "Yes" : "No"} />
               <label className="flex items-center gap-2 mt-5 cursor-pointer">
                 <Checkbox checked={data.confirm} onCheckedChange={(c) => set("confirm", !!c)} />
@@ -587,7 +569,7 @@ function Register() {
           {step < STEPS.length - 1 ? (
             <Button
               className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
-              disabled={step === 3 && !data.terms}
+              disabled={step === 2 && !data.terms}
               onClick={handleNext}
             >
               Next →

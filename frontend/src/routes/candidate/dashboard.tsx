@@ -20,6 +20,7 @@ function Page() {
 
   // ── Access control: block unregistered candidates when registration is not open ──
   const [accessChecked, setAccessChecked] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   useEffect(() => {
     if (!loadingProfile && profileError && phaseData && !accessChecked) {
       const isRegOpen = phaseData.phase === "registration_open";
@@ -34,7 +35,41 @@ function Page() {
     }
   }, [loadingProfile, profileError, profile, phaseData, nav, accessChecked]);
 
-  if (loadingProfile) return <PageLoader />;
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloadingPdf(true);
+      const { getAuthToken, API_BASE_URL } = await import("@/lib/api");
+      const token = getAuthToken();
+      
+      const response = await fetch(`${API_BASE_URL}/candidates/me/report/pdf`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to download PDF report");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Election_Report_${profile?.full_name?.replace(/ /g, "_") || "Candidate"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to download PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  if (loadingProfile || !profile) return <PageLoader />;
   if (profileError || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -285,6 +320,26 @@ function Page() {
           >
             View Full AI Report
           </Link>
+
+          {phaseData?.phase === "results_announced" && (
+            <button
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-semibold shadow-md hover:opacity-95 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {downloadingPdf ? (
+                <>
+                  <div className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Generating PDF...
+                </>
+              ) : (
+                <>
+                  <FileCheck className="h-4 w-4 mr-2" />
+                  Download Detailed Report (PDF)
+                </>
+              )}
+            </button>
+          )}
 
           {phaseData?.phase === "registration_open" || phaseData?.phase === "campaign_period" ? (
             <Link

@@ -76,6 +76,7 @@ function Page() {
         sessionStorage.setItem("candidate-prefill-name", res.full_name || "");
         sessionStorage.setItem("candidate-prefill-department", res.department || "");
         sessionStorage.setItem("candidate-prefill-semester", res.semester || "");
+        sessionStorage.setItem("candidate-prefill-usn", (res as any).student_id || "");
       }
 
       nav({ to: isRegistered ? "/candidate/dashboard" : "/candidate/register" });

@@ -159,4 +159,71 @@ async def send_election_email(
     return await loop.run_in_executor(
         None,
         partial(_send_email_sync, to_email, subject, html_body),
+    )
+
+
+def _send_email_with_attachment_sync(
+    to_email: str,
+    subject: str,
+    html_content: str,
+    attachment_bytes: bytes,
+    attachment_filename: str
+) -> bool:
+    """Synchronous Gmail SMTP send with attachment. Runs in thread pool."""
+    try:
+        msg = MIMEMultipart()
+        msg["Subject"] = subject
+        msg["From"] = f"College Election Portal <{settings.GMAIL_SENDER_EMAIL}>"
+        msg["To"] = to_email
+
+        # Attach html body
+        msg.attach(MIMEText(html_content, "html"))
+
+        # Attach PDF
+        from email.mime.base import MIMEBase
+        from email import encoders
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(attachment_bytes)
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            f"attachment; filename={attachment_filename}",
+        )
+        msg.attach(part)
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(settings.GMAIL_SENDER_EMAIL, settings.GMAIL_APP_PASSWORD)
+            server.sendmail(settings.GMAIL_SENDER_EMAIL, to_email, msg.as_string())
+
+        logger.info(f"Email with attachment sent to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email with attachment to {to_email}: {e}")
+        return False
+
+
+async def send_election_email_with_attachment(
+    to_email: str,
+    recipient_name: str,
+    subject: str,
+    html_body: str,
+    attachment_bytes: bytes,
+    attachment_filename: str
+) -> bool:
+    """
+    Send general election notification email with an attachment (e.g. Notice PDF) via Gmail SMTP.
+    """
+    if settings.APP_ENV == "development":
+        logger.info(f"[EMAIL] [DEV MODE] Sending attachment email to {to_email}: {subject}")
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        partial(
+            _send_email_with_attachment_sync,
+            to_email,
+            subject,
+            html_body,
+            attachment_bytes,
+            attachment_filename
+        ),
     )

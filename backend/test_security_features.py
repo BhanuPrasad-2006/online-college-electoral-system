@@ -81,7 +81,12 @@ MOCK_VOTER_ID = "00000000-0000-0000-0000-000000000001"
 MOCK_ADMIN_EMAIL = "admin@test.edu"
 
 async def mock_get_current_user():
-    return {"user_id": uuid.UUID(MOCK_VOTER_ID), "email": "voter@test.edu", "role": "voter"}
+    return {
+        "user_id": uuid.UUID(MOCK_VOTER_ID),
+        "email": MOCK_ADMIN_EMAIL,
+        "role": "admin",
+        "admin_role": "SUPER_ADMIN"
+    }
 
 async def mock_get_admin_user():
     return {"user_id": "admin-uuid", "email": MOCK_ADMIN_EMAIL, "role": "admin"}
@@ -92,6 +97,11 @@ app.dependency_overrides[get_admin_user] = mock_get_admin_user
 # Disable rate limit for testing to prevent 429 errors from multiple sequential requests
 from app.middleware.rate_limit import limiter
 limiter.enabled = False
+
+# Disable face verification for tests since they cast votes without face session tokens
+from app.core.config import settings
+settings.ENABLE_FACE_VERIFICATION = False
+
 
 
 @pytest_asyncio.fixture(scope="function", autouse=True)

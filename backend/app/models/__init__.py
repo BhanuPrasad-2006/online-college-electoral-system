@@ -18,6 +18,10 @@ from app.models.blacklisted_token import BlacklistedToken
 from app.models.anti_replay_token import AntiReplayToken
 from app.models.campaign_media import CampaignMedia
 from app.models.announcement import Announcement
+from app.models.notice import Notice
+from app.models.notice_recipient import NoticeRecipient
+from app.models.admin_meeting import AdminMeeting
+from app.models.meeting_participant import MeetingParticipant
 
 __all__ = [
     "Voter",
@@ -38,4 +42,9 @@ __all__ = [
     "AntiReplayToken",
     "CampaignMedia",
     "Announcement",
+    "Notice",
+    "NoticeRecipient",
+    "AdminMeeting",
+    "MeetingParticipant",
 ]
+

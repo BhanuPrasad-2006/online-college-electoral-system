@@ -818,6 +818,7 @@ async def admin_login_step2(
         data={
             "sub": admin_id_str,
             "role": "admin",
+            "admin_role": admin.role,
             "email": admin_email,
             "csrf_token": csrf_token,
         },
@@ -829,6 +830,7 @@ async def admin_login_step2(
         "access_token": access_token,
         "token_type": "bearer",
         "role": "admin",
+        "admin_role": admin.role,
         "user_id": admin_id_str,
         "full_name": full_name,
         "expires_in_seconds": expiry_minutes * 60,

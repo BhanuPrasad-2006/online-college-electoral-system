@@ -10,7 +10,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.orm import joinedload
 
 from app.db.session import get_db
-from app.api.deps import get_current_user, get_candidate_user, get_admin_user
+from app.api.deps import get_current_user, get_candidate_user, get_admin_user, require_admin_roles
 from app.models.campaign_media import CampaignMedia
 from app.models.candidate import Candidate
 from app.models.voter import Voter
@@ -125,7 +125,6 @@ async def list_media_items(
             "id": str(item.media_id),
             "candidateId": str(item.candidate_id),
             "candidateName": voter.full_name if voter else "Unknown Candidate",
-            "party": cand.party_symbol_url if cand and cand.party_symbol_url else "Independent",
             "type": item.type,
             "title": item.title,
             "uploadedFileUrl": item.uploaded_file_url,
@@ -179,6 +178,19 @@ async def submit_media(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Candidacy record not found. You must be an approved candidate to submit media."
         )
+
+    # Phase Lock Check (Campaign Period Deadline - past when voting starts)
+    from app.services.phase_engine import PhaseEngine
+    from app.models.election import Election
+    elec_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = elec_res.scalars().first()
+    if election:
+        phase = PhaseEngine.get_current_phase(election)
+        if phase in ["voting_open", "voting_closed", "results_announced"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Campaign media uploads are locked once voting starts."
+            )
 
     # 2. Check candidate application status (must be approved candidate)
     if candidate.status != "APPROVED":
@@ -329,7 +341,7 @@ async def update_media_status(
     status_update: str = Form(...),
     rejection_reason: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "CANDIDATE_MODERATOR"]))
 ):
     """
     Approve or Reject a campaign media item (Admin only).

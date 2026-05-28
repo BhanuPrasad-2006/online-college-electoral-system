@@ -23,9 +23,7 @@ export const API_ORIGIN = typeof envApiOrigin === "string" && envApiOrigin.trim(
 const RETRY_DELAY_MS = 150;
 const REQUEST_TIMEOUT_MS = 60_000;
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-async function ensureDeviceFingerprint(): Promise<string> {
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));  async function ensureDeviceFingerprint(): Promise<string> {
   if (typeof window === "undefined") return "";
   try {
     const existing = sessionStorage.getItem("collegevote-fingerprint");
@@ -350,12 +348,13 @@ export async function reviewManifesto(
 }
 
 // ── Voter Login ──────────────────────────────────────────────
-export async function voterLoginStep1(email: string, password: string) {
+export async function voterLoginStep1(email: string, password: string, captchaToken: string) {
   await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   return post<{ otp_session_token: string; hint: string; message: string }>("/auth/voter/login", {
     email: cleanEmail,
     password,
+    captcha_token: captchaToken,
   });
 }
 
@@ -372,13 +371,13 @@ export async function voterLoginStep2(sessionToken: string, otp: string) {
 }
 
 // ── Candidate Login ──────────────────────────────────────────
-export async function candidateLoginStep1(email: string, mobile_number: string, password: string) {
+export async function candidateLoginStep1(email: string, mobile_number: string, password: string, captchaToken: string) {
   await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
   return post<{ otp_session_token: string; hint: string; message: string }>(
     "/auth/candidate/login",
-    { email: cleanEmail, mobile_number: cleanMobile, password },
+    { email: cleanEmail, mobile_number: cleanMobile, password, captcha_token: captchaToken },
   );
 }
 
@@ -402,7 +401,7 @@ export async function candidateLoginStep2(
 }
 
 // ── Admin Login ──────────────────────────────────────────────
-export async function adminLoginStep1(email: string, mobile_number: string, password: string) {
+export async function adminLoginStep1(email: string, mobile_number: string, password: string, captchaToken: string) {
   await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
@@ -410,6 +409,7 @@ export async function adminLoginStep1(email: string, mobile_number: string, pass
     email: cleanEmail,
     mobile_number: cleanMobile,
     password,
+    captcha_token: captchaToken,
   });
 }
 
@@ -484,10 +484,83 @@ export async function verifyVoterId(verificationId: string) {
   return data as { success: boolean; anti_replay_token?: string; message?: string };
 }
 
+export async function verifyFace(params: {
+  liveFaceImage: string;
+  antiReplayToken: string;
+}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number }> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetch(`${API_BASE_URL}/vote/verify-face`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      live_face_image: params.liveFaceImage,
+      anti_replay_token: params.antiReplayToken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail ?? "Face verification failed");
+  return data;
+}
+
+/**
+ * Passive liveness face verification.
+ * Sends 3–8 base64-encoded JPEG frames to the backend.
+ * No active gestures required — backend performs passive liveness checks.
+ */
+export async function verifyFacePassive(params: {
+  frames: string[];
+  antiReplayToken: string;
+}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number; match_score?: number; frames_matched?: number; frames_total?: number }> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetch(`${API_BASE_URL}/vote/verify-face-passive`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      frames: params.frames,
+      anti_replay_token: params.antiReplayToken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const detail = data.detail;
+    let errMsg = "Face verification failed";
+    let score: number | undefined = undefined;
+    if (detail) {
+      if (typeof detail === "string") {
+        errMsg = detail;
+      } else if (typeof detail === "object") {
+        errMsg = detail.message ?? "Face verification failed";
+        if (typeof detail.match_score === "number") {
+          score = detail.match_score;
+        }
+      }
+    }
+    const err = new Error(errMsg) as any;
+    if (score !== undefined) {
+      err.match_score = score;
+    }
+    throw err;
+  }
+  return data;
+}
+
 export async function castVote(params: {
   candidateId: string | null;
   verificationId: string;
-  liveFaceImage: string;
+  liveFaceImage?: string | null;
+  faceSessionToken?: string | null;
   antiReplayToken?: string;
   trapData?: {
     verification_field_confirm?: string;
@@ -509,7 +582,8 @@ export async function castVote(params: {
     body: JSON.stringify({
       candidate_id: params.candidateId,
       verification_id: params.verificationId,
-      live_face_image: params.liveFaceImage,
+      live_face_image: params.liveFaceImage ?? null,
+      face_session_token: params.faceSessionToken ?? null,
       anti_replay_token: params.antiReplayToken,
       verification_field_confirm: params.trapData?.verification_field_confirm ?? "",
       hidden_field_name: params.trapData?.hidden_field_name ?? "",
@@ -628,6 +702,7 @@ export async function verifyEligibilityOtp(sessionToken: string, otp: string) {
     full_name: string;
     department: string;
     semester: string;
+    student_id?: string;
     mobile_number: string;
   }>("/candidates/verify-eligibility-otp", { otp_session_token: sessionToken, otp });
 }
@@ -649,8 +724,7 @@ export async function registerCandidate(
     full_name?: string;
     department?: string;
     student_id?: string;
-    vice_president?: string;
-    secretary?: string;
+
   },
 ) {
   return post<{ message: string; candidate_id: string; status: string }>("/candidates/register", {
@@ -1088,4 +1162,77 @@ export async function reviewCampaignMedia(
 }
 export async function updateManifesto(content: string) {
   return put<{ message: string }>("/candidates/manifesto", { content });
+}
+
+async function del<T>(path: string): Promise<T> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) {
+    headers["X-Device-Fingerprint"] = fp;
+  }
+  let res: Response;
+  try {
+    res = await fetchWithRetry(`${API_BASE_URL}${path}`, {
+      method: "DELETE",
+      headers,
+    });
+  } catch (error) {
+    throw normalizeFetchError(error);
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    }
+    const err = new Error(data.detail ?? "Request failed");
+    if (data.remarks) (err as any).remarks = data.remarks;
+    throw err;
+  }
+  return data as T;
+}
+
+// ── Admin Users Management (Super Admin) ─────────────────────
+export async function fetchAdminUsers() {
+  return get<any[]>("/admin/users");
+}
+
+export async function createAdminUser(data: { full_name: string; email: string; role: string; password?: string }) {
+  return post<any>("/admin/users", data);
+}
+
+export async function deleteAdminUser(adminId: string) {
+  return del<any>(`/admin/users/${adminId}`);
+}
+
+// ── Official Notices ──────────────────────────────────────────
+export async function fetchNotices() {
+  return get<any[]>("/admin/notices");
+}
+
+export async function createNotice(data: { title: string; priority: string; content: string; role_target: string }) {
+  return post<any>("/admin/notices", data);
+}
+
+// ── Admin Meetings ────────────────────────────────────────────
+export async function fetchMeetings() {
+  return get<any[]>("/admin/meetings");
+}
+
+export async function createMeeting(data: { title: string; agenda: string; meeting_time: string; participant_emails: string[] }) {
+  return post<any>("/admin/meetings", data);
+}
+
+export async function attendMeeting(meetingId: string) {
+  return post<any>(`/admin/meetings/${meetingId}/attend`, {});
 }

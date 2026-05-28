@@ -230,3 +230,17 @@
     pointer-events: none;
   }
 }
+
+@keyframes scan {
+  0%, 100% {
+    top: 8%;
+  }
+  50% {
+    top: 92%;
+  }
+}
+
+.animate-scan {
+  animation: scan 2s ease-in-out infinite;
+}
+

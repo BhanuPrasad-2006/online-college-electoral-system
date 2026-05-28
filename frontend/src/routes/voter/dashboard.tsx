@@ -71,21 +71,16 @@ function deriveFallbackPhase(election: any) {
 }
 
 function reconcilePhase(livePhase: any, election: any) {
-  const fallback = deriveFallbackPhase(election);
-  if (!livePhase?.phase) return fallback;
-
-  // Prefer the election-date-derived phase when it is more current than a lagging phase endpoint.
-  if (fallback.phase === "voting_open" && livePhase.phase !== "voting_open") {
-    return fallback;
+  // Trust the backend election status as the source of truth.
+  // Fall back to date-derived phase only if backend hasn't responded yet.
+  if (livePhase?.phase) {
+    const fallback = deriveFallbackPhase(election);
+    return {
+      ...livePhase,
+      remaining_time: livePhase.remaining_time || fallback.remaining_time || "",
+    };
   }
-  if (fallback.phase === "registration_open" && livePhase.phase === "pre_registration") {
-    return fallback;
-  }
-
-  return {
-    ...livePhase,
-    remaining_time: livePhase.remaining_time || fallback.remaining_time,
-  };
+  return deriveFallbackPhase(election);
 }
 
 export const Route = createFileRoute("/voter/dashboard")({ component: VoterDash });
@@ -108,6 +103,8 @@ function VoterDash() {
   const voteOpensSoon =
     effectivePhase?.phase === "registration_closed" || effectivePhase?.phase === "campaign_period";
   const isPaused = phaseData?.is_paused;
+
+
 
   const remainingTimeStr = effectivePhase?.remaining_time || "";
 
@@ -566,6 +563,7 @@ function VoterDash() {
           ))}
         </div>
       </SectionCard>
+
     </div>
   );
 }

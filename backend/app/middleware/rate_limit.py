@@ -25,8 +25,11 @@ def get_client_ip(request: Request) -> str:
 # Keep slowapi limiter for gradual migration
 # New code should use redis_rate_limiter directly
 from slowapi import Limiter
+from app.core.config import settings
 
 limiter = Limiter(key_func=get_client_ip)
+if settings.APP_ENV == "development":
+    limiter.enabled = False
 
 
 __all__ = [

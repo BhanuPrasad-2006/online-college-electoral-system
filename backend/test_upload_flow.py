@@ -13,10 +13,9 @@ CSRF = "d5e77d5fe06243e7dde740692fe48284"
 FP = "ae6c2014347f21b64facddc656c0a2c20ccd26581b5d5e5add8830527b6f2895"
 
 def step(label):
-    print(f"
-{'='*60}")
+    print("\n" + '='*60)
     print(f"  {label}")
-    print(f"{'='*60}")
+    print('='*60)
 
 def ok(msg):
     print(f"  [OK] {msg}")
@@ -115,7 +114,6 @@ if resp3.status_code == 200:
 else:
     fail("Failed to list pending photos", resp3)
 
-print(f"
-{'='*60}")
+print("\n" + '='*60)
 print("  TEST COMPLETE")
-print(f"{'='*60}")
+print('='*60)
