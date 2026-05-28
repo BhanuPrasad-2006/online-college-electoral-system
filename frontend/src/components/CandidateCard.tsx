@@ -4,12 +4,6 @@ import { Button } from "@/components/ui/button";
 import type { Candidate } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 
-function matchTone(m: number) {
-  if (m >= 70) return "bg-success/15 text-success border-success/30";
-  if (m >= 40) return "bg-warning/20 text-warning-foreground border-warning/40";
-  return "bg-muted text-muted-foreground border-border";
-}
-
 export function CandidateCard({
   c,
   onView,
@@ -49,14 +43,6 @@ export function CandidateCard({
       <Badge variant="outline" className="mt-3 text-[11px]">
         {c.position}
       </Badge>
-      <div
-        className={cn(
-          "mt-3 px-3 py-1 rounded-full border text-xs font-semibold",
-          matchTone(c.match),
-        )}
-      >
-        AI Match {c.match}%
-      </div>
       {showSelect ? (
         <button
           onClick={onSelect}

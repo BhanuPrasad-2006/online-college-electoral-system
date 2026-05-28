@@ -7,13 +7,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Search, Check, Minus, Brain, FileText, AlertTriangle } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 
@@ -51,7 +44,6 @@ function Page() {
   const { open: searchOpen } = Route.useSearch();
   const { data: candidates = [], isPending } = useCandidates();
   const [q, setQ] = useState("");
-  const [pos, setPos] = useState("all");
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,7 +60,7 @@ function Page() {
     const isVisible = status === "approved";
     return (
       isVisible &&
-      (pos === "all" || c.position === pos) &&
+      c.position === "President" &&
       nameStr.toLowerCase().includes(q.toLowerCase())
     );
   });
@@ -93,17 +85,6 @@ function Page() {
             className="pl-9"
           />
         </div>
-        <Select value={pos} onValueChange={setPos}>
-          <SelectTrigger className="w-full sm:w-[220px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Positions</SelectItem>
-            <SelectItem value="President">President</SelectItem>
-            <SelectItem value="Vice President">Vice President</SelectItem>
-            <SelectItem value="General Secretary">General Secretary</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
