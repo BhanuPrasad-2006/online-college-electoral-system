@@ -7,12 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 function Page() {
   const { data: kpi, isPending: loadingKpi } = useKpi();
   const { data: aiAlerts = [], isPending: loadingAlerts } = useAiAlerts();
+  const { adminRole } = useAuth();
 
   if (loadingKpi || loadingAlerts || !kpi) return <PageLoader />;
+
+  const canManageElection = adminRole === "SUPER_ADMIN" || adminRole === "ELECTION_MANAGER";
+  const canManageAlerts = adminRole === "SUPER_ADMIN" || adminRole === "AUDIT_SECURITY_ADMIN";
+  const isSuperAdmin = adminRole === "SUPER_ADMIN";
 
   return (
     <div className="space-y-6">
@@ -59,6 +65,7 @@ function Page() {
           status="SCHEDULED"
           tone="bg-warning/20 text-warning-foreground"
           cta="Activate"
+          disabled={!canManageElection}
           delay={300}
         />
         <Phase title="Results" status="PENDING" tone="bg-muted text-muted-foreground" delay={350} />
@@ -103,11 +110,12 @@ function Page() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={!canManageAlerts}
                   className="hover:border-[#6C63FF]/40 hover:text-[#6C63FF]"
                 >
                   Investigate
                 </Button>
-                <Button size="sm" variant="ghost">
+                <Button size="sm" variant="ghost" disabled={!canManageAlerts}>
                   Dismiss
                 </Button>
               </div>
@@ -117,11 +125,11 @@ function Page() {
       </SectionCard>
 
       <Button
-        disabled
+        disabled={!isSuperAdmin}
         className="w-full h-12 bg-muted text-muted-foreground animate-fade-in-up opacity-0 [animation-fill-mode:forwards]"
         style={{ animationDelay: "550ms" }}
       >
-        <Lock className="h-4 w-4 mr-2" /> Seal & Publish Results (locked until voting closes)
+        <Lock className="h-4 w-4 mr-2" /> Seal & Publish Results {!isSuperAdmin ? "(Super Admin only)" : "(locked until voting closes)"}
       </Button>
     </div>
   );
@@ -132,12 +140,14 @@ function Phase({
   status,
   tone,
   cta,
+  disabled,
   delay,
 }: {
   title: string;
   status: string;
   tone: string;
   cta?: string;
+  disabled?: boolean;
   delay?: number;
 }) {
   return (
@@ -153,6 +163,7 @@ function Phase({
       {cta && (
         <Button
           size="sm"
+          disabled={disabled}
           className="mt-4 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-90 border-0 shadow-md"
         >
           {cta}

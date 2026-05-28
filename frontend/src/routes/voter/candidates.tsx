@@ -161,32 +161,6 @@ function Page() {
                 </p>
               </SheetHeader>
               <div className="mt-6 space-y-6">
-                {/* Party Members */}
-                <div className="bg-card rounded-xl border border-border/60 p-4">
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#6C63FF]" />
-                    Running Mates
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-background rounded-lg p-3 border border-border/40">
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                        Vice President
-                      </p>
-                      <p className="font-medium text-sm">
-                        {active.vice_president ?? active.runningMates?.vicePresident ?? "—"}
-                      </p>
-                    </div>
-                    <div className="bg-background rounded-lg p-3 border border-border/40">
-                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-                        Gen. Secretary
-                      </p>
-                      <p className="font-medium text-sm">
-                        {active.secretary ?? active.runningMates?.secretary ?? "—"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="bg-success/10 border border-success/30 rounded-lg p-3 inline-block text-xs font-semibold text-success">
                   Covers {Math.round(((active.coverage || 78) / 100) * COVERAGE_CATS.length)}/
                   {COVERAGE_CATS.length} student concerns

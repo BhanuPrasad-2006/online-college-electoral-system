@@ -1,6 +1,6 @@
 import { Outlet, useRouterState, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Sidebar, type SidebarKind } from "./Sidebar";
+import { Sidebar, type SidebarKind, ADMIN_LINK_ROLES } from "./Sidebar";
 import { Header } from "./Header";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ElectionIsland } from "@/components/ElectionIsland";
@@ -22,7 +22,7 @@ const AUTH_PATHS = new Set([
 export function AppLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { role, isAuthed, authReady } = useAuth();
+  const { role, adminRole, isAuthed, authReady } = useAuth();
 
   // Pure auth shell — no sidebar/header/island
   if (AUTH_PATHS.has(path)) return <Outlet />;
@@ -51,6 +51,15 @@ export function AppLayout() {
           ? "/candidate/dashboard"
           : "/admin/dashboard";
     return <Navigate to={roleDashboard} />;
+  }
+
+  // Fine-grained admin sub-role gate
+  if (kind === "admin" && role === "admin") {
+    // Find the allowed roles for this exact path or matching prefix
+    const allowed = ADMIN_LINK_ROLES[path];
+    if (allowed && adminRole && !allowed.includes(adminRole)) {
+      return <Navigate to="/admin/dashboard" />;
+    }
   }
 
   return (

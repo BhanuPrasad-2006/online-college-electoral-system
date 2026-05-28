@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.db.session import get_db
-from app.api.deps import get_current_user, get_admin_user
+from app.api.deps import get_current_user, get_admin_user, require_admin_roles
 from app.models.election import Election
 from app.models.voter import Voter
 from app.enums.election_status import ElectionStatusEnum
@@ -421,22 +421,69 @@ async def get_notifications(
         time_rem = PhaseEngine.get_time_remaining(election, current_phase)
         
         if current_phase == "registration_open":
-            notifications.append({"id": 1, "title": f"Registration closes in {time_rem}", "time": "Just now", "unread": True, "type": "announcement"})
+            notifications.append({"id": "1", "title": f"Registration closes in {time_rem}", "time": "Just now", "unread": True, "type": "announcement"})
         elif current_phase == "voting_open":
-            notifications.append({"id": 1, "title": f"Voting closes in {time_rem}", "time": "Just now", "unread": True, "type": "announcement"})
+            notifications.append({"id": "1", "title": f"Voting closes in {time_rem}", "time": "Just now", "unread": True, "type": "announcement"})
         elif current_phase == "results_published":
-            notifications.append({"id": 1, "title": "Results are published!", "time": "Just now", "unread": True, "type": "system"})
+            notifications.append({"id": "1", "title": "Results are published!", "time": "Just now", "unread": True, "type": "system"})
         else:
-            notifications.append({"id": 1, "title": f"Current Phase: {current_phase.replace('_', ' ').title()}", "time": "Just now", "unread": False, "type": "system"})
+            notifications.append({"id": "1", "title": f"Current Phase: {current_phase.replace('_', ' ').title()}", "time": "Just now", "unread": False, "type": "system"})
             
-    notifications.append({"id": 2, "title": "Welcome to the real-time election portal", "time": "1 min ago", "unread": False, "type": "system"})
+    notifications.append({"id": "2", "title": "Welcome to the real-time election portal", "time": "1 min ago", "unread": False, "type": "system"})
+
+    # Fetch official notices
+    from app.models.notice import Notice
+    notice_query = select(Notice).order_by(Notice.created_at.desc()).limit(10)
+    notice_res = await db.execute(notice_query)
+    notices = notice_res.scalars().all()
+    for n in notices:
+        notifications.append({
+            "id": f"notice_{n.notice_id}",
+            "title": f"Official Notice: {n.title}",
+            "time": n.created_at.strftime("%Y-%m-%d %H:%M") if n.created_at else "Just now",
+            "unread": True,
+            "type": "notice",
+            "priority": n.priority,
+            "pdf_url": n.pdf_url,
+            "content": n.content[:200] + "..." if len(n.content) > 200 else n.content
+        })
+
+    # Fetch meetings (only if logged-in user is an admin)
+    if current_user.get("role") == "admin":
+        from app.models.admin_meeting import AdminMeeting
+        from app.models.meeting_participant import MeetingParticipant
+        
+        admin_uuid = uuid.UUID(current_user["user_id"])
+        meeting_query = (
+            select(AdminMeeting)
+            .outerjoin(MeetingParticipant, AdminMeeting.meeting_id == MeetingParticipant.meeting_id)
+            .where(
+                (AdminMeeting.created_by == admin_uuid) |
+                (MeetingParticipant.admin_id == admin_uuid)
+            )
+            .order_by(AdminMeeting.meeting_time.desc())
+            .limit(10)
+        )
+        meet_res = await db.execute(meeting_query)
+        meetings = meet_res.scalars().unique().all()
+        for m in meetings:
+            notifications.append({
+                "id": f"meeting_{m.meeting_id}",
+                "title": f"Meeting: {m.title}",
+                "time": m.meeting_time.strftime("%Y-%m-%d %H:%M") if m.meeting_time else "Scheduled",
+                "unread": True,
+                "type": "meeting",
+                "jitsi_link": m.jitsi_link,
+                "agenda": m.agenda
+            })
+
     return notifications
 
 
 @router.post("/")
 async def create_election(
     payload: ElectionSaveRequest,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new election record when none exists yet."""
@@ -472,7 +519,7 @@ async def create_election(
 @router.post("/{election_id}/announce")
 async def announce_election_schedule(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Trigger the schedule announcement email to all users."""
@@ -494,7 +541,7 @@ async def announce_election_schedule(
 @router.post("/{election_id}/pause")
 async def pause_election(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Pause the election (freezes all phases)."""
@@ -515,7 +562,7 @@ async def pause_election(
 @router.post("/{election_id}/resume")
 async def resume_election(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Resume a paused election."""
@@ -536,7 +583,7 @@ async def resume_election(
 @router.post("/{election_id}/emergency-stop")
 async def emergency_stop_election(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Emergency stop: Immediately set voting_end to now and status to closed."""
@@ -559,7 +606,7 @@ async def emergency_stop_election(
 @router.post("/{election_id}/open-voting")
 async def open_voting(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Start voting phase for an election and notify all participants."""
@@ -589,7 +636,7 @@ async def open_voting(
 @router.post("/{election_id}/close-voting")
 async def close_voting(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Close voting phase for an election."""
@@ -616,7 +663,7 @@ async def close_voting(
 @router.post("/{election_id}/publish-results")
 async def publish_results(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Publish election results and notify all participants."""
@@ -735,7 +782,7 @@ async def get_public_results(
 @router.get("/{election_id}/results")
 async def get_election_results(
     election_id: str,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Compute and return election results with integrity hash."""
@@ -815,7 +862,7 @@ async def get_election_results(
 async def update_election_dates(
     election_id: str,
     payload: ElectionSaveRequest,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Update election title and dates with strict validation."""

@@ -71,6 +71,12 @@ async def voter_login(
     body: VoterLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    from app.services.recaptcha_service import verify_recaptcha
+    if not await verify_recaptcha(body.captcha_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CAPTCHA verification failed."
+        )
     result = await voter_login_step1(db, body.email, body.password)
     return OTPSentResponse(
         message="OTP sent to your registered email address.",
@@ -153,7 +159,8 @@ async def candidate_check(
                 "voter_details": {
                     "full_name": voter.full_name,
                     "department": voter.department or "",
-                    "semester": f"{voter.year_of_study * 2}th" if voter.year_of_study else ""
+                    "semester": f"{voter.year_of_study * 2}th" if voter.year_of_study else "",
+                    "student_id": voter.student_id or ""
                 }
             }
         else:
@@ -259,6 +266,12 @@ async def candidate_login(
     body: CandidateLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    from app.services.recaptcha_service import verify_recaptcha
+    if not await verify_recaptcha(body.captcha_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CAPTCHA verification failed."
+        )
     result = await candidate_login_step1(
         db, body.email, body.mobile_number, body.password
     )
@@ -302,6 +315,12 @@ async def admin_login(
     body: AdminLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    from app.services.recaptcha_service import verify_recaptcha
+    if not await verify_recaptcha(body.captcha_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CAPTCHA verification failed."
+        )
     result = await admin_login_step1(
         db, body.email, body.mobile_number, body.password
     )

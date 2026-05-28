@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useMemo } from "react";
 import {
   Home,
   Users,
@@ -23,6 +24,8 @@ import {
   Lock,
   TrendingUp,
   Camera,
+  Calendar,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
@@ -72,8 +75,27 @@ const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/results", label: "Results", icon: TrendingUp },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
   { to: "/admin/pending-photos", label: "Pending Photos", icon: Camera },
+  { to: "/admin/meetings", label: "Meetings", icon: Calendar },
+  { to: "/admin/notices", label: "Notices", icon: FileText },
   { to: "/admin/announcements", label: "Announcements", icon: Megaphone },
 ];
+
+export const ADMIN_LINK_ROLES: Record<string, string[]> = {
+  "/admin/dashboard": ["SUPER_ADMIN", "ELECTION_MANAGER", "CANDIDATE_MODERATOR", "AUDIT_SECURITY_ADMIN"],
+  "/admin/candidates": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
+  "/admin/manifestos": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
+  "/admin/media": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
+  "/admin/election": ["SUPER_ADMIN", "ELECTION_MANAGER"],
+  "/admin/ai-monitoring": ["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"],
+  "/admin/concerns-clusters": ["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"],
+  "/admin/campus-report": ["SUPER_ADMIN", "ELECTION_MANAGER", "AUDIT_SECURITY_ADMIN"],
+  "/admin/results": ["SUPER_ADMIN", "ELECTION_MANAGER"],
+  "/admin/audit-logs": ["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"],
+  "/admin/pending-photos": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
+  "/admin/meetings": ["SUPER_ADMIN", "ELECTION_MANAGER", "CANDIDATE_MODERATOR", "AUDIT_SECURITY_ADMIN"],
+  "/admin/notices": ["SUPER_ADMIN", "ELECTION_MANAGER", "CANDIDATE_MODERATOR", "AUDIT_SECURITY_ADMIN"],
+  "/admin/announcements": ["SUPER_ADMIN", "ELECTION_MANAGER"],
+};
 
 export type SidebarKind = "voter" | "candidate" | "admin";
 
@@ -84,9 +106,19 @@ const LINKS_FOR: Record<SidebarKind, SidebarLink[]> = {
 };
 
 export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: () => void }) {
-  const links = LINKS_FOR[kind];
+  const { logout, adminRole } = useAuth();
+  const rawLinks = LINKS_FOR[kind];
+  
+  const links = useMemo(() => {
+    if (kind !== "admin") return rawLinks;
+    return rawLinks.filter((l) => {
+      const allowed = ADMIN_LINK_ROLES[l.to];
+      if (!allowed) return true;
+      return adminRole ? allowed.includes(adminRole) : false;
+    });
+  }, [kind, rawLinks, adminRole]);
+
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { logout } = useAuth();
   const { unreadCount } = useNotifications();
   const nav = useNavigate();
 
@@ -100,7 +132,7 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
     queryKey: ["pending-photos"],
     queryFn: fetchPendingPhotos,
     staleTime: 30_000,
-    enabled: kind === "admin",
+    enabled: kind === "admin" && links.some(l => l.to === "/admin/pending-photos"),
   });
   const pendingPhotoCount = Array.isArray(pendingPhotosList) ? pendingPhotosList.length : 0;
 
@@ -112,7 +144,9 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
         </div>
         <div>
           <p className="text-sm font-semibold leading-tight">CollegeVote</p>
-          <p className="text-[11px] text-sidebar-foreground/60 capitalize">{kind} Portal</p>
+          <p className="text-[11px] text-sidebar-foreground/60 capitalize">
+            {kind === "admin" && adminRole ? `${adminRole.replace("_", " ")}` : `${kind} Portal`}
+          </p>
         </div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

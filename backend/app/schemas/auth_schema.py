@@ -9,6 +9,7 @@ from typing import Optional
 class VoterLoginRequest(BaseModel):
     email: EmailStr
     password: str
+    captcha_token: str
 
 
 class VoterOTPVerifyRequest(BaseModel):
@@ -24,6 +25,7 @@ class CandidateLoginRequest(BaseModel):
     email: EmailStr
     mobile_number: str
     password: str
+    captcha_token: str
 
 
 class CandidateOTPVerifyRequest(BaseModel):
@@ -63,6 +65,7 @@ class AdminLoginRequest(BaseModel):
     email: EmailStr
     mobile_number: str
     password: str
+    captcha_token: str
 
 
 class AdminOTPVerifyRequest(BaseModel):

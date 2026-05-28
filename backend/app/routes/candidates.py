@@ -3,6 +3,7 @@ import os
 import html
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -12,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.api.deps import get_current_user, get_candidate_user, get_admin_user
+from app.api.deps import get_current_user, get_candidate_user, get_admin_user, require_admin_roles
 from app.enums.roles import UserRoleEnum
 from app.enums.manifesto_status import ManifestoStatusEnum
 from app.models.election import Election
@@ -35,6 +36,8 @@ from app.services.supabase_storage import (
     upload_manifesto_media,
 )
 from app.utils.image_validator import validate_image
+from app.services.result_service import ResultService
+from app.services.pdf_service import PDFService
 
 router = APIRouter()
 
@@ -92,8 +95,6 @@ class VerifyOtpRequest(BaseModel):
 class CandidateRegisterRequest(BaseModel):
     otp_session_token: str
     position_id: str
-    party_name: Optional[str] = None
-    party_symbol_url: Optional[str] = None
     manifesto: Optional[str] = None
     payment_screenshot_url: Optional[str] = None
     mobile_number: str
@@ -101,8 +102,6 @@ class CandidateRegisterRequest(BaseModel):
     full_name: Optional[str] = None
     department: Optional[str] = None
     student_id: Optional[str] = None
-    vice_president: Optional[str] = None
-    secretary: Optional[str] = None
 
 
 class ManifestoUpdateRequest(BaseModel):
@@ -253,9 +252,6 @@ async def list_candidates(
             "mobile_number": c.mobile_number or (voter.mobile_number if voter else "—"),
             "applied_at": c.applied_at.isoformat() if c.applied_at else None,
             "admin_remarks": c.admin_remarks,
-            "party_symbol_url": c.party_symbol_url,
-            "vice_president": c.vice_president or "—",
-            "secretary": c.secretary or "—",
             "manifesto": _manifesto_content_for_role(manifesto, hide_from_voters=not is_admin),
             "manifesto_status": map_manifesto_status_to_frontend(man_status),
             "manifesto_image_url": manifesto.image_url if manifesto and _manifesto_status_raw(manifesto) == ManifestoStatusEnum.APPROVED.value else None,
@@ -391,14 +387,29 @@ async def verify_eligibility_otp(body: VerifyOtpRequest, db: AsyncSession = Depe
         "full_name": voter.full_name,
         "department": voter.department or "—",
         "semester": f"{voter.year_of_study * 2}th" if voter.year_of_study else "—",
+        "student_id": voter.student_id or "",
         "mobile_number": voter.mobile_number or ""
     }
 
 
 @router.get("/positions", response_model=List[dict], status_code=status.HTTP_200_OK)
 async def list_positions(db: AsyncSession = Depends(get_db)):
-    """Return all election positions from database."""
-    res = await db.execute(select(Position))
+    """Return election positions from the active election where nomination is open."""
+    # Get the latest election
+    elec_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = elec_res.scalars().first()
+
+    if not election:
+        return []
+
+    # Only return positions if registration is open or upcoming (so candidates can see what's available)
+    current_phase = PhaseEngine.get_current_phase(election)
+    if current_phase not in ["pre_registration", "registration_open", "registration_closed"]:
+        return []
+
+    res = await db.execute(
+        select(Position).where(Position.election_id == election.election_id)
+    )
     positions = res.scalars().all()
     return [
         {
@@ -424,8 +435,21 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
             detail="Candidate registration is currently closed."
         )
 
-
+    # Validate position belongs to the active election
     import re
+    pos_uuid = uuid.UUID(body.position_id)
+    pos_res = await db.execute(
+        select(Position).where(
+            Position.position_id == pos_uuid,
+            Position.election_id == election.election_id
+        )
+    )
+    position = pos_res.scalar_one_or_none()
+    if not position:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The selected position is not part of the active election. Please select a valid position."
+        )
     def validate_strong_password(password: str) -> bool:
         if len(password) < 8:
             return False
@@ -497,13 +521,6 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
     if existing_candidate:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate record already exists.")
 
-    # Get position details to bind election
-    pos_uuid = uuid.UUID(body.position_id)
-    pos_res = await db.execute(select(Position).where(Position.position_id == pos_uuid))
-    position = pos_res.scalar_one_or_none()
-    if not position:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found.")
-
     # Create candidate in PENDING status
     candidate = Candidate(
         voter_id=voter_uuid,
@@ -511,9 +528,6 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
         position_id=pos_uuid,
         mobile_number=html.escape(body.mobile_number.strip()) if body.mobile_number else None,
         mobile_verified=True,
-        party_symbol_url=html.escape(body.party_symbol_url.strip()) if body.party_symbol_url else None,
-        vice_president=html.escape(body.vice_president.strip()) if body.vice_president else None,
-        secretary=html.escape(body.secretary.strip()) if body.secretary else None,
         status=CandidateStatusEnum.PENDING.value,
         admin_remarks=None
     )
@@ -552,11 +566,10 @@ async def register_candidate(body: CandidateRegisterRequest, db: AsyncSession = 
 
     # 4. Create Audit Log
     from app.models.audit_log import AuditLog
-    party_name_escaped = html.escape(body.party_name.strip()) if body.party_name else 'Independent'
     audit_entry = AuditLog(
         event_type="CANDIDATE_APPLIED",
         actor_id=voter_uuid,
-        description=f"Candidate {voter.full_name} registered for position {position.title} ({party_name_escaped})",
+        description=f"Candidate {voter.full_name} registered for position {position.title}",
         created_at=datetime.now(timezone.utc)
     )
     db.add(audit_entry)
@@ -660,11 +673,7 @@ async def get_candidate_me(
         "status": map_db_status_to_frontend(candidate.status),
         "mobile_number": candidate.mobile_number or (voter.mobile_number if voter else "—"),
         "applied_at": candidate.applied_at.isoformat() if candidate.applied_at else None,
-        "admin_remarks": candidate.admin_remarks,
-        "party_symbol_url": candidate.party_symbol_url,
-        "vice_president": candidate.vice_president or "—",
-        "secretary": candidate.secretary or "—",
-        "manifesto": manifesto.content if manifesto else "",
+        "admin_remarks": candidate.admin_remarks,            "manifesto": manifesto.content if manifesto else "",
         # AI analysis fields
         "sentiment_score": analysis.get("sentiment_score", 0.5),
         "feasibility_score": analysis.get("feasibility_score", 0.5),
@@ -678,6 +687,88 @@ async def get_candidate_me(
     }
 
 
+@router.get("/me/report/pdf")
+async def download_candidate_report(
+    current_user: dict = Depends(get_candidate_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate and download a PDF report for the candidate."""
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID")
+
+    # Fetch candidate
+    cand_res = await db.execute(
+        select(Candidate)
+        .options(joinedload(Candidate.voter), joinedload(Candidate.position))
+        .where((Candidate.voter_id == user_uuid) | (Candidate.candidate_id == user_uuid))
+    )
+    candidate = cand_res.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+    # Check election phase
+    election_id = str(candidate.election_id)
+    elec_res = await db.execute(select(Election).where(Election.election_id == candidate.election_id))
+    election = elec_res.scalar_one_or_none()
+    
+    if not election:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Election not found")
+        
+    current_phase = PhaseEngine.get_current_phase(election)
+    if current_phase != "results_announced":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Results are not published yet.")
+
+    # Get results
+    result_service = ResultService(db)
+    result_data = await result_service.get_candidate_result(election_id, str(candidate.candidate_id))
+    
+    if not result_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result data not found")
+
+    # Fetch manifesto for summary
+    man_query = select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id)
+    man_res = await db.execute(man_query)
+    manifesto = man_res.scalars().first()
+    
+    ai_summary = ""
+    manifesto_text = ""
+    if manifesto:
+        manifesto_text = manifesto.content or ""
+        if manifesto.ai_analysis:
+            import json
+            try:
+                analysis = json.loads(manifesto.ai_analysis)
+                ai_summary = analysis.get("summary", "")
+            except Exception:
+                pass
+
+    pdf_buffer = PDFService.generate_candidate_report(
+        candidate_name=candidate.voter.full_name if candidate.voter else "Unknown",
+        department=candidate.voter.department if candidate.voter else "Unknown",
+        position_title=candidate.position.title if candidate.position else "Unknown",
+        election_title=election.title,
+        vote_count=result_data["vote_count"],
+        total_position_votes=result_data["total_position_votes"],
+        vote_percentage=result_data["vote_percentage"],
+        rank=result_data["rank"],
+        winner_status=result_data["winner_status"],
+        ai_summary=ai_summary,
+        manifesto_text=manifesto_text
+    )
+
+    filename = f"Election_Report_{candidate.voter.full_name.replace(' ', '_')}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 # ── Manifesto file upload constants ────────────────────────
 MAX_MANIFESTO_FILE_SIZE = 10 * 1024 * 1024
 
@@ -720,6 +811,17 @@ async def upload_manifesto_file(
 
     if not candidate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
+
+    # Phase Lock Check (Manifesto Deadline)
+    elec_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = elec_res.scalars().first()
+    if election:
+        phase = PhaseEngine.get_current_phase(election)
+        if phase in ["campaign_period", "voting_open", "voting_closed", "results_announced"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Manifesto submissions and edits are locked after the manifesto deadline."
+            )
 
     candidate_id = str(candidate.candidate_id)
 
@@ -831,6 +933,17 @@ async def update_my_manifesto(
 
     if not candidate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
+
+    # Phase Lock Check (Manifesto Deadline)
+    elec_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = elec_res.scalars().first()
+    if election:
+        phase = PhaseEngine.get_current_phase(election)
+        if phase in ["campaign_period", "voting_open", "voting_closed", "results_announced"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Manifesto submissions and edits are locked after the manifesto deadline."
+            )
 
     cand_status = map_db_status_to_frontend(candidate.status)
     if body.submit and cand_status != "Approved":
@@ -964,7 +1077,7 @@ async def analyze_my_manifesto(
 
 @router.get("/admin/manifestos", status_code=status.HTTP_200_OK)
 async def list_manifestos_for_admin(
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "CANDIDATE_MODERATOR"])),
     db: AsyncSession = Depends(get_db),
     status_filter: Optional[str] = None,
 ):
@@ -1038,7 +1151,7 @@ async def list_manifestos_for_admin(
 async def review_manifesto(
     manifesto_id: str,
     body: ManifestoReviewRequest,
-    admin: dict = Depends(get_admin_user),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "CANDIDATE_MODERATOR"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Approve or reject a candidate manifesto."""
@@ -1079,6 +1192,7 @@ async def update_candidate_status(
     candidate_id: str,
     body: CandidateStatusUpdateRequest,
     db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "CANDIDATE_MODERATOR"])),
 ):
     """Update candidate status and remarks."""
     try:

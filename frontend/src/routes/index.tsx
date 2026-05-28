@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Eye,
   EyeOff,
@@ -25,6 +25,7 @@ import {
   saveAuth,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { SSRRecaptcha } from "@/components/SSRRecaptcha";
 
 export const Route = createFileRoute("/")({ component: Login });
 
@@ -64,6 +65,12 @@ function Login() {
   const [error, setError] = useState("");
   const [rejectionRemarks, setRejectionRemarks] = useState("");
 
+  // CAPTCHA States & Refs
+  const [voterCaptchaToken, setVoterCaptchaToken] = useState<string | null>(null);
+  const [candidateCaptchaToken, setCandidateCaptchaToken] = useState<string | null>(null);
+  const voterRecaptchaRef = useRef<any>(null);
+  const candidateRecaptchaRef = useRef<any>(null);
+
   // Candidate Sub-Steps
   const [candidateStep, setCandidateStep] = useState<"email_mobile" | "password" | "select_year">(
     "email_mobile",
@@ -76,6 +83,10 @@ function Login() {
     setRejectionRemarks("");
     setCandidateYear("");
     setPassword("");
+    setVoterCaptchaToken(null);
+    setCandidateCaptchaToken(null);
+    voterRecaptchaRef.current?.reset();
+    candidateRecaptchaRef.current?.reset();
   }, [tab]);
 
   // Mode: "login" | "forgot_email" | "forgot_otp" | "forgot_reset"
@@ -98,7 +109,10 @@ function Login() {
     setRejectionRemarks("");
     try {
       if (tab === "voter") {
-        const res = await voterLoginStep1(email, password);
+        if (!voterCaptchaToken) {
+          throw new Error("Please complete CAPTCHA verification.");
+        }
+        const res = await voterLoginStep1(email, password, voterCaptchaToken);
         saveOtpSession(res.otp_session_token, email);
         toast.success(res.hint);
         nav({ to: "/voter/otp-verify" });
@@ -129,6 +143,10 @@ function Login() {
                 "candidate-prefill-semester",
                 res.voter_details?.semester || "",
               );
+              sessionStorage.setItem(
+                "candidate-prefill-usn",
+                (res.voter_details as any)?.student_id || "",
+              );
               saveOtpSession(res.token, email, mobileNum);
             }
             toast.success("Eligible voter profile found. Complete candidate registration.");
@@ -142,7 +160,10 @@ function Login() {
             setLoading(false);
           }
         } else if (candidateStep === "password") {
-          const res = await candidateLoginStep1(email, mobileNum, password);
+          if (!candidateCaptchaToken) {
+            throw new Error("Please complete CAPTCHA verification.");
+          }
+          const res = await candidateLoginStep1(email, mobileNum, password, candidateCaptchaToken);
           saveOtpSession(res.otp_session_token, email, mobileNum);
           toast.success(res.hint);
           nav({ to: "/candidate/otp-verify" });
@@ -160,6 +181,7 @@ function Login() {
               sessionStorage.removeItem("candidate-prefill-name");
               sessionStorage.removeItem("candidate-prefill-department");
               sessionStorage.removeItem("candidate-prefill-semester");
+              sessionStorage.removeItem("candidate-prefill-usn");
               toast.success("College email verified. Set your password to register.");
               nav({ to: "/candidate/register" });
             } else {
@@ -180,6 +202,10 @@ function Login() {
       }
       toast.error(err.message || "Failed.");
       setLoading(false);
+      voterRecaptchaRef.current?.reset();
+      setVoterCaptchaToken(null);
+      candidateRecaptchaRef.current?.reset();
+      setCandidateCaptchaToken(null);
     }
   }
 
@@ -380,9 +406,14 @@ function Login() {
                         </button>
                       </div>
                     </div>
+                    <SSRRecaptcha
+                      recaptchaRef={voterRecaptchaRef}
+                      onChange={(token) => setVoterCaptchaToken(token)}
+                      onExpired={() => setVoterCaptchaToken(null)}
+                    />
                     <Button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || !email || !password || !voterCaptchaToken}
                       className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
                     >
                       {loading ? "Signing in..." : "Login"}
@@ -424,9 +455,14 @@ function Login() {
                             />
                           </div>
                         </div>
+                        <SSRRecaptcha
+                          recaptchaRef={candidateRecaptchaRef}
+                          onChange={(token) => setCandidateCaptchaToken(token)}
+                          onExpired={() => setCandidateCaptchaToken(null)}
+                        />
                         <Button
                           type="submit"
-                          disabled={loading}
+                          disabled={loading || !candidateCaptchaToken}
                           className="w-full h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white mt-2"
                         >
                           {loading ? "Checking eligibility..." : "Continue"}
@@ -480,6 +516,11 @@ function Login() {
                             </button>
                           </div>
                         </div>
+                        <SSRRecaptcha
+                          recaptchaRef={candidateRecaptchaRef}
+                          onChange={(token) => setCandidateCaptchaToken(token)}
+                          onExpired={() => setCandidateCaptchaToken(null)}
+                        />
                         <div className="flex gap-3 mt-2">
                           <Button
                             type="button"
@@ -487,6 +528,8 @@ function Login() {
                               setCandidateStep("email_mobile");
                               setError("");
                               setPassword("");
+                              setCandidateCaptchaToken(null);
+                              candidateRecaptchaRef.current?.reset();
                             }}
                             variant="outline"
                             className="flex-1 h-11 border border-border hover:bg-muted"
@@ -495,7 +538,7 @@ function Login() {
                           </Button>
                           <Button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || !password || !candidateCaptchaToken}
                             className="flex-1 h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
                           >
                             {loading ? "Signing in..." : "Login"}
@@ -533,6 +576,11 @@ function Login() {
                             <option value="4">4th Year (Eligible)</option>
                           </select>
                         </div>
+                        <SSRRecaptcha
+                          recaptchaRef={candidateRecaptchaRef}
+                          onChange={(token) => setCandidateCaptchaToken(token)}
+                          onExpired={() => setCandidateCaptchaToken(null)}
+                        />
                         <div className="flex gap-3 mt-2">
                           <Button
                             type="button"
@@ -540,6 +588,8 @@ function Login() {
                               setCandidateStep("email_mobile");
                               setError("");
                               setCandidateYear("");
+                              setCandidateCaptchaToken(null);
+                              candidateRecaptchaRef.current?.reset();
                             }}
                             variant="outline"
                             className="flex-1 h-11 border border-border hover:bg-muted"
@@ -548,7 +598,7 @@ function Login() {
                           </Button>
                           <Button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || !candidateCaptchaToken}
                             className="flex-1 h-11 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
                           >
                             {loading ? "Continuing..." : "Continue"}

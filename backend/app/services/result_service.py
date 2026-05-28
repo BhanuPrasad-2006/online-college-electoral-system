@@ -41,18 +41,61 @@ class ResultService:
         return grouped
 
     async def determine_winners(self, election_id: str) -> list:
-        """Determine winners per position."""
+        """Determine winners per position handling ties correctly."""
         results = await self.compute_results(election_id)
-        winners = []
+        position_summaries = []
+        
         for position_id, candidates in results.items():
+            total_votes = sum(c["vote_count"] for c in candidates)
             sorted_candidates = sorted(candidates, key=lambda c: c["vote_count"], reverse=True)
-            if sorted_candidates:
-                winners.append({
-                    "position_id": position_id,
-                    "winner_candidate_id": sorted_candidates[0]["candidate_id"],
-                    "vote_count": sorted_candidates[0]["vote_count"],
-                })
-        return winners
+            
+            if not sorted_candidates:
+                continue
+                
+            highest_votes = sorted_candidates[0]["vote_count"]
+            
+            # Check for ties
+            top_candidates = [c for c in sorted_candidates if c["vote_count"] == highest_votes]
+            
+            # Assign statuses
+            for c in sorted_candidates:
+                if c["vote_count"] == highest_votes:
+                    c["winner_status"] = "TIE" if len(top_candidates) > 1 else "WON"
+                else:
+                    c["winner_status"] = "LOST"
+                    
+            winner_candidate_id = top_candidates[0]["candidate_id"] if len(top_candidates) == 1 else None
+            
+            position_summaries.append({
+                "position_id": position_id,
+                "winner_candidate_id": winner_candidate_id,
+                "winner_status": "TIE" if len(top_candidates) > 1 else "WON",
+                "highest_votes": highest_votes,
+                "total_votes": total_votes,
+                "candidates": sorted_candidates
+            })
+            
+        return position_summaries
+
+    async def get_candidate_result(self, election_id: str, candidate_id: str) -> dict | None:
+        """Get the detailed result for a specific candidate."""
+        summaries = await self.determine_winners(election_id)
+        for summary in summaries:
+            for i, cand in enumerate(summary["candidates"]):
+                if cand["candidate_id"] == candidate_id:
+                    total = summary["total_votes"]
+                    percentage = (cand["vote_count"] / total * 100) if total > 0 else 0
+                    
+                    return {
+                        "position_id": summary["position_id"],
+                        "candidate_id": candidate_id,
+                        "vote_count": cand["vote_count"],
+                        "total_position_votes": total,
+                        "vote_percentage": round(percentage, 2),
+                        "rank": i + 1,
+                        "winner_status": cand["winner_status"]
+                    }
+        return None
 
     async def get_participation_stats(self, election_id: str) -> list:
         """Get participation statistics by department."""

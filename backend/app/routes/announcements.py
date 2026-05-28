@@ -45,6 +45,19 @@ async def create_announcement(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new announcement and dispatch via email."""
+    # Check phase lock
+    from app.services.phase_engine import PhaseEngine
+    from app.models.election import Election
+    elec_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    election = elec_res.scalars().first()
+    if election:
+        phase = PhaseEngine.get_current_phase(election)
+        if phase in ["voting_open", "voting_closed", "results_announced"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Announcement creation is locked once voting starts."
+            )
+
     announcement = Announcement(
         announcement_id=str(uuid.uuid4()),
         title=body.title,

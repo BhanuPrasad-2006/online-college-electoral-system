@@ -23,6 +23,7 @@ from app.routes.admin import router as admin_router
 from app.routes.media import router as media_router
 from app.routes.concerns import router as concerns_router
 from app.routes.announcements import router as announcements_router
+
 from app.utils.logger import logger
 
 
@@ -83,6 +84,7 @@ app.include_router(admin_router,      prefix=f"{settings.API_V1_PREFIX}/admin", 
 app.include_router(media_router,      prefix=f"{settings.API_V1_PREFIX}/media",      tags=["Media"])
 app.include_router(concerns_router,   prefix=f"{settings.API_V1_PREFIX}/concerns",   tags=["Concerns"])
 app.include_router(announcements_router, prefix=f"{settings.API_V1_PREFIX}/announcements", tags=["Announcements"])
+
 
 
 # ── Auth Exception Handlers ──────────────────────────────────
@@ -173,6 +175,151 @@ async def startup_validation():
     except Exception as e:
         logger.error(f"STARTUP FAILURE: {e}")
         raise
+
+    # Dynamic schema migration for biometric columns
+    from sqlalchemy import text, inspect
+    from app.db.session import engine
+    try:
+        async with engine.begin() as conn:
+            def run_migration_steps(connection):
+                inspector = inspect(connection)
+                columns = [c["name"] for c in inspector.get_columns("voters")]
+                
+                # Add embedding_model_version
+                if "embedding_model_version" not in columns:
+                    logger.info("Adding embedding_model_version column to voters table...")
+                    connection.execute(text(
+                        "ALTER TABLE voters ADD COLUMN embedding_model_version VARCHAR(50) NULL"
+                    ))
+                
+                # Add failed_face_attempts
+                if "failed_face_attempts" not in columns:
+                    logger.info("Adding failed_face_attempts column to voters table...")
+                    connection.execute(text(
+                        "ALTER TABLE voters ADD COLUMN failed_face_attempts INTEGER DEFAULT 0"
+                    ))
+                
+                # Create indexes
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_voters_embedding_model ON voters(embedding_model_version);"
+                ))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_voters_failed_face ON voters(failed_face_attempts);"
+                ))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS idx_voters_lockout ON voters(lockout_until);"
+                ))
+                logger.info("Biometric database schema self-healing/migration completed.")
+            
+            await conn.run_sync(run_migration_steps)
+    except Exception as e:
+        logger.error(f"Failed to run automatic biometric database migrations: {e}")
+
+    # ── Notice & Meeting System Migrations ──
+    try:
+        async with engine.begin() as conn:
+            def run_notice_meeting_migrations(connection):
+                inspector = inspect(connection)
+                existing_tables = inspector.get_table_names()
+
+                # Only run Notice & Meeting migrations (Party was removed)
+                admin_cols = [c["name"] for c in inspector.get_columns("admin_users")]
+                if "role" not in admin_cols:
+                    logger.info("Adding role column to admin_users table...")
+                    connection.execute(text(
+                        "ALTER TABLE admin_users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'SUPER_ADMIN';"
+                    ))
+
+                uuid_type = "UUID" if connection.dialect.name == "postgresql" else "VARCHAR(36)"
+                default_uuid = "DEFAULT gen_random_uuid()" if connection.dialect.name == "postgresql" else ""
+                timestamptz_type = "TIMESTAMPTZ" if connection.dialect.name == "postgresql" else "DATETIME"
+                now_func = "NOW()" if connection.dialect.name == "postgresql" else "CURRENT_TIMESTAMP"
+
+                if "notices" not in existing_tables:
+                    logger.info("Creating notices table...")
+                    connection.execute(text(f"""
+                        CREATE TABLE IF NOT EXISTS notices (
+                            notice_id {uuid_type} PRIMARY KEY {default_uuid},
+                            title VARCHAR(255) NOT NULL,
+                            content TEXT NOT NULL,
+                            priority VARCHAR(50) NOT NULL DEFAULT 'LOW',
+                            pdf_url VARCHAR(500),
+                            qr_code VARCHAR(255),
+                            created_at {timestamptz_type} DEFAULT {now_func},
+                            created_by {uuid_type} NOT NULL REFERENCES admin_users(admin_id) ON DELETE CASCADE
+                        );
+                    """))
+
+                if "notice_recipients" not in existing_tables:
+                    logger.info("Creating notice_recipients table...")
+                    connection.execute(text(f"""
+                        CREATE TABLE IF NOT EXISTS notice_recipients (
+                            id {uuid_type} PRIMARY KEY {default_uuid},
+                            notice_id {uuid_type} NOT NULL REFERENCES notices(notice_id) ON DELETE CASCADE,
+                            recipient_voter_id {uuid_type} REFERENCES voters(voter_id) ON DELETE CASCADE,
+                            role_target VARCHAR(50) NOT NULL DEFAULT 'ALL',
+                            is_read BOOLEAN NOT NULL DEFAULT FALSE
+                        );
+                    """))
+
+                if "admin_meetings" not in existing_tables:
+                    logger.info("Creating admin_meetings table...")
+                    connection.execute(text(f"""
+                        CREATE TABLE IF NOT EXISTS admin_meetings (
+                            meeting_id {uuid_type} PRIMARY KEY {default_uuid},
+                            title VARCHAR(255) NOT NULL,
+                            agenda TEXT NOT NULL,
+                            meeting_time {timestamptz_type} NOT NULL,
+                            jitsi_link VARCHAR(500) NOT NULL,
+                            created_by {uuid_type} NOT NULL REFERENCES admin_users(admin_id) ON DELETE CASCADE,
+                            created_at {timestamptz_type} DEFAULT {now_func}
+                        );
+                    """))
+
+                if "meeting_participants" not in existing_tables:
+                    logger.info("Creating meeting_participants table...")
+                    connection.execute(text(f"""
+                        CREATE TABLE IF NOT EXISTS meeting_participants (
+                            id {uuid_type} PRIMARY KEY {default_uuid},
+                            meeting_id {uuid_type} NOT NULL REFERENCES admin_meetings(meeting_id) ON DELETE CASCADE,
+                            admin_id {uuid_type} NOT NULL REFERENCES admin_users(admin_id) ON DELETE CASCADE,
+                            attended BOOLEAN NOT NULL DEFAULT FALSE
+                        );
+                    """))
+
+                logger.info("Notice and Meeting system database migrations completed.")
+
+            await conn.run_sync(run_notice_meeting_migrations)
+    except Exception as e:
+        logger.error(f"Failed to run notice/meeting migrations: {e}")
+
+    # Dynamic seeding of admin users
+    try:
+        from seed_admin import seed_all_admins
+        from app.db.session import SessionLocal
+        async with SessionLocal() as db_session:
+            await seed_all_admins(db_session)
+        logger.info("Admin seeding completed.")
+    except Exception as e:
+        logger.error(f"Failed to run admin seeding: {e}")
+
+
+    # Warmup ArcFace model
+    try:
+        from app.services.face_service import warmup_model
+        warmup_model()
+    except Exception as e:
+        logger.error(f"Model warmup failed: {e}")
+        raise SystemExit("Startup terminated: Face recognition model could not be loaded/warmed up.")
+
+    # Run automatic Facenet -> ArcFace migration for existing reference photos
+    try:
+        from app.services.face_service import migrate_voters_to_arcface
+        from app.db.session import SessionLocal
+        async with SessionLocal() as db_session:
+            await migrate_voters_to_arcface(db_session)
+    except Exception as e:
+        logger.error(f"Automatic face embedding migration failed: {e}")
 
     logger.info(f"{settings.APP_NAME} started successfully.")
 
