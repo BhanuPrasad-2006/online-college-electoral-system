@@ -23,9 +23,7 @@ export const API_ORIGIN = typeof envApiOrigin === "string" && envApiOrigin.trim(
 const RETRY_DELAY_MS = 150;
 const REQUEST_TIMEOUT_MS = 60_000;
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-async function ensureDeviceFingerprint(): Promise<string> {
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));  async function ensureDeviceFingerprint(): Promise<string> {
   if (typeof window === "undefined") return "";
   try {
     const existing = sessionStorage.getItem("collegevote-fingerprint");
@@ -350,12 +348,13 @@ export async function reviewManifesto(
 }
 
 // ── Voter Login ──────────────────────────────────────────────
-export async function voterLoginStep1(email: string, password: string) {
+export async function voterLoginStep1(email: string, password: string, captchaToken: string) {
   await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   return post<{ otp_session_token: string; hint: string; message: string }>("/auth/voter/login", {
     email: cleanEmail,
     password,
+    captcha_token: captchaToken,
   });
 }
 
@@ -372,13 +371,13 @@ export async function voterLoginStep2(sessionToken: string, otp: string) {
 }
 
 // ── Candidate Login ──────────────────────────────────────────
-export async function candidateLoginStep1(email: string, mobile_number: string, password: string) {
+export async function candidateLoginStep1(email: string, mobile_number: string, password: string, captchaToken: string) {
   await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
   return post<{ otp_session_token: string; hint: string; message: string }>(
     "/auth/candidate/login",
-    { email: cleanEmail, mobile_number: cleanMobile, password },
+    { email: cleanEmail, mobile_number: cleanMobile, password, captcha_token: captchaToken },
   );
 }
 
@@ -402,7 +401,7 @@ export async function candidateLoginStep2(
 }
 
 // ── Admin Login ──────────────────────────────────────────────
-export async function adminLoginStep1(email: string, mobile_number: string, password: string) {
+export async function adminLoginStep1(email: string, mobile_number: string, password: string, captchaToken: string) {
   await ensureDeviceFingerprint();
   const cleanEmail = email.trim().toLowerCase();
   const cleanMobile = mobile_number.replace(/\s/g, "").replace(/\+91/g, "").replace(/-/g, "");
@@ -410,6 +409,7 @@ export async function adminLoginStep1(email: string, mobile_number: string, pass
     email: cleanEmail,
     mobile_number: cleanMobile,
     password,
+    captcha_token: captchaToken,
   });
 }
 
@@ -702,6 +702,7 @@ export async function verifyEligibilityOtp(sessionToken: string, otp: string) {
     full_name: string;
     department: string;
     semester: string;
+    student_id?: string;
     mobile_number: string;
   }>("/candidates/verify-eligibility-otp", { otp_session_token: sessionToken, otp });
 }
@@ -723,8 +724,7 @@ export async function registerCandidate(
     full_name?: string;
     department?: string;
     student_id?: string;
-    vice_president?: string;
-    secretary?: string;
+
   },
 ) {
   return post<{ message: string; candidate_id: string; status: string }>("/candidates/register", {
@@ -1162,4 +1162,77 @@ export async function reviewCampaignMedia(
 }
 export async function updateManifesto(content: string) {
   return put<{ message: string }>("/candidates/manifesto", { content });
+}
+
+async function del<T>(path: string): Promise<T> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) {
+    headers["X-Device-Fingerprint"] = fp;
+  }
+  let res: Response;
+  try {
+    res = await fetchWithRetry(`${API_BASE_URL}${path}`, {
+      method: "DELETE",
+      headers,
+    });
+  } catch (error) {
+    throw normalizeFetchError(error);
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        sessionStorage.clear();
+        window.location.href = "/";
+      }
+    }
+    const err = new Error(data.detail ?? "Request failed");
+    if (data.remarks) (err as any).remarks = data.remarks;
+    throw err;
+  }
+  return data as T;
+}
+
+// ── Admin Users Management (Super Admin) ─────────────────────
+export async function fetchAdminUsers() {
+  return get<any[]>("/admin/users");
+}
+
+export async function createAdminUser(data: { full_name: string; email: string; role: string; password?: string }) {
+  return post<any>("/admin/users", data);
+}
+
+export async function deleteAdminUser(adminId: string) {
+  return del<any>(`/admin/users/${adminId}`);
+}
+
+// ── Official Notices ──────────────────────────────────────────
+export async function fetchNotices() {
+  return get<any[]>("/admin/notices");
+}
+
+export async function createNotice(data: { title: string; priority: string; content: string; role_target: string }) {
+  return post<any>("/admin/notices", data);
+}
+
+// ── Admin Meetings ────────────────────────────────────────────
+export async function fetchMeetings() {
+  return get<any[]>("/admin/meetings");
+}
+
+export async function createMeeting(data: { title: string; agenda: string; meeting_time: string; participant_emails: string[] }) {
+  return post<any>("/admin/meetings", data);
+}
+
+export async function attendMeeting(meetingId: string) {
+  return post<any>(`/admin/meetings/${meetingId}/attend`, {});
 }

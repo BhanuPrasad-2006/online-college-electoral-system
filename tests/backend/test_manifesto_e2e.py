@@ -76,6 +76,7 @@ from app.security.password_service import hash_password
 from app.api.deps import get_current_user, get_admin_user
 from app.middleware.rate_limit import limiter
 from app.services.supabase_storage import UploadedStorageObject
+from app.utils.image_validator import ValidationResult
 
 limiter.enabled = False
 
@@ -167,17 +168,20 @@ async def seeded_data(db_session: AsyncSession):
     db_session.add(voter2)
     await db_session.flush()
 
-    # 3. Election (VOTING_OPEN so candidates are visible)
+    # 3. Election — use "registration_closed" phase (manifesto edits allowed)
+    #    PhaseEngine: reg_end <= now < doc_deadline => "registration_closed"
+    #    Manifesto lock only kicks in at "campaign_period" / "voting_open" / etc.
     now = datetime.now(timezone.utc)
     election = Election(
         election_id=uuid.UUID(ELECTION_ID),
         title="Test Election 2026",
         description="E2E test election",
-        status=ElectionStatusEnum.VOTING_OPEN.value,
-        voting_start=now - timedelta(hours=1),
-        voting_end=now + timedelta(hours=1),
+        status=ElectionStatusEnum.REGISTRATION_OPEN.value,
+        voting_start=now + timedelta(days=3),
+        voting_end=now + timedelta(days=4),
         registration_start=now - timedelta(days=7),
         registration_end=now - timedelta(hours=2),
+        document_deadline=now + timedelta(days=1),
     )
     db_session.add(election)
 
@@ -228,6 +232,7 @@ class TestManifestoUploadFlow:
 
         with patch("app.routes.candidates.settings.SUPABASE_URL", "https://test.supabase.co"), \
              patch("app.routes.candidates.settings.SUPABASE_SERVICE_ROLE_KEY", "test-key"), \
+             patch("app.routes.candidates.validate_image", return_value=ValidationResult(True, "ok")), \
              patch(
                  "app.routes.candidates.upload_manifesto_media",
                  new_callable=AsyncMock,
@@ -354,7 +359,13 @@ class TestManifestoUploadFlow:
             },
         )
 
-        # list_manifestos_for_admin uses get_admin_user (separate override)
+        # Switch to admin role for the admin endpoint (require_admin_roles checks role + admin_role)
+        _current_auth.update({
+            "user_id": CANDIDATE_VOTER_ID,
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
         response = await client.get("/api/v1/candidates/admin/manifestos")
         assert response.status_code == 200
         items = response.json()
@@ -386,7 +397,13 @@ class TestManifestoUploadFlow:
         )
         assert save_resp.status_code == 200
 
-        # Fetch the manifesto ID from admin endpoint
+        # Switch to admin role for the admin endpoint
+        _current_auth.update({
+            "user_id": CANDIDATE_VOTER_ID,
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
         list_resp = await client.get("/api/v1/candidates/admin/manifestos")
         assert list_resp.status_code == 200
         items = list_resp.json()
@@ -421,7 +438,13 @@ class TestManifestoUploadFlow:
             },
         )
 
-        # Admin approves
+        # Switch to admin role for admin endpoints
+        _current_auth.update({
+            "user_id": CANDIDATE_VOTER_ID,
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
         list_resp = await client.get("/api/v1/candidates/admin/manifestos")
         manifesto_id = list_resp.json()[0]["manifesto_id"]
         await client.put(
@@ -624,6 +647,7 @@ class TestManifestoUploadFlow:
 
         with patch("app.routes.candidates.settings.SUPABASE_URL", "https://test.supabase.co"), \
              patch("app.routes.candidates.settings.SUPABASE_SERVICE_ROLE_KEY", "test-key"), \
+             patch("app.routes.candidates.validate_image", return_value=ValidationResult(True, "ok")), \
              patch(
                  "app.routes.candidates.upload_manifesto_media",
                  new_callable=AsyncMock,

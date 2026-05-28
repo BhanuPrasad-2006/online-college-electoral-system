@@ -104,6 +104,8 @@ function VoterDash() {
     effectivePhase?.phase === "registration_closed" || effectivePhase?.phase === "campaign_period";
   const isPaused = phaseData?.is_paused;
 
+
+
   const remainingTimeStr = effectivePhase?.remaining_time || "";
 
   useEffect(() => {
@@ -561,6 +563,7 @@ function VoterDash() {
           ))}
         </div>
       </SectionCard>
+
     </div>
   );
 }

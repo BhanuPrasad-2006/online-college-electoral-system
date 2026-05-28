@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     USE_REDIS: bool = False
 
+    # Google reCAPTCHA
+    RECAPTCHA_SECRET_KEY: str = ""
+
     # AI Chatbot (Gemini 2.5 Flash)
     # Get your free API key at: https://aistudio.google.com/app/apikey
     # Then paste it in backend/.env as: GEMINI_API_KEY=your_key_here

@@ -21,7 +21,6 @@ export type Candidate = {
   payment: "Paid" | "Pending";
   email: string;
   symbol?: string;
-  runningMates?: { vicePresident: string; secretary: string };
 };
 
 export const CANDIDATES: Candidate[] = [
@@ -38,7 +37,6 @@ export const CANDIDATES: Candidate[] = [
     payment: "Paid",
     email: "priya.sharma@college.edu.in",
     symbol: "🌅",
-    runningMates: { vicePresident: "Kavya Reddy", secretary: "Neha Pillai" },
     manifesto:
       "Modernize campus Wi-Fi to fiber backbone, expand placement training from 2nd year, launch student welfare initiatives.",
   },
@@ -55,7 +53,6 @@ export const CANDIDATES: Candidate[] = [
     payment: "Paid",
     email: "arjun.mehta@college.edu.in",
     symbol: "🦅",
-    runningMates: { vicePresident: "Rahul Verma", secretary: "Rohan Gupta" },
     manifesto:
       "Better hostel facilities, improved cafeteria food quality, and active sports culture across all departments.",
   },

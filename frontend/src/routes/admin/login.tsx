@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Eye, EyeOff, Shield, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 import { adminLoginStep1, saveOtpSession } from "@/lib/api";
 import { toast } from "sonner";
+import { SSRRecaptcha } from "@/components/SSRRecaptcha";
 
 export const Route = createFileRoute("/admin/login")({ component: AdminLogin });
 
@@ -16,6 +17,8 @@ function AdminLogin() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<any>(null);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0F1C2E] p-4 relative overflow-hidden">
@@ -42,14 +45,19 @@ function AdminLogin() {
             e.preventDefault();
             setLoading(true);
             try {
+              if (!captchaToken) {
+                throw new Error("Please complete CAPTCHA verification.");
+              }
               const mobileNum = mobile.replace(/\s/g, "");
-              const res = await adminLoginStep1(email, mobileNum, password);
+              const res = await adminLoginStep1(email, mobileNum, password, captchaToken);
               saveOtpSession(res.otp_session_token, email, mobileNum);
               toast.success(res.hint);
               nav({ to: "/admin/otp-verify" });
             } catch (err: any) {
               toast.error(err.message || "Invalid credentials.");
               setLoading(false);
+              recaptchaRef.current?.reset();
+              setCaptchaToken(null);
             }
           }}
           className="space-y-4"
@@ -106,9 +114,14 @@ function AdminLogin() {
               </button>
             </div>
           </div>
+          <SSRRecaptcha
+            recaptchaRef={recaptchaRef}
+            onChange={(token) => setCaptchaToken(token)}
+            onExpired={() => setCaptchaToken(null)}
+          />
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || !email || !mobile || !password || !captchaToken}
             className="w-full h-11 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-95 border-0 shadow-lg btn-shine"
           >
             {loading ? (

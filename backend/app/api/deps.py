@@ -75,7 +75,12 @@ async def get_current_user(
     token_fp = payload.get("device_fp")
     validate_fingerprint(request, token_fp)
 
-    return {"user_id": user_id, "role": role, "email": payload.get("email")}
+    return {
+        "user_id": user_id,
+        "role": role,
+        "email": payload.get("email"),
+        "admin_role": payload.get("admin_role"),
+    }
 
 
 async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
@@ -86,6 +91,25 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict
             detail="Admin access required",
         )
     return current_user
+
+
+class require_admin_roles:
+    def __init__(self, allowed_roles: list[str]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, current_user: dict = Depends(get_current_user)) -> dict:
+        if current_user["role"] != UserRoleEnum.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required",
+            )
+        admin_role = current_user.get("admin_role")
+        if admin_role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Role unauthorized for this resource",
+            )
+        return current_user
 
 
 async def get_candidate_user(current_user: dict = Depends(get_current_user)) -> dict:

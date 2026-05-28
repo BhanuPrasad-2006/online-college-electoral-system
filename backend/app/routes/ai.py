@@ -217,6 +217,7 @@ FLAT_SUGGESTIONS = [
 async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> str:
     """Build the system instruction with live election data if available."""
     dynamic_ctx = {}
+    candidate_data = {}
 
     if db is not None:
         try:
@@ -246,11 +247,45 @@ async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> st
                 if positions:
                     dynamic_ctx["positions"] = list(positions)
 
+            # Query approved candidates
+            from app.models.candidate import Candidate
+            from app.models.manifesto import Manifesto
+
+            cands_res = await db.execute(
+                select(Candidate)
+                .options(
+                    joinedload(Candidate.voter),
+                    joinedload(Candidate.position)
+                )
+                .where(Candidate.status == "APPROVED")
+            )
+            approved_candidates = cands_res.scalars().all()
+
+            for cand in approved_candidates:
+                if not cand.voter:
+                    continue
+                name = cand.voter.full_name
+
+                # Fetch manifesto
+                man_res = await db.execute(
+                    select(Manifesto).where(Manifesto.candidate_id == cand.candidate_id)
+                )
+                man = man_res.scalars().first()
+
+                candidate_data[name] = {
+                    "position": cand.position.title if cand.position else "Unknown",
+                    "department": cand.voter.department or "Unknown",
+                    "year": f"{cand.voter.year_of_study}rd Year" if cand.voter.year_of_study else "Unknown",
+                    "manifesto_content": man.content if man else None,
+                    "image_url": man.image_url if man else None,
+                }
+
         except Exception as e:
             logger.warning(f"Could not fetch dynamic context: {e}")
 
     return build_system_instruction(
-        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None
+        dynamic_context=format_dynamic_context(**dynamic_ctx) if dynamic_ctx else None,
+        candidate_data=candidate_data if candidate_data else None,
     )
 
 

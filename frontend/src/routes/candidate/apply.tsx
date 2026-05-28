@@ -11,9 +11,6 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Upload,
-  QrCode,
-  CheckCircle2,
   AlertCircle,
   Lock,
   Mail,
@@ -38,9 +35,8 @@ const STEPS = [
   "OTP Verification",
   "Select Position",
   "Basic Details",
-  "Party Info",
-  "Fee Payment",
-  "Review & T&C",
+  "Manifesto",
+  "Review & Submit",
 ];
 
 function Register() {
@@ -59,6 +55,8 @@ function Register() {
 
   // Dynamic Positions list
   const [positions, setPositions] = useState<any[]>([]);
+  const [positionsLoading, setPositionsLoading] = useState(true);
+  const [positionsError, setPositionsError] = useState("");
   const [selectedPositionId, setSelectedPositionId] = useState("");
 
   // Form Details
@@ -67,30 +65,35 @@ function Register() {
     department: "",
     semester: "",
     mobileNumber: "",
-    partyName: "",
-    partySymbolUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=symbol",
     manifesto: "",
-    paymentScreenshotUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=payment",
     confirm: false,
-    vicePresident: "",
-    secretary: "",
   });
 
   const selectedPosition = positions.find((p) => p.position_id === selectedPositionId);
-  const isPresident = selectedPosition?.title?.toLowerCase() === "president";
 
   const setFormValue = (key: string, val: any) => {
     setFormData((prev) => ({ ...prev, [key]: val }));
-  };
-
-  // Fetch positions on load or when entering position selection step
+  };    // Fetch positions once on mount with timeout
   useEffect(() => {
     async function loadPositions() {
+      setPositionsLoading(true);
+      setPositionsError("");
       try {
-        const data = await fetchPositions();
+        // Race against 15-second timeout so loading state doesn't hang forever
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out. Backend may be unavailable.")), 15000)
+        );
+        const data = await Promise.race([fetchPositions(), timeoutPromise]);
         setPositions(data);
+        // Auto-select if only one position available
+        if (data.length === 1) {
+          setSelectedPositionId(data[0].position_id);
+        }
       } catch (err: any) {
-        console.error("Failed to load positions:", err);
+        const msg = err.message || "Failed to load positions.";
+        setPositionsError(msg);
+      } finally {
+        setPositionsLoading(false);
       }
     }
     loadPositions();
@@ -134,6 +137,13 @@ function Register() {
           semester: res.semester,
           mobileNumber: res.mobile_number,
         }));
+        // Save voter details to sessionStorage so register.tsx can read them
+        try {
+          sessionStorage.setItem("candidate-prefill-name", res.full_name);
+          sessionStorage.setItem("candidate-prefill-department", res.department);
+          sessionStorage.setItem("candidate-prefill-semester", res.semester);
+          sessionStorage.setItem("candidate-prefill-usn", res.student_id || "");
+        } catch { /* ignore */ }
         toast.success("OTP verified successfully!");
         setStep(2);
       }
@@ -155,13 +165,8 @@ function Register() {
     try {
       await registerCandidate(otpSessionToken, {
         position_id: selectedPositionId,
-        party_name: formData.partyName || "Independent",
-        party_symbol_url: formData.partySymbolUrl,
         manifesto: formData.manifesto,
-        payment_screenshot_url: formData.paymentScreenshotUrl,
         mobile_number: formData.mobileNumber,
-        vice_president: isPresident ? formData.vicePresident : undefined,
-        secretary: isPresident ? formData.secretary : undefined,
       });
       toast.success("Application submitted successfully!");
       nav({ to: "/candidate/status" });
@@ -185,7 +190,7 @@ function Register() {
           <h1 className="text-2xl font-bold">Candidate Application Form</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Complete the strict 7-stage registration process to apply.
+          Complete the registration process to apply.
         </p>
 
         {/* Progress Bar & Indicators */}
@@ -321,18 +326,32 @@ function Register() {
               </div>
 
               <Field label="Target Position" icon={<User className="h-4 w-4" />}>
-                <Select value={selectedPositionId} onValueChange={setSelectedPositionId}>
-                  <SelectTrigger className="pl-10">
-                    <SelectValue placeholder="Select Council Position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions.map((pos) => (
-                      <SelectItem key={pos.position_id} value={pos.position_id}>
-                        {pos.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {positionsLoading ? (
+                  <div className="pl-10 pr-3 h-11 flex items-center rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">
+                    Loading available positions...
+                  </div>
+                ) : positionsError ? (
+                  <div className="pl-10 pr-3 h-11 flex items-center rounded-md border border-destructive/50 bg-destructive/5 text-sm text-destructive">
+                    Unable to load election positions.
+                  </div>
+                ) : positions.length === 0 ? (
+                  <div className="pl-10 pr-3 h-11 flex items-center rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">
+                    No active election positions available.
+                  </div>
+                ) : (
+                  <Select value={selectedPositionId} onValueChange={setSelectedPositionId}>
+                    <SelectTrigger className="pl-10">
+                      <SelectValue placeholder="Select Council Position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {positions.map((pos) => (
+                        <SelectItem key={pos.position_id} value={pos.position_id}>
+                          {pos.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Field>
 
               {selectedPositionId && (
@@ -390,88 +409,34 @@ function Register() {
                     placeholder="Enter candidate contact number"
                   />
                 </Field>
-                {isPresident && (
-                  <>
-                    <Field label="Vice President Name *">
-                      <Input
-                        type="text"
-                        value={formData.vicePresident}
-                        onChange={(e) => setFormValue("vicePresident", e.target.value)}
-                        placeholder="Enter Vice President Name"
-                      />
-                    </Field>
-                    <Field label="Secretary Name *">
-                      <Input
-                        type="text"
-                        value={formData.secretary}
-                        onChange={(e) => setFormValue("secretary", e.target.value)}
-                        placeholder="Enter Secretary Name"
-                      />
-                    </Field>
-                  </>
-                )}
-
                 <Button
                   onClick={() => {
                     if (!formData.mobileNumber) {
                       toast.error("Mobile number is required.");
                       return;
                     }
-                    if (isPresident) {
-                      if (!formData.vicePresident?.trim()) {
-                        toast.error("Vice President name is required.");
-                        return;
-                      }
-                      if (!formData.secretary?.trim()) {
-                        toast.error("Secretary name is required.");
-                        return;
-                      }
-                    }
                     setStep(4);
                   }}
                   className="w-full bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white font-semibold mt-4"
                 >
-                  Continue to Party & Manifesto
+                  Continue to Manifesto
                 </Button>
               </div>
             </div>
           )}
 
-          {/* STEP 5: Party Info & Manifesto */}
+          {/* STEP 4 (now): Manifesto */}
           {step === 4 && (
             <div className="space-y-5 max-w-lg mx-auto">
               <div className="text-center mb-3">
                 <FileText className="h-10 w-10 text-[#6C63FF] mx-auto mb-2" />
-                <h3 className="text-lg font-semibold">Party Information & Manifesto</h3>
+                <h3 className="text-lg font-semibold">Campaign Manifesto</h3>
                 <p className="text-xs text-muted-foreground">
-                  Provide details about your student coalition group and political statement.
+                  State your vision, goals, and campaign promises.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <Field label="Party / Group Name (Write 'Independent' if not in a group)">
-                  <Input
-                    type="text"
-                    placeholder="e.g. Students United Party"
-                    value={formData.partyName}
-                    onChange={(e) => setFormValue("partyName", e.target.value)}
-                  />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <UploadBox
-                    label="Party Symbol Image (optional)"
-                    value={formData.partySymbolUrl ? "Symbol Uploaded" : ""}
-                    onSet={(v) =>
-                      setFormValue(
-                        "partySymbolUrl",
-                        "https://api.dicebear.com/7.x/identicon/svg?seed=" + v,
-                      )
-                    }
-                  />
-                  <UploadBox label="Candidate Photo" value="Photo Configured" onSet={() => {}} />
-                </div>
-
                 <Field label="Candidate Manifesto (Vision & Commitments Statement)">
                   <textarea
                     value={formData.manifesto}
@@ -492,57 +457,14 @@ function Register() {
                   }}
                   className="w-full bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white font-semibold"
                 >
-                  Proceed to Payment
+                  Continue to Review
                 </Button>
               </div>
             </div>
           )}
 
-          {/* STEP 6: Fee Payment */}
+          {/* STEP 5 (now): Review & Submit */}
           {step === 5 && (
-            <div className="text-center space-y-5 max-w-md mx-auto">
-              <h3 className="text-lg font-semibold">Pay Application Registration Fee</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                As per Election Committee guidelines, all candidates must pay a one-time refundable
-                registration fee of <span className="font-bold text-foreground">₹500</span>.
-              </p>
-
-              <div className="inline-flex flex-col items-center bg-muted/30 border border-border/40 rounded-2xl p-6">
-                <div className="h-44 w-44 bg-white border border-border/60 rounded-xl flex items-center justify-center shadow-inner">
-                  <QrCode className="h-36 w-36 text-foreground" />
-                </div>
-                <p className="text-sm font-semibold mt-4 text-[#1F3A6E]">Scan to Pay via UPI</p>
-                <p className="text-xs text-muted-foreground mt-1 font-mono">elections@dsce.upi</p>
-              </div>
-
-              <UploadBox
-                label="Payment Screenshot Receipt"
-                value={formData.paymentScreenshotUrl ? "Screenshot Uploaded" : ""}
-                onSet={(v) =>
-                  setFormValue(
-                    "paymentScreenshotUrl",
-                    "https://api.dicebear.com/7.x/identicon/svg?seed=" + v,
-                  )
-                }
-              />
-
-              <Button
-                onClick={() => {
-                  if (!formData.paymentScreenshotUrl) {
-                    toast.error("Please upload payment screenshot.");
-                    return;
-                  }
-                  setStep(6);
-                }}
-                className="w-full bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white font-semibold shadow-md"
-              >
-                Go to Final Review
-              </Button>
-            </div>
-          )}
-
-          {/* STEP 7: Review & Submit */}
-          {step === 6 && (
             <div className="space-y-5">
               <h3 className="text-lg font-semibold border-b border-border/40 pb-2">
                 Final Application Review
@@ -556,15 +478,7 @@ function Register() {
                   k="Position"
                   v={positions.find((p) => p.position_id === selectedPositionId)?.title || "—"}
                 />
-                {isPresident && (
-                  <>
-                    <Row k="Vice President" v={formData.vicePresident || "—"} />
-                    <Row k="Secretary" v={formData.secretary || "—"} />
-                  </>
-                )}
                 <Row k="Mobile" v={formData.mobileNumber} />
-                <Row k="Party Group" v={formData.partyName || "Independent"} />
-                <Row k="Payment Screenshot" v="Verified screenshot uploaded" />
               </div>
 
               <div className="bg-muted/40 p-4 rounded-xl text-xs space-y-2">
@@ -649,30 +563,3 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function UploadBox({
-  label,
-  value,
-  onSet,
-}: {
-  label: string;
-  value: string;
-  onSet: (v: string) => void;
-}) {
-  return (
-    <div className="border-2 border-dashed border-border/80 bg-muted/10 rounded-2xl p-5 text-center flex flex-col justify-center items-center gap-1 hover:border-[#6C63FF]/50 transition-colors">
-      <p className="text-xs font-bold text-foreground/80">{label}</p>
-      {value ? (
-        <div className="flex items-center gap-1.5 text-success text-xs font-semibold mt-1">
-          <CheckCircle2 className="h-4 w-4" /> {value}
-        </div>
-      ) : (
-        <button
-          onClick={() => onSet(`${label.toLowerCase().replace(/\s+/g, "-")}.png`)}
-          className="inline-flex items-center gap-1.5 text-xs text-[#6C63FF] font-semibold mt-2 hover:underline"
-        >
-          <Upload className="h-4 w-4" /> Simulate Upload
-        </button>
-      )}
-    </div>
-  );
-}

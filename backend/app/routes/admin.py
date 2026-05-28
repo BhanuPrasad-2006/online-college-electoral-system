@@ -5,9 +5,10 @@ from collections import Counter
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.db.session import get_db
-from app.api.deps import get_admin_user
+from app.api.deps import get_admin_user, require_admin_roles, get_current_user
 from app.models.admin_user import AdminUser
 from app.models.voter import Voter
 from app.models.concern import Concern
@@ -81,7 +82,7 @@ async def upload_voter_face(
     voter_id: str,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"]))
 ):
     """
     Admin endpoint to upload a reference ID photo for a student.
@@ -185,7 +186,7 @@ async def upload_voter_face(
 @router.get("/verify-ledger")
 async def verify_ledger(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"]))
 ):
     """Verify cryptographic chain continuity and cross-reference with secure vault."""
     from app.services.ledger_service import verify_ledger_integrity
@@ -196,7 +197,7 @@ async def verify_ledger(
 @router.get("/ai-alerts")
 async def get_ai_alerts(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"]))
 ):
     """Fetch active/all behavioral anomaly and honeypot alerts."""
     from app.security.fraud_detection_service import FraudDetectionService
@@ -209,7 +210,7 @@ async def get_ai_alerts(
 async def resolve_ai_alert(
     alert_id: str,
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"]))
 ):
     """Resolve a behavioral alert."""
     from app.security.fraud_detection_service import FraudDetectionService
@@ -234,7 +235,7 @@ def _compute_audit_level(event: str) -> str:
 @router.get("/audit-logs")
 async def get_audit_logs(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"])),
     skip: int = 0,
     limit: int = 50,
     event_type: Optional[str] = None,
@@ -329,7 +330,7 @@ async def get_audit_logs(
 async def get_audit_log_detail(
     log_id: str,
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"])),
 ):
     """Return full details for a single audit log entry."""
     from app.models.audit_log import AuditLog
@@ -363,7 +364,7 @@ async def get_audit_log_detail(
 @router.get("/clustered-concerns")
 async def get_clustered_concerns(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"])),
 ):
     """Return all concerns grouped by cluster_id with aggregate metadata."""
     result = await db.execute(
@@ -444,7 +445,7 @@ async def get_clustered_concerns(
 @router.post("/cluster-concerns")
 async def cluster_concerns(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"]))
 ):
     """Cluster all unclustered concerns using AI and assign cluster_ids."""
     from app.models.audit_log import AuditLog
@@ -514,7 +515,7 @@ async def cluster_concerns(
 @router.get("/campus-report")
 async def get_campus_report(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"])),
 ):
     """
     Generate a comprehensive 'State of the Campus' report.
@@ -663,7 +664,7 @@ async def get_campus_report(
 @router.get("/ip-clusters")
 async def get_ip_clusters(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user)
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "AUDIT_SECURITY_ADMIN"]))
 ):
     """Aggregate audit log and alert IP addresses into subnet clusters."""
     from app.models.audit_log import AuditLog
@@ -715,7 +716,7 @@ async def get_ip_clusters(
 @router.get("/pending-photos")
 async def list_pending_photos(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
 ):
     """
     List all voters who have submitted a pending photo for admin review.
@@ -744,7 +745,7 @@ async def list_pending_photos(
 async def approve_pending_photo(
     voter_id: str,
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
 ):
     """
     Approve a voter's pending photo.
@@ -810,7 +811,7 @@ async def approve_pending_photo(
 async def reject_pending_photo(
     voter_id: str,
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
 ):
     """
     Reject a voter's pending photo.
@@ -865,7 +866,7 @@ async def request_voter_photo_reupload(
     request: Request,
     voter_id: str,
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
 ):
     """
     Admin: Request a voter to re-upload their photo.
@@ -958,7 +959,7 @@ async def request_voter_photo_reupload(
 @router.get("/pending-photos/reupload-requests")
 async def list_reupload_requests(
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
 ):
     """
     Admin: List all voters who have been asked to re-upload their photo.
@@ -986,7 +987,7 @@ async def list_reupload_requests(
 async def clear_reupload_request(
     voter_id: str,
     db: AsyncSession = Depends(get_db),
-    current_admin: dict = Depends(get_admin_user),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
 ):
     """
     Admin: Clear the re-upload request flag for a voter (e.g. after they've uploaded a new photo).
@@ -1012,3 +1013,539 @@ async def clear_reupload_request(
         "success": True,
         "message": f"Re-upload request cleared for {voter.full_name}.",
     }
+
+
+# ==============================================================================
+# SCHEMAS FOR NOTICES, MEETINGS, AND USER MANAGEMENT
+# ==============================================================================
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from datetime import datetime, timezone
+from fastapi import BackgroundTasks
+from fastapi.responses import Response
+
+class NoticeCreateSchema(BaseModel):
+    title: str = Field(..., min_length=3, max_length=255)
+    content: str = Field(..., min_length=10)
+    priority: str = Field("LOW", pattern="^(LOW|MEDIUM|HIGH|URGENT|EMERGENCY)$")
+    role_target: str = Field("ALL", pattern="^(ALL|VOTERS|CANDIDATES)$")
+
+class MeetingCreateSchema(BaseModel):
+    title: str = Field(..., min_length=3, max_length=255)
+    agenda: str = Field(..., min_length=5)
+    meeting_time: datetime = Field(...)
+    participant_emails: List[str] = Field(..., min_items=1)
+
+class AdminUserCreateSchema(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=255)
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=6)
+    role: str = Field("SUPER_ADMIN", pattern="^(SUPER_ADMIN|ELECTION_MANAGER|CANDIDATE_MODERATOR|AUDIT_SECURITY_ADMIN)$")
+
+
+# ==============================================================================
+# BACKGROUND EMAIL TASK FOR NOTICES
+# ==============================================================================
+async def send_notice_emails_task(voter_emails: List[str], title: str, content: str, pdf_bytes: bytes, pdf_filename: str):
+    from app.services.email_service import send_election_email_with_attachment
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px;">
+        <div style="background: #1F3A6E; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+            <h2 style="color: white; margin: 0;">🗳️ Official Notice</h2>
+        </div>
+        <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+            <p style="color: #374151; font-size: 16px; line-height: 1.5;">
+                An official notice has been published by the Electoral Commission:
+            </p>
+            <div style="background: #ffffff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 6px; margin: 20px 0;">
+                <h3 style="color: #1F3A6E; margin-top: 0;">{title}</h3>
+                <p style="color: #475569; font-size: 14px; white-space: pre-line;">{content}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">
+                Please review the attached PDF document for the official notice (including security verification QR code).
+            </p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+            <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                Online College Electoral System
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    for email in voter_emails:
+        try:
+            await send_election_email_with_attachment(
+                to_email=email,
+                recipient_name="Voter",
+                subject=f"Official Election Notice: {title}",
+                html_body=html_body,
+                attachment_bytes=pdf_bytes,
+                attachment_filename=pdf_filename
+            )
+        except Exception as e:
+            logger.error(f"Failed to send notice email to {email}: {e}")
+
+
+# ==============================================================================
+# OFFICIAL NOTICE ENDPOINTS
+# ==============================================================================
+@router.post("/notices", status_code=status.HTTP_201_CREATED)
+async def create_notice(
+    payload: NoticeCreateSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"]))
+):
+    """
+    Create a new official Notice (Super Admin only).
+    Generates Notice PDF, saves it, records recipients, and emails it in background.
+    """
+    from app.models.notice import Notice
+    from app.models.notice_recipient import NoticeRecipient
+    from app.services.pdf_service import PDFService
+    
+    # 1. Fetch admin record to get full name
+    admin_uuid = uuid.UUID(admin["user_id"])
+    admin_res = await db.execute(select(AdminUser).where(AdminUser.admin_id == admin_uuid))
+    admin_obj = admin_res.scalar_one_or_none()
+    creator_name = admin_obj.full_name if admin_obj else "Election Commissioner"
+    
+    notice_id = uuid.uuid4()
+    created_at = datetime.now(timezone.utc)
+    
+    # 2. Compile Notice PDF
+    pdf_buffer = PDFService.generate_official_notice_pdf(
+        title=payload.title,
+        priority=payload.priority,
+        content=payload.content,
+        notice_id=str(notice_id),
+        created_at=created_at,
+        creator_name=creator_name
+    )
+    pdf_bytes = pdf_buffer.getvalue()
+    
+    # Save PDF locally
+    pdf_filename = f"notice_{notice_id}.pdf"
+    os.makedirs("uploads/notices", exist_ok=True)
+    local_path = os.path.join("uploads/notices", pdf_filename)
+    with open(local_path, "wb") as f:
+        f.write(pdf_bytes)
+        
+    pdf_url = f"/uploads/notices/{pdf_filename}"
+    
+    # 3. Create Notice DB record
+    new_notice = Notice(
+        notice_id=notice_id,
+        title=payload.title,
+        content=payload.content,
+        priority=payload.priority,
+        pdf_url=pdf_url,
+        qr_code=f"https://collegevote.edu/verify-notice/{notice_id}",
+        created_at=created_at,
+        created_by=admin_uuid
+    )
+    db.add(new_notice)
+    
+    # 4. Create NoticeRecipient record
+    recipient = NoticeRecipient(
+        notice_id=notice_id,
+        role_target=payload.role_target,
+        is_read=False
+    )
+    db.add(recipient)
+    
+    await db.commit()
+    await db.refresh(new_notice)
+    
+    # 5. Fetch emails to notify
+    emails_to_notify = []
+    if payload.role_target == "ALL":
+        res = await db.execute(select(Voter.college_email))
+        emails_to_notify = [row[0] for row in res.all() if row[0]]
+    elif payload.role_target == "VOTERS":
+        res = await db.execute(select(Voter.college_email))
+        emails_to_notify = [row[0] for row in res.all() if row[0]]
+    elif payload.role_target == "CANDIDATES":
+        from app.models.candidate import Candidate
+        res = await db.execute(
+            select(Voter.college_email).join(Candidate, Voter.voter_id == Candidate.voter_id)
+        )
+        emails_to_notify = [row[0] for row in res.all() if row[0]]
+        
+    if emails_to_notify:
+        background_tasks.add_task(
+            send_notice_emails_task,
+            emails_to_notify,
+            payload.title,
+            payload.content,
+            pdf_bytes,
+            pdf_filename
+        )
+        
+    return {
+        "success": True,
+        "message": "Official notice published and broadcasted.",
+        "notice": {
+            "notice_id": str(new_notice.notice_id),
+            "title": new_notice.title,
+            "priority": new_notice.priority,
+            "pdf_url": new_notice.pdf_url,
+            "created_at": new_notice.created_at.isoformat()
+        }
+    }
+
+
+@router.get("/notices")
+async def list_notices(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get active notices. Accessible by voters, candidates, and admins."""
+    from app.models.notice import Notice
+    result = await db.execute(
+        select(Notice)
+        .options(joinedload(Notice.creator))
+        .order_by(Notice.created_at.desc())
+    )
+    notices = result.scalars().all()
+    return [
+        {
+            "notice_id": str(n.notice_id),
+            "title": n.title,
+            "content": n.content,
+            "priority": n.priority,
+            "pdf_url": n.pdf_url,
+            "qr_code": n.qr_code,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "creator_name": n.creator.full_name if n.creator else "Electoral Commissioner"
+        }
+        for n in notices
+    ]
+
+
+@router.get("/notices/{notice_id}/pdf")
+async def stream_notice_pdf(
+    notice_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Stream or download a Notice PDF."""
+    try:
+        n_uuid = uuid.UUID(notice_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid notice ID format")
+        
+    from app.models.notice import Notice
+    res = await db.execute(select(Notice).options(joinedload(Notice.creator)).where(Notice.notice_id == n_uuid))
+    notice = res.scalar_one_or_none()
+    if not notice:
+        raise HTTPException(status_code=404, detail="Notice not found")
+        
+    pdf_filename = f"notice_{notice.notice_id}.pdf"
+    local_path = os.path.join("uploads/notices", pdf_filename)
+    
+    if os.path.exists(local_path):
+        with open(local_path, "rb") as f:
+            pdf_bytes = f.read()
+    else:
+        # Rebuild dynamically if file deleted
+        from app.services.pdf_service import PDFService
+        creator_name = notice.creator.full_name if notice.creator else "Election Commissioner"
+        pdf_bytes = PDFService.generate_official_notice_pdf(
+            title=notice.title,
+            priority=notice.priority,
+            content=notice.content,
+            notice_id=str(notice.notice_id),
+            created_at=notice.created_at,
+            creator_name=creator_name
+        ).getvalue()
+        
+        # Save it
+        os.makedirs("uploads/notices", exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(pdf_bytes)
+            
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={pdf_filename}"}
+    )
+
+
+# ==============================================================================
+# ADMIN MEETINGS ENDPOINTS
+# ==============================================================================
+@router.post("/meetings", status_code=status.HTTP_201_CREATED)
+async def create_meeting(
+    payload: MeetingCreateSchema,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"]))
+):
+    """
+    Schedule an official meeting and invite admins (Super Admin only).
+    Generates a unique Jitsi link and notifies participants via email.
+    """
+    from app.models.admin_meeting import AdminMeeting
+    from app.models.meeting_participant import MeetingParticipant
+    from app.services.email_service import send_election_email
+    
+    admin_uuid = uuid.UUID(admin["user_id"])
+    meeting_id = uuid.uuid4()
+    
+    # Generate unique UUID Jitsi room
+    jitsi_room_name = f"oces-meeting-{uuid.uuid4()}"
+    jitsi_link = f"https://meet.jit.si/{jitsi_room_name}"
+    
+    new_meeting = AdminMeeting(
+        meeting_id=meeting_id,
+        title=payload.title,
+        agenda=payload.agenda,
+        meeting_time=payload.meeting_time,
+        jitsi_link=jitsi_link,
+        created_by=admin_uuid
+    )
+    db.add(new_meeting)
+    
+    # Resolve participant emails to Admin IDs and add participants
+    invited_admins = []
+    for email in payload.participant_emails:
+        res = await db.execute(select(AdminUser).where(AdminUser.email == email.strip().lower()))
+        part_admin = res.scalar_one_or_none()
+        if part_admin:
+            participant = MeetingParticipant(
+                meeting_id=meeting_id,
+                admin_id=part_admin.admin_id,
+                attended=False
+            )
+            db.add(participant)
+            invited_admins.append(part_admin)
+            
+    await db.commit()
+    await db.refresh(new_meeting)
+    
+    # Notify participants in background
+    formatted_time = payload.meeting_time.strftime("%Y-%m-%d %H:%M UTC")
+    for adm in invited_admins:
+        email_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px;">
+            <div style="background: #6C63FF; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                <h2 style="color: white; margin: 0;">📅 Admin Meeting Invitation</h2>
+            </div>
+            <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+                <p style="color: #374151; font-size: 16px;">Hi <strong>{adm.full_name}</strong>,</p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.5;">
+                    You have been invited to an official administrative meeting.
+                </p>
+                
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #6C63FF; font-size: 16px;">📋 Meeting Details</h3>
+                    <p style="color: #4b5563; font-size: 14px; margin-bottom: 8px;">
+                        <strong>Title:</strong> {payload.title}
+                    </p>
+                    <p style="color: #4b5563; font-size: 14px; margin-bottom: 8px;">
+                        <strong>Time:</strong> {formatted_time}
+                    </p>
+                    <p style="color: #4b5563; font-size: 14px; margin-bottom: 0; white-space: pre-line;">
+                        <strong>Agenda:</strong><br/>{payload.agenda}
+                    </p>
+                </div>
+                
+                <div style="text-align: center; margin: 24px 0;">
+                    <a href="{jitsi_link}" style="background: #6C63FF; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        Join Jitsi Room
+                    </a>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        background_tasks.add_task(
+            send_election_email,
+            adm.email,
+            adm.full_name,
+            f"Invitation: {payload.title} - Admin Meeting",
+            email_body
+        )
+        
+    return {
+        "success": True,
+        "message": "Admin meeting scheduled successfully.",
+        "meeting": {
+            "meeting_id": str(new_meeting.meeting_id),
+            "title": new_meeting.title,
+            "jitsi_link": new_meeting.jitsi_link,
+            "meeting_time": new_meeting.meeting_time.isoformat()
+        }
+    }
+
+
+@router.get("/meetings")
+async def list_meetings(
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(get_admin_user)
+):
+    """
+    List admin meetings where the logged-in admin is a participant or creator.
+    """
+    from app.models.admin_meeting import AdminMeeting
+    from app.models.meeting_participant import MeetingParticipant
+    
+    admin_uuid = uuid.UUID(admin["user_id"])
+    
+    # Select meetings where created_by is this admin or they are listed as a participant
+    query = (
+        select(AdminMeeting)
+        .outerjoin(MeetingParticipant, AdminMeeting.meeting_id == MeetingParticipant.meeting_id)
+        .where(
+            (AdminMeeting.created_by == admin_uuid) | 
+            (MeetingParticipant.admin_id == admin_uuid)
+        )
+        .options(joinedload(AdminMeeting.participants).joinedload(MeetingParticipant.admin))
+        .order_by(AdminMeeting.meeting_time.desc())
+    )
+    res = await db.execute(query)
+    meetings = res.scalars().unique().all()
+    
+    return [
+        {
+            "meeting_id": str(m.meeting_id),
+            "title": m.title,
+            "agenda": m.agenda,
+            "meeting_time": m.meeting_time.isoformat(),
+            "jitsi_link": m.jitsi_link,
+            "created_by": str(m.created_by),
+            "participants": [
+                {
+                    "admin_id": str(p.admin_id),
+                    "full_name": p.admin.full_name if p.admin else "Unknown",
+                    "email": p.admin.email if p.admin else "",
+                    "role": p.admin.role if p.admin else "",
+                    "attended": p.attended
+                }
+                for p in m.participants
+            ]
+        }
+        for m in meetings
+    ]
+
+
+@router.post("/meetings/{meeting_id}/attend")
+async def mark_meeting_attendance(
+    meeting_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(get_admin_user)
+):
+    """Mark the current admin as attended for the meeting."""
+    from app.models.meeting_participant import MeetingParticipant
+    
+    try:
+        meet_uuid = uuid.UUID(meeting_id)
+        admin_uuid = uuid.UUID(admin["user_id"])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid format")
+        
+    res = await db.execute(
+        select(MeetingParticipant).where(
+            (MeetingParticipant.meeting_id == meet_uuid) &
+            (MeetingParticipant.admin_id == admin_uuid)
+        )
+    )
+    participant = res.scalar_one_or_none()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant record not found for this meeting.")
+        
+    participant.attended = True
+    await db.commit()
+    
+    return {"success": True, "message": "Attendance marked successfully."}
+
+
+# ==============================================================================
+# SUPER ADMIN USER MANAGEMENT ENDPOINTS
+# ==============================================================================
+@router.get("/users")
+async def list_admin_users(
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"]))
+):
+    """List all admin accounts (Super Admin only)."""
+    res = await db.execute(select(AdminUser).order_by(AdminUser.created_at.desc()))
+    users = res.scalars().all()
+    return [
+        {
+            "admin_id": str(u.admin_id),
+            "full_name": u.full_name,
+            "email": u.email,
+            "role": u.role,
+            "created_at": u.created_at.isoformat() if u.created_at else None
+        }
+        for u in users
+    ]
+
+
+@router.post("/users", status_code=status.HTTP_201_CREATED)
+async def create_admin_user(
+    payload: AdminUserCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"]))
+):
+    """Create a new admin user account (Super Admin only)."""
+    from app.security.password_service import hash_password
+    
+    # Check if user already exists
+    res = await db.execute(select(AdminUser).where(AdminUser.email == payload.email.strip().lower()))
+    if res.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="An admin with this email already exists.")
+        
+    new_user = AdminUser(
+        admin_id=uuid.uuid4(),
+        full_name=payload.full_name.strip(),
+        email=payload.email.strip().lower(),
+        password_hash=hash_password(payload.password),
+        role=payload.role
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    
+    return {
+        "success": True,
+        "message": "Admin user created successfully.",
+        "user": {
+            "admin_id": str(new_user.admin_id),
+            "full_name": new_user.full_name,
+            "email": new_user.email,
+            "role": new_user.role
+        }
+    }
+
+
+@router.delete("/users/{admin_id}")
+async def delete_admin_user(
+    admin_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"]))
+):
+    """Delete an admin account (Super Admin only, cannot self-delete)."""
+    try:
+        target_uuid = uuid.UUID(admin_id)
+        current_uuid = uuid.UUID(admin["user_id"])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+        
+    if target_uuid == current_uuid:
+        raise HTTPException(status_code=400, detail="Self-deletion is prohibited.")
+        
+    res = await db.execute(select(AdminUser).where(AdminUser.admin_id == target_uuid))
+    target_user = res.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Admin user not found.")
+        
+    await db.delete(target_user)
+    await db.commit()
+    
+    return {"success": True, "message": "Admin user deleted successfully."}
+
+

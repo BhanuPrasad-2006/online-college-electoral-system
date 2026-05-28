@@ -581,23 +581,6 @@ function VotePage() {
                         </p>
                       </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-border space-y-1.5">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
-                        Running mates
-                      </p>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Vice President</span>
-                        <span className="font-medium">
-                          {c.vice_president ?? c.runningMates?.vicePresident ?? "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Gen. Secretary</span>
-                        <span className="font-medium">
-                          {c.secretary ?? c.runningMates?.secretary ?? "—"}
-                        </span>
-                      </div>
-                    </div>
                     {c.manifesto ? (
                       <details className="mt-3 text-xs">
                         <summary className="cursor-pointer font-medium text-[#6C63FF]">
@@ -744,24 +727,6 @@ function VotePage() {
                     <p className="text-xs text-muted-foreground italic">
                       {selectedCandidate.party}
                     </p>
-                  </div>
-                </div>
-                <div className="text-xs space-y-1 pt-2 border-t border-border">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Vice President</span>
-                    <span className="font-medium">
-                      {selectedCandidate.vice_president ??
-                        selectedCandidate.runningMates?.vicePresident ??
-                        "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Gen. Secretary</span>
-                    <span className="font-medium">
-                      {selectedCandidate.secretary ??
-                        selectedCandidate.runningMates?.secretary ??
-                        "—"}
-                    </span>
                   </div>
                 </div>
               </div>

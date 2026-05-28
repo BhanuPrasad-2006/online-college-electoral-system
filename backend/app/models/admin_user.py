@@ -17,6 +17,7 @@ class AdminUser(Base):
     password_hash = Column(String(255), nullable=False)
     failed_attempts = Column(Integer, default=0, nullable=False)
     lockout_until   = Column(DateTime(timezone=True), nullable=True)
+    role            = Column(String(50), nullable=False, default="SUPER_ADMIN")
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):

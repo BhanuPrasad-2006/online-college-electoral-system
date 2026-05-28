@@ -182,6 +182,7 @@ class TestVoterLogin:
         """Valid credentials → OTP sent → session token returned."""
         with mock_email_success():
             response = await client.post("/api/v1/auth/voter/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "password": "TestPass@123",
             })
@@ -195,6 +196,7 @@ class TestVoterLogin:
     async def test_step1_wrong_password(self, client: AsyncClient, test_voter):
         """Wrong password → 401."""
         response = await client.post("/api/v1/auth/voter/login", json={
+            "captcha_token": "test_token",
             "email": "voter@test.edu",
             "password": "WrongPassword",
         })
@@ -205,6 +207,7 @@ class TestVoterLogin:
     async def test_step1_nonexistent_email(self, client: AsyncClient):
         """Unknown email → 401 (same error, no user enumeration)."""
         response = await client.post("/api/v1/auth/voter/login", json={
+            "captcha_token": "test_token",
             "email": "nobody@test.edu",
             "password": "TestPass@123",
         })
@@ -224,6 +227,7 @@ class TestVoterLogin:
         await db_session.commit()
 
         response = await client.post("/api/v1/auth/voter/login", json={
+            "captcha_token": "test_token",
             "email": "disabled@test.edu",
             "password": "TestPass@123",
         })
@@ -240,6 +244,7 @@ class TestVoterLogin:
 
         with mock_email_success():
             r1 = await client.post("/api/v1/auth/voter/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "password": "TestPass@123",
             })
@@ -280,6 +285,7 @@ class TestVoterLogin:
         """Wrong OTP → 400."""
         with mock_email_success():
             r1 = await client.post("/api/v1/auth/voter/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "password": "TestPass@123",
             })
@@ -305,6 +311,7 @@ class TestVoterLogin:
         """Non-numeric or wrong-length OTP → 422 validation error."""
         with mock_email_success():
             r1 = await client.post("/api/v1/auth/voter/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "password": "TestPass@123",
             })
@@ -326,6 +333,7 @@ class TestCandidateLogin:
         """Valid credentials → OTP sent to email + SMS."""
         with mock_email_success(), mock_sms_success():
             response = await client.post("/api/v1/auth/candidate/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "mobile_number": "9876543210",
                 "password": "TestPass@123",
@@ -340,6 +348,7 @@ class TestCandidateLogin:
         """Correct email+pass but wrong mobile → 400 (mobile mismatch error)."""
         with mock_email_success(), mock_sms_success():
             response = await client.post("/api/v1/auth/candidate/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "mobile_number": "9999999999",  # wrong
                 "password": "TestPass@123",
@@ -350,6 +359,7 @@ class TestCandidateLogin:
     async def test_step1_invalid_mobile_format(self, client: AsyncClient, test_candidate):
         """Invalid mobile format → 400 (service layer validation)."""
         response = await client.post("/api/v1/auth/candidate/login", json={
+            "captcha_token": "test_token",
             "email": "voter@test.edu",
             "mobile_number": "12345",  # too short, won't match stored mobile
             "password": "TestPass@123",
@@ -360,6 +370,7 @@ class TestCandidateLogin:
     async def test_step1_wrong_password(self, client: AsyncClient, test_candidate):
         """Wrong password → 401."""
         response = await client.post("/api/v1/auth/candidate/login", json={
+            "captcha_token": "test_token",
             "email": "voter@test.edu",
             "mobile_number": "9876543210",
             "password": "WrongPass",
@@ -371,6 +382,7 @@ class TestCandidateLogin:
         """Both OTPs correct → JWT issued."""
         with mock_email_success(), mock_sms_success():
             r1 = await client.post("/api/v1/auth/candidate/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "mobile_number": "9876543210",
                 "password": "TestPass@123",
@@ -396,6 +408,7 @@ class TestCandidateLogin:
         """Wrong SMS OTP (email correct) → 400."""
         with mock_email_success(), mock_sms_success():
             r1 = await client.post("/api/v1/auth/candidate/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "mobile_number": "9876543210",
                 "password": "TestPass@123",
@@ -425,6 +438,7 @@ class TestCandidateLogin:
         """Session token from voter flow cannot be used in candidate verify."""
         with mock_email_success():
             r1 = await client.post("/api/v1/auth/voter/login", json={
+                "captcha_token": "test_token",
                 "email": "voter@test.edu",
                 "password": "TestPass@123",
             })

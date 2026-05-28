@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
 
 export type Role = "voter" | "candidate" | "admin" | null;
+export type AdminRole = "SUPER_ADMIN" | "ELECTION_MANAGER" | "CANDIDATE_MODERATOR" | "AUDIT_SECURITY_ADMIN" | null;
 
 const AUTH_STORAGE_KEY = "collegevote-demo-auth";
 const TOKEN_STORAGE_KEY = "collegevote-token";
@@ -18,6 +19,7 @@ const SESSION_KEYS_TO_CLEAR = [
 
 type Ctx = {
   role: Role;
+  adminRole: AdminRole;
   setRole: (r: Role) => void;
   isAuthed: boolean;
   login: (r: Exclude<Role, null>) => void;
@@ -50,14 +52,38 @@ function readStoredRole(): Role {
   return null;
 }
 
+function readStoredAdminRole(): AdminRole {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) return null;
+
+    const [, payloadPart] = token.split(".");
+    if (!payloadPart) return null;
+
+    const payload = JSON.parse(window.atob(payloadPart.replace(/-/g, "+").replace(/_/g, "/")));
+    if (typeof payload?.exp !== "number") return null;
+    if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
+
+    return payload.admin_role || null;
+  } catch {
+    /* private mode / blocked storage */
+  }
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>(null);
+  const [adminRole, setAdminRole] = useState<AdminRole>(null);
   const [candidateRegistered, setCandidateRegistered] = useState(false);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     const stored = readStoredRole();
-    if (stored) setRole(stored);
+    if (stored) {
+      setRole(stored);
+      setAdminRole(readStoredAdminRole());
+    }
     setAuthReady(true);
 
     // Initialize device fingerprint as early as possible on app mount
@@ -72,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((r: Exclude<Role, null>) => {
     setRole(r);
+    setAdminRole(readStoredAdminRole());
     try {
       sessionStorage.setItem(AUTH_STORAGE_KEY, r);
       // Initialize device fingerprint if not already stored
@@ -89,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     setRole(null);
+    setAdminRole(null);
     try {
       for (const key of SESSION_KEYS_TO_CLEAR) {
         sessionStorage.removeItem(key);
@@ -99,8 +127,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ role, setRole, isAuthed: role !== null, authReady, login, logout, candidateRegistered, setCandidateRegistered }),
-    [role, authReady, login, logout, candidateRegistered, setCandidateRegistered],
+    () => ({
+      role,
+      adminRole,
+      setRole,
+      isAuthed: role !== null,
+      authReady,
+      login,
+      logout,
+      candidateRegistered,
+      setCandidateRegistered,
+    }),
+    [role, adminRole, authReady, login, logout, candidateRegistered, setCandidateRegistered],
   );
 
   return (

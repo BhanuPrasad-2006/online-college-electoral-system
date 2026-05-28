@@ -1,11 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { requestPasswordChange, confirmPasswordChange } from "@/lib/api";
+import {
+  requestPasswordChange,
+  confirmPasswordChange,
+  fetchAdminUsers,
+  createAdminUser,
+  deleteAdminUser,
+} from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { ShieldCheck, Mail, KeyRound, X, Shield } from "lucide-react";
+import { ShieldCheck, Mail, KeyRound, X, Shield, Trash2, UserPlus, Loader2 } from "lucide-react";
 
 function decodeJwtPayload(): { email?: string; name?: string; sub?: string } {
   try {
@@ -19,8 +26,18 @@ function decodeJwtPayload(): { email?: string; name?: string; sub?: string } {
   }
 }
 
+function formatRole(role: string | null) {
+  if (!role) return "Admin";
+  return role
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function Page() {
   const jwtPayload = useMemo(() => decodeJwtPayload(), []);
+  const { adminRole } = useAuth();
+  const isSuperAdmin = adminRole === "SUPER_ADMIN";
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -32,6 +49,34 @@ function Page() {
   const [otpCode, setOtpCode] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [hint, setHint] = useState("");
+
+  // Admin Manager States
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [fetchingAdmins, setFetchingAdmins] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newRole, setNewRole] = useState("CANDIDATE_MODERATOR");
+  const [newPasswordVal, setNewPasswordVal] = useState("");
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+
+  const loadAdmins = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    setFetchingAdmins(true);
+    try {
+      const list = await fetchAdminUsers();
+      setAdmins(list);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load admin accounts");
+    } finally {
+      setFetchingAdmins(false);
+    }
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      loadAdmins();
+    }
+  }, [isSuperAdmin, loadAdmins]);
 
   async function handlePasswordChangeRequest(e: React.FormEvent) {
     e.preventDefault();
@@ -85,8 +130,46 @@ function Page() {
     }
   }
 
+  async function handleCreateAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim() || !newEmail.trim() || !newPasswordVal.trim() || !newRole) {
+      toast.error("Please fill in all fields for the new admin account.");
+      return;
+    }
+
+    setCreatingAdmin(true);
+    try {
+      await createAdminUser({
+        full_name: newName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        role: newRole,
+        password: newPasswordVal.trim(),
+      });
+      toast.success("Admin account created successfully!");
+      setNewName("");
+      setNewEmail("");
+      setNewPasswordVal("");
+      loadAdmins();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create admin account.");
+    } finally {
+      setCreatingAdmin(false);
+    }
+  }
+
+  async function handleDeleteAdmin(adminId: string) {
+    if (!confirm("Are you sure you want to delete this admin account?")) return;
+    try {
+      await deleteAdminUser(adminId);
+      toast.success("Admin account deleted successfully.");
+      loadAdmins();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete admin account.");
+    }
+  }
+
   return (
-    <div className="space-y-6 max-w-3xl relative">
+    <div className="space-y-6 max-w-4xl relative">
       <div>
         <h1 className="text-2xl md:text-[28px] font-bold">Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">Manage your admin account and preferences.</p>
@@ -104,11 +187,11 @@ function Page() {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Role</label>
-            <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" value="Admin" disabled readOnly />
+            <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" value={formatRole(adminRole)} disabled readOnly />
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs text-muted-foreground">Email</label>
-            <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" value={jwtPayload.email || "admin@college.edu"} disabled readOnly />
+            <Input className="mt-1 h-11 bg-muted/40 cursor-not-allowed" value={jwtPayload.email || "admin@college.edu.in"} disabled readOnly />
           </div>
         </div>
       </div>
@@ -139,6 +222,130 @@ function Page() {
           </Button>
         </div>
       </form>
+
+      {/* Admin User Manager Module (Super Admin Only) */}
+      {isSuperAdmin && (
+        <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-6">
+          <div className="flex items-center gap-2 border-b pb-3">
+            <UserPlus className="h-5 w-5 text-[#6C63FF]" />
+            <h2 className="text-base font-semibold">Admin User Manager (Super Admin Only)</h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Create Admin Form */}
+            <form onSubmit={handleCreateAdmin} className="space-y-4 lg:col-span-1 border-r border-border/60 pr-0 lg:pr-6">
+              <h3 className="text-sm font-semibold text-foreground/80">Create New Admin Account</h3>
+              
+              <div>
+                <label className="text-xs text-muted-foreground">Full Name</label>
+                <Input
+                  className="mt-1"
+                  placeholder="e.g. John Doe"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Email</label>
+                <Input
+                  className="mt-1"
+                  type="email"
+                  placeholder="name@college.edu.in"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Password</label>
+                <Input
+                  className="mt-1"
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPasswordVal}
+                  onChange={(e) => setNewPasswordVal(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-muted-foreground">Admin Role</label>
+                <select
+                  className="w-full mt-1 h-10 px-3 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                >
+                  <option value="SUPER_ADMIN">Super Admin</option>
+                  <option value="ELECTION_MANAGER">Election Manager</option>
+                  <option value="CANDIDATE_MODERATOR">Candidate Moderator</option>
+                  <option value="AUDIT_SECURITY_ADMIN">Audit & Security Admin</option>
+                </select>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={creatingAdmin}
+                className="w-full bg-[#6C63FF] hover:bg-[#5A52D5] text-white h-10 shadow-sm"
+              >
+                {creatingAdmin ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Admin"
+                )}
+              </Button>
+            </form>
+
+            {/* List Admins */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground/80">Active Admin Accounts</h3>
+                {fetchingAdmins && <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />}
+              </div>
+
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-muted/10 max-h-[360px] overflow-y-auto">
+                {admins.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">
+                    No other admin accounts found.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/60">
+                    {admins.map((adm) => {
+                      const isSelf = adm.email.toLowerCase() === jwtPayload.email?.toLowerCase();
+                      return (
+                        <div key={adm.admin_id} className="p-4 flex items-center justify-between gap-4 hover:bg-muted/20 transition-colors">
+                          <div>
+                            <p className="font-semibold text-sm">{adm.full_name} {isSelf && <span className="text-xs text-blue-500 font-normal">(You)</span>}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{adm.email}</p>
+                            <span className="inline-block bg-[#1F3A6E]/10 text-[#1F3A6E] text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1">
+                              {formatRole(adm.role)}
+                            </span>
+                          </div>
+                          {!isSelf && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteAdmin(adm.admin_id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
         <h2 className="text-base font-semibold">Notifications</h2>
