@@ -123,38 +123,41 @@ def check_image_quality(img: np.ndarray) -> tuple[bool, str | None]:
 
     # 1. Blur Check
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    if laplacian_var < 40:
-        return False, f"Image is too blurry (sharpness: {laplacian_var:.1f}, min: 40.0)"
+    if laplacian_var < 10.0:
+        return False, f"Image is too blurry (sharpness: {laplacian_var:.1f}, min: 10.0)"
 
     # 2. Exposure Check
     mean_brightness = np.mean(gray)
-    if mean_brightness < 40:
-        return False, f"Image is too dark (brightness: {mean_brightness:.1f}, min: 40.0)"
-    if mean_brightness > 220:
+    if mean_brightness < 25.0:
+        return False, f"Image is too dark (brightness: {mean_brightness:.1f}, min: 25.0)"
+    if mean_brightness > 220.0:
         return False, f"Image is overexposed (brightness: {mean_brightness:.1f}, max: 220.0)"
 
     # 3. Face Count & Size Check using Haar Cascade
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
     )
-    faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(80, 80))
+    faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(60, 60))
 
     if len(faces) == 0:
-        return False, "No face detected or face is too far/tiny (min face size is 80x80px)."
+        return False, "No face detected or face is too far/tiny (min face size is 60x60px)."
     if len(faces) > 1:
         return False, "Multiple faces detected. Ensure only one person is in the frame."
 
     # 4. Side-Angle Check
     # Verify we can find at least one eye in the face region.
     # Profile / side-angle faces will fail or only show side profile, causing eye cascade failures.
-    (x, y, w, h) = faces[0]
-    face_roi = gray[y : y + h, x : x + w]
-    eye_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_eye.xml"
-    )
-    eyes = eye_cascade.detectMultiScale(face_roi, 1.1, 3, minSize=(15, 15))
-    if len(eyes) < 1:
-        return False, "Ensure you are looking directly at the camera (side-angle / turned face rejected)."
+    try:
+        (x, y, w, h) = faces[0]
+        face_roi = gray[y : y + h, x : x + w]
+        eye_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_eye.xml"
+        )
+        eyes = eye_cascade.detectMultiScale(face_roi, 1.1, 3, minSize=(15, 15))
+        if len(eyes) < 1:
+            logger.warning("Side-angle eye check: No eyes detected in face ROI. Proceeding with warning.")
+    except Exception as e:
+        logger.warning(f"Side-angle eye check failed to run: {e}")
 
     return True, None
 

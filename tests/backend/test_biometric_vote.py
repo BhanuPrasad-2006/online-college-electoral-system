@@ -8,9 +8,10 @@ import pytest_asyncio
 import jwt
 import base64
 import hashlib
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy import select
 from sqlalchemy.orm import DeclarativeBase
 from datetime import datetime, timezone, timedelta
 
@@ -59,7 +60,6 @@ from app.api.deps import get_current_user
 from app.middleware.rate_limit import limiter
 from app.core.config import settings
 
-app.dependency_overrides[get_db] = override_get_db
 limiter.enabled = False
 
 VOTER_UUID = uuid.uuid4()
@@ -76,6 +76,7 @@ async def mock_get_current_user():
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_db():
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_db] = override_get_db
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     yield
@@ -189,14 +190,14 @@ class TestBiometricVerify:
     # -- verify-face size limits --
     async def test_verify_face_exceeds_size_limit_returns_413(self, client: AsyncClient, seeded_voter: dict):
         await _valid_voter()
-        # Create a payload larger than 10MB
-        large_base64 = "a" * (12 * 1024 * 1024)
+        # Create a payload larger than 10MB (base64 decodes to ~11.25MB)
+        large_base64 = "a" * (15 * 1024 * 1024)
         resp = await client.post(
             "/api/v1/vote/verify-face",
             json={"live_face_image": large_base64, "anti_replay_token": "token"},
         )
         assert resp.status_code == 413
-        assert "exceeds" in resp.json()["detail"].lower()
+        assert "exceeds" in resp.text.lower() or "too large" in resp.text.lower()
 
     # -- verify-face lockout --
     async def test_verify_face_fails_and_locks_out_after_3_attempts(
@@ -206,7 +207,8 @@ class TestBiometricVerify:
         
         # Mock extract_face_embedding to raise ValueError (bad quality/no face)
         with patch("app.routes.vote.extract_face_embedding") as mock_extract, \
-             patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True):
+             patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True), \
+             patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False):
             mock_extract.side_effect = ValueError("No face detected in the image.")
             
             # Send 1st attempt
@@ -247,7 +249,8 @@ class TestBiometricVerify:
         
         with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
              patch("app.routes.vote.compare_face_embeddings", return_value=True), \
-             patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True):
+             patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True), \
+             patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False):
             
             resp = await client.post(
                 "/api/v1/vote/verify-face",
@@ -403,7 +406,7 @@ class TestBiometricVerify:
                 headers={"x-device-fingerprint": "test_device"}
             )
             assert resp.status_code == 200
-            assert resp.json()["success"] is True
+            assert resp.json()["has_voted"] is True
             
             # Reset voter's voted status in SQLite so we trigger token check and not duplicate vote check
             voter_result = await db_session.execute(select(Voter).where(Voter.voter_id == VOTER_UUID))
@@ -424,3 +427,241 @@ class TestBiometricVerify:
             )
             assert resp.status_code == 401
             assert "already been consumed" in resp.json()["detail"].lower()
+
+    # -- verify-face-passive success & token issuance --
+    async def test_verify_face_passive_success(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        await _valid_voter()
+        
+        with patch("app.routes.vote.normalize_image", return_value=MagicMock()), \
+             patch("app.routes.vote.check_image_quality", return_value=(True, None)), \
+             patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.routes.vote.check_passive_liveness", return_value=(True, "passed")), \
+             patch("app.routes.vote.compute_majority_match", return_value=(True, 5, 5, 92.5)), \
+             patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False), \
+             patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True):
+            
+            resp = await client.post(
+                "/api/v1/vote/verify-face-passive",
+                json={
+                    "frames": ["data:image/jpeg;base64,dGVzdA=="] * 5,
+                    "anti_replay_token": "token1"
+                },
+                headers={"x-device-fingerprint": "test_device"}
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["success"] is True
+            assert "face_session_token" in data
+            assert data["match_score"] == 92.5
+
+    # -- verify-face-passive mismatch returns match_score in detail --
+    async def test_verify_face_passive_mismatch(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        await _valid_voter()
+        
+        with patch("app.routes.vote.normalize_image", return_value=MagicMock()), \
+             patch("app.routes.vote.check_image_quality", return_value=(True, None)), \
+             patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.routes.vote.check_passive_liveness", return_value=(True, "passed")), \
+             patch("app.routes.vote.compute_majority_match", return_value=(False, 2, 5, 48.2)), \
+             patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False), \
+             patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True):
+            
+            resp = await client.post(
+                "/api/v1/vote/verify-face-passive",
+                json={
+                    "frames": ["data:image/jpeg;base64,dGVzdA=="] * 5,
+                    "anti_replay_token": "token1"
+                },
+                headers={"x-device-fingerprint": "test_device"}
+            )
+            assert resp.status_code == 400
+            data = resp.json()
+            assert "detail" in data
+            assert isinstance(data["detail"], dict)
+            assert "unable to verify" in data["detail"]["message"].lower()
+            assert data["detail"]["match_score"] == 48.2
+
+
+@pytest.mark.asyncio
+class TestPhotoUpload:
+    """
+    Tests for the photo upload endpoint phase gates.
+    Verifies upload is allowed during VOTING_OPEN and RESULTS_PUBLISHED,
+    but blocked during CLOSED (for normal voters without re-upload request).
+    """
+
+    async def test_upload_photo_during_voting_open_allowed(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        """Upload should succeed when election status is VOTING_OPEN."""
+        await _valid_voter()
+
+        with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("os.makedirs"), \
+             patch("builtins.open", mock_open()):
+            mock_validate.return_value = MagicMock(passed=True)
+
+            resp = await client.post(
+                "/api/v1/vote/upload-photo",
+                files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+            )
+            assert resp.status_code == 200, f"VOTING_OPEN upload failed: {resp.text}"
+            data = resp.json()
+            assert data["success"] is True
+            assert "pending_image_url" in data
+
+    async def test_upload_photo_during_results_published_allowed(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        """Upload should succeed when election status is RESULTS_PUBLISHED.
+        This verifies the fix that removed RESULTS_PUBLISHED from the phase gate.
+        """
+        await _valid_voter()
+
+        # Change election status to RESULTS_PUBLISHED
+        result = await db_session.execute(
+            select(Election).where(Election.election_id == ELECTION_UUID)
+        )
+        election = result.scalar_one()
+        election.status = ElectionStatusEnum.RESULTS_PUBLISHED.value
+        await db_session.commit()
+
+        with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("os.makedirs"), \
+             patch("builtins.open", mock_open()):
+            mock_validate.return_value = MagicMock(passed=True)
+
+            resp = await client.post(
+                "/api/v1/vote/upload-photo",
+                files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+            )
+            assert resp.status_code == 200, f"RESULTS_PUBLISHED upload blocked: {resp.text}"
+            data = resp.json()
+            assert data["success"] is True
+
+    async def test_upload_photo_during_closed_blocked(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        """Upload should be blocked when election status is CLOSED (normal voter)."""
+        await _valid_voter()
+
+        # Change election status to CLOSED
+        result = await db_session.execute(
+            select(Election).where(Election.election_id == ELECTION_UUID)
+        )
+        election = result.scalar_one()
+        election.status = ElectionStatusEnum.CLOSED.value
+        await db_session.commit()
+
+        resp = await client.post(
+            "/api/v1/vote/upload-photo",
+            files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+        )
+        assert resp.status_code == 403, f"CLOSED upload not blocked: {resp.text}"
+        assert "before voting ends" in resp.json()["detail"].lower()
+
+    async def test_upload_photo_unauthenticated_returns_401(
+        self, client: AsyncClient, seeded_voter: dict
+    ):
+        """Unauthenticated requests should be rejected."""
+        await _no_auth()
+        try:
+            resp = await client.post(
+                "/api/v1/vote/upload-photo",
+                files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+            )
+        finally:
+            await _restore_voter()
+        assert resp.status_code == 401
+
+    async def test_upload_photo_during_closed_with_reupload_request_allowed(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        """Upload should succeed during CLOSED if admin requested re-upload."""
+        await _valid_voter()
+
+        # Set voter's photo_reupload_requested flag and change election to CLOSED
+        result = await db_session.execute(
+            select(Voter).where(Voter.voter_id == VOTER_UUID)
+        )
+        voter = result.scalar_one()
+        voter.photo_reupload_requested = True
+        voter.photo_reupload_count = 0
+
+        elec_result = await db_session.execute(
+            select(Election).where(Election.election_id == ELECTION_UUID)
+        )
+        election = elec_result.scalar_one()
+        election.status = ElectionStatusEnum.CLOSED.value
+        await db_session.commit()
+
+        with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("os.makedirs"), \
+             patch("builtins.open", mock_open()):
+            mock_validate.return_value = MagicMock(passed=True)
+
+            resp = await client.post(
+                "/api/v1/vote/upload-photo",
+                files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+            )
+            assert resp.status_code == 200, f"CLOSED with reupload_request blocked: {resp.text}"
+            data = resp.json()
+            assert data["success"] is True
+
+    async def test_upload_photo_reupload_count_exceeded_returns_403(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        """Upload should be blocked when photo_reupload_count >= 2."""
+        await _valid_voter()
+
+        # Set voter's reupload count to 2 (the max)
+        result = await db_session.execute(
+            select(Voter).where(Voter.voter_id == VOTER_UUID)
+        )
+        voter = result.scalar_one()
+        voter.photo_reupload_count = 2
+        await db_session.commit()
+
+        resp = await client.post(
+            "/api/v1/vote/upload-photo",
+            files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+        )
+        assert resp.status_code == 403, f"Expected 403 but got {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert "maximum of 2" in data["detail"].lower()
+
+    async def test_upload_photo_reupload_count_just_below_limit_allowed(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        """Upload should succeed when photo_reupload_count is 1 (just below the limit)."""
+        await _valid_voter()
+
+        # Set voter's reupload count to 1 (still allowed)
+        result = await db_session.execute(
+            select(Voter).where(Voter.voter_id == VOTER_UUID)
+        )
+        voter = result.scalar_one()
+        voter.photo_reupload_count = 1
+        await db_session.commit()
+
+        with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("os.makedirs"), \
+             patch("builtins.open", mock_open()):
+            mock_validate.return_value = MagicMock(passed=True)
+
+            resp = await client.post(
+                "/api/v1/vote/upload-photo",
+                files={"file": ("test.jpg", b"fake_image_data", "image/jpeg")},
+            )
+            assert resp.status_code == 200, f"Expected 200 but got {resp.status_code}: {resp.text}"
+            data = resp.json()
+            assert data["success"] is True
+

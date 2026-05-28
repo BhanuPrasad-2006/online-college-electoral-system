@@ -1,17 +1,27 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Webcam from "react-webcam";
 import { PageLoader } from "@/components/PageLoader";
-import { useCandidates, useVoterProfile, useCurrentPhase, useElection } from "@/hooks/use-election-data";
+import { useCandidates, useVoterProfile, useCurrentPhase } from "@/hooks/use-election-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock, Smile, RefreshCw, Check, ArrowRight } from "lucide-react";
+import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock, Smile, RefreshCw, Check, ScanFace } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { castVote, verifyVoterId, verifyFace } from "@/lib/api";
+import { castVote, verifyVoterId, verifyFacePassive } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
+
+// ── Passive capture constants ───────────────────────────────────
+const TOTAL_FRAMES   = 5;
+const FRAME_W        = 480;
+const FRAME_H        = 640;
+const JPEG_QUALITY   = 0.82;   // mobile-optimised, low bandwidth
+const JITTER_MIN_MS  = 350;
+const JITTER_MAX_MS  = 500;    // randomised interval prevents timing attacks
+
+type PassiveState = "idle" | "detecting" | "capturing" | "submitting" | "success" | "failed";
 
 const NOTA_ID = "nota";
 
@@ -30,20 +40,20 @@ function VotePage() {
   const [antiReplayToken, setAntiReplayToken] = useState<string>("");
   const [webcamReady, setWebcamReady] = useState(false);
   const [webcamError, setWebcamError] = useState<string | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
 
-  // ── Liveness State ────────────────────────────────────────
-  const [livenessState, setLivenessState] = useState<"idle" | "loading_model" | "active" | "success" | "failed">("idle");
-  const [challenges, setChallenges] = useState<string[]>([]);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [livenessError, setLivenessError] = useState("");
-  const [timerLeft, setTimerLeft] = useState(45);
+  // ── Passive Liveness State ────────────────────────────────
+  const [passiveState, setPassiveState] = useState<PassiveState>("idle");
+  const [passiveError, setPassiveError] = useState("");
+  const [capturedCount, setCapturedCount] = useState(0);   // 0–5 progress
   const [faceSessionToken, setFaceSessionToken] = useState<string | null>(null);
-  
-  const faceMeshRef = useRef<any>(null);
-  const livenessTimerRef = useRef<any>(null);
-  const livenessLoopRef = useRef<any>(null);
-  const videoCheckRef = useRef<any>(null);
+  const [faceDetected, setFaceDetected] = useState(false); // face centering status
+  const [matchScore, setMatchScore] = useState<number | null>(null); // 0–100
+
+  // face-api.js detection loop ref
+  const detectionLoopRef = useRef<any>(null);
+  const captureAbortRef  = useRef(false);                  // signals abort mid-capture
+  const faceApiLoadedRef = useRef(false);
+  const passiveStateRef  = useRef<PassiveState>("idle");
 
   // ── Honeypot (bot detection) fields ──────────────────────
   const [hpField1, setHpField1] = useState("");
@@ -63,32 +73,7 @@ function VotePage() {
 
   const { data: candidates = [], isPending } = useCandidates();
   const { data: voter, isPending: isVoterPending } = useVoterProfile();
-  const { data: phaseData } = useCurrentPhase();
-  const { data: election } = useElection();
-
-  // ── Reconcile phase the same way the dashboard does ──────
-  // Prefer date-derived phase when it shows voting_open
-  // but the backend phase endpoint hasn't caught up yet.
-  // Memoized to avoid creating a new object reference every render.
-  const effectivePhase = useMemo(() => {
-    if (!phaseData?.phase) return phaseData;
-    if (!election) return phaseData;
-    const now = Date.now();
-    const votStart = (election as any).voting_start
-      ? new Date((election as any).voting_start).getTime()
-      : (election as any).votingStart
-        ? new Date((election as any).votingStart).getTime()
-        : null;
-    const votEnd = (election as any).voting_end
-      ? new Date((election as any).voting_end).getTime()
-      : (election as any).votingEnd
-        ? new Date((election as any).votingEnd).getTime()
-        : null;
-    if (votStart && votEnd && now >= votStart && now < votEnd && phaseData.phase !== "voting_open") {
-      return { ...phaseData, phase: "voting_open" };
-    }
-    return phaseData;
-  }, [phaseData, election]);
+  const { data: effectivePhase } = useCurrentPhase();
 
   // ── Phase gate: redirect if voting is not open ────────────
   useEffect(() => {
@@ -202,280 +187,255 @@ function VotePage() {
     }
   }
 
-  // Cleanup liveness timers/loops on unmount or review change
+  // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (livenessTimerRef.current) clearInterval(livenessTimerRef.current);
-      if (livenessLoopRef.current) clearInterval(livenessLoopRef.current);
-      if (videoCheckRef.current) clearInterval(videoCheckRef.current);
-      if (faceMeshRef.current) {
-        try {
-          faceMeshRef.current.close();
-        } catch (e) {
-          console.error("Failed to close FaceMesh:", e);
-        }
-      }
+      if (detectionLoopRef.current) clearInterval(detectionLoopRef.current);
+      captureAbortRef.current = true;
     };
   }, []);
 
-  const currentStepRef = useRef(0);
-  const challengesRef = useRef<string[]>([]);
-  const livenessStateRef = useRef<string>("idle");
+  // ── Eagerly preload face-api.js as soon as the vote page mounts ──
+  // This runs in background so by the time user clicks Review, model is ready.
+  useEffect(() => {
+    let cancelled = false;
+    const preload = async () => {
+      try {
+        if (faceApiLoadedRef.current) return;
+        const existing = document.getElementById("faceapi-cdn");
+        if (existing) return; // already injecting
+        const s = document.createElement("script");
+        s.id = "faceapi-cdn";
+        s.src = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js";
+        s.crossOrigin = "anonymous";
+        s.onload = async () => {
+          if (cancelled) return;
+          try {
+            const faceapi = (window as any).faceapi;
+            await faceapi.nets.tinyFaceDetector.loadFromUri(
+              "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"
+            );
+            if (!cancelled) faceApiLoadedRef.current = true;
+          } catch { /* silent — will retry on review open */ }
+        };
+        document.head.appendChild(s);
+      } catch { /* silent background preload failure */ }
+    };
+    // Slight delay so it doesn't compete with the initial page render
+    const t = setTimeout(preload, 800);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, []);
 
-  const updateLivenessState = (state: "idle" | "loading_model" | "active" | "success" | "failed") => {
-    setLivenessState(state);
-    livenessStateRef.current = state;
-  };
+  // ── Sync passiveState to ref (for use in async callbacks) ─
+  const setPassive = useCallback((s: PassiveState) => {
+    setPassiveState(s);
+    passiveStateRef.current = s;
+  }, []);
 
-  const updateCurrentStep = (step: number) => {
-    setCurrentStep(step);
-    currentStepRef.current = step;
-  };
-
-  const updateChallenges = (challs: string[]) => {
-    setChallenges(challs);
-    challengesRef.current = challs;
-  };
-
-  const loadMediaPipe = (): Promise<void> => {
+  // ── Load face-api.js from CDN (tiny-face-detector only) ──
+  const loadFaceApi = useCallback((): Promise<void> => {
     return new Promise((resolve, reject) => {
-      if ((window as any).FaceMesh) {
-        resolve();
+      if (faceApiLoadedRef.current) { resolve(); return; }
+      const existing = document.getElementById("faceapi-cdn");
+      if (existing) {
+        // Script tag already injected — may just need a moment to settle
+        const check = () => (window as any).faceapi ? (faceApiLoadedRef.current = true, resolve()) : reject(new Error("face-api.js not available"));
+        setTimeout(check, 800);
         return;
       }
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js";
-      script.crossOrigin = "anonymous";
-      script.onload = () => {
-        if ((window as any).FaceMesh) {
+      const s = document.createElement("script");
+      s.id = "faceapi-cdn";
+      s.src = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js";
+      s.crossOrigin = "anonymous";
+      s.onload = async () => {
+        try {
+          const faceapi = (window as any).faceapi;
+          await faceapi.nets.tinyFaceDetector.loadFromUri(
+            "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"
+          );
+          faceApiLoadedRef.current = true;
           resolve();
-        } else {
-          reject(new Error("FaceMesh was loaded but not found in global context."));
+        } catch (e) {
+          reject(e);
         }
       };
-      script.onerror = () => {
-        reject(new Error("Failed to load FaceMesh library from CDN. Check your internet connection."));
-      };
-      document.head.appendChild(script);
+      s.onerror = () => reject(new Error("Failed to load face-api.js from CDN."));
+      document.head.appendChild(s);
     });
-  };
+  }, []);
 
-  function getDistance(p1: { x: number; y: number }, p2: { x: number; y: number }) {
-    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-  }
+  // ── Capture one normalized frame from the webcam ──────────
+  const captureFrame = useCallback((): string | null => {
+    const video = webcamRef.current?.video;
+    if (!video || video.readyState < 2) return null;
 
-  function startLivenessCheck() {
-    updateLivenessState("loading_model");
-    setLivenessError("");
-    setWebcamReady(false);
+    const canvas = document.createElement("canvas");
+    canvas.width  = FRAME_W;
+    canvas.height = FRAME_H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, FRAME_W, FRAME_H);
+    const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    // Immediately release canvas
+    canvas.width = 0;
+    canvas.height = 0;
+    return dataUrl;
+  }, []);
+
+  // ── Random jitter delay (req #3) ─────────────────────────
+  const jitterDelay = () =>
+    new Promise<void>((r) =>
+      setTimeout(r, JITTER_MIN_MS + Math.random() * (JITTER_MAX_MS - JITTER_MIN_MS))
+    );
+
+  // ── Main passive capture + submit flow ─────────────────────
+  const runPassiveCapture = useCallback(async () => {
+    captureAbortRef.current = false;
+    setPassive("detecting");
+    setPassiveError("");
+    setCapturedCount(0);
+    setFaceDetected(false);
     setWebcamError(null);
 
-    loadMediaPipe()
-      .then(() => {
-        if (!faceMeshRef.current) {
-          const FaceMesh = (window as any).FaceMesh;
-          const fm = new FaceMesh({
-            locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-          });
-          fm.setOptions({
-            maxNumFaces: 1,
-            refineLandmarks: true,
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
-          });
-          fm.onResults(onLivenessResults);
-          faceMeshRef.current = fm;
-        }
-
-        const allChalls = ["blink", "left", "right", "mouth"];
-        const shuffled = [...allChalls].sort(() => Math.random() - 0.5).slice(0, 3);
-        updateChallenges(shuffled);
-        updateCurrentStep(0);
-        setTimerLeft(45);
-        updateLivenessState("active");
-
-        if (livenessTimerRef.current) clearInterval(livenessTimerRef.current);
-        livenessTimerRef.current = setInterval(() => {
-          setTimerLeft((t) => {
-            if (t <= 1) {
-              clearInterval(livenessTimerRef.current);
-              failLiveness("Verification timed out. Try again in a brighter area.");
-              return 0;
-            }
-            return t - 1;
-          });
-        }, 1000);
-
-        if (livenessLoopRef.current) clearInterval(livenessLoopRef.current);
-        livenessLoopRef.current = setInterval(() => {
-          captureAndProcessFrame();
-        }, 250);
-      })
-      .catch((err) => {
-        updateLivenessState("failed");
-        setLivenessError(err.message || "Failed to load FaceMesh model.");
-      });
-  }
-
-  async function captureAndProcessFrame() {
-    if (livenessStateRef.current !== "active") return;
-    if (webcamRef.current && webcamRef.current.video && webcamRef.current.video.readyState === 4) {
-      const video = webcamRef.current.video;
-      if (faceMeshRef.current) {
-        try {
-          await faceMeshRef.current.send({ image: video });
-        } catch (e) {
-          console.error("Error sending image to FaceMesh:", e);
-        }
-      }
-    }
-  }
-
-  function onLivenessResults(results: any) {
-    if (livenessStateRef.current !== "active") return;
-
-    const faceLandmarks = results.multiFaceLandmarks;
-    if (!faceLandmarks || faceLandmarks.length === 0) {
-      setLivenessError("No face detected. Align your face inside the camera frame.");
-      return;
-    }
-
-    if (faceLandmarks.length > 1) {
-      setLivenessError("Multiple faces detected. Ensure only one person is visible.");
-      return;
-    }
-
-    setLivenessError("");
-
-    const landmarks = faceLandmarks[0];
-    const activeChallenge = challengesRef.current[currentStepRef.current];
-    if (!activeChallenge) return;
-
-    const leftEyeV = getDistance(landmarks[159], landmarks[145]);
-    const leftEyeH = getDistance(landmarks[33], landmarks[133]);
-    const leftEAR = leftEyeV / leftEyeH;
-
-    const rightEyeV = getDistance(landmarks[386], landmarks[374]);
-    const rightEyeH = getDistance(landmarks[362], landmarks[263]);
-    const rightEAR = rightEyeV / rightEyeH;
-
-    const avgEAR = (leftEAR + rightEAR) / 2;
-
-    const mouthV = getDistance(landmarks[13], landmarks[14]);
-    const mouthH = getDistance(landmarks[78], landmarks[308]);
-    const mar = mouthV / mouthH;
-
-    const distNoseLeft = getDistance(landmarks[1], landmarks[33]);
-    const distNoseRight = getDistance(landmarks[1], landmarks[263]);
-    const yawRatio = distNoseLeft / (distNoseLeft + distNoseRight);
-
-    let passed = false;
-    if (activeChallenge === "blink") {
-      if (avgEAR < 0.16) {
-        passed = true;
-      }
-    } else if (activeChallenge === "left") {
-      if (yawRatio < 0.38) {
-        passed = true;
-      }
-    } else if (activeChallenge === "right") {
-      if (yawRatio > 0.62) {
-        passed = true;
-      }
-    } else if (activeChallenge === "mouth") {
-      if (mar > 0.25) {
-        passed = true;
-      }
-    }
-
-    if (passed) {
-      const nextStep = currentStepRef.current + 1;
-      if (nextStep >= challengesRef.current.length) {
-        completeLiveness();
-      } else {
-        updateCurrentStep(nextStep);
-        toast.success("Challenge completed! Next task...");
-      }
-    }
-  }
-
-  async function captureScreenshot(): Promise<string | null> {
-    for (let i = 0; i < 3; i++) {
-      if (webcamRef.current) {
-        const src = webcamRef.current.getScreenshot();
-        if (src) return src;
-      }
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    return null;
-  }
-
-  async function completeLiveness() {
-    updateLivenessState("success");
-    if (livenessTimerRef.current) clearInterval(livenessTimerRef.current);
-    if (livenessLoopRef.current) clearInterval(livenessLoopRef.current);
-
-    setIsCapturing(true);
-    const screenshot = await captureScreenshot();
-    setIsCapturing(false);
-
-    if (!screenshot) {
-      failLiveness("Failed to capture fresh face frame. Try again.");
-      return;
-    }
-
-    setIsSubmitting(true);
+    let activeToken = antiReplayToken;
+    // Refresh anti-replay token dynamically so retries/subsequent runs always have a fresh valid token
     try {
-      const verifyRes = await verifyFace({
-        liveFaceImage: screenshot,
-        antiReplayToken
-      });
+      const res = await verifyVoterId(verificationCode.trim());
+      if (res.success && res.anti_replay_token) {
+        activeToken = res.anti_replay_token;
+        setAntiReplayToken(res.anti_replay_token);
+      }
+    } catch (e) {
+      console.error("Anti-replay token refresh failed:", e);
+    }
+
+    const isCameraActive = !!(webcamRef.current?.video && webcamRef.current.video.readyState >= 2);
+    setWebcamReady(isCameraActive);
+    setMatchScore(null);
+
+    // Wait for webcam to be ready (up to 4 seconds, polling every 80ms)
+    let waitedMs = 0;
+    while ((!webcamRef.current?.video || webcamRef.current.video.readyState < 2) && waitedMs < 4000) {
+      await new Promise((r) => setTimeout(r, 80));
+      waitedMs += 80;
+    }
+    if (!webcamRef.current?.video || webcamRef.current.video.readyState < 2) {
+      setPassive("failed");
+      setPassiveError("Camera took too long to start. Please try again.");
+      return;
+    }
+
+    if (captureAbortRef.current) return;
+    setFaceDetected(true);
+    setPassiveError("");
+
+    // ── Phase 2: Capture 5 frames with jitter ──────────────
+    setPassive("capturing");
+    const frames: string[] = [];
+
+    for (let i = 0; i < TOTAL_FRAMES; i++) {
+      if (captureAbortRef.current) {
+        setPassive("failed");
+        setPassiveError("Verification canceled.");
+        return;
+      }
+
+      // Check camera health before capture
+      const video = webcamRef.current?.video;
+      if (!video || video.readyState < 2) {
+        setPassive("failed");
+        setPassiveError("Unable to verify live face. Camera connection lost.");
+        return;
+      }
+
+      const frame = captureFrame();
+      if (!frame) {
+        setPassive("failed");
+        setPassiveError("Unable to verify live face. Please try again.");
+        return;
+      }
+
+      frames.push(frame);
+      setCapturedCount(i + 1);
+
+      // Jitter delay between frames (req #3)
+      if (i < TOTAL_FRAMES - 1) await jitterDelay();
+    }
+
+    // ── Phase 3: Submit to backend ─────────────────────────
+    setPassive("submitting");
+    setIsSubmitting(true);
+
+    try {
+      const verifyRes = await verifyFacePassive({ frames, antiReplayToken: activeToken });
+
+      // Clear frames from memory immediately after sending
+      frames.length = 0;
 
       if (verifyRes.success && verifyRes.face_session_token) {
         setFaceSessionToken(verifyRes.face_session_token);
-        const elapsedMs = reviewStartRef.current > 0 ? Date.now() - reviewStartRef.current : 99999;
+        if (verifyRes.match_score !== undefined) setMatchScore(verifyRes.match_score);
+        setPassive("success");
 
+        const elapsedMs = reviewStartRef.current > 0 ? Date.now() - reviewStartRef.current : 99999;
         await castVote({
           candidateId: selected === NOTA_ID ? null : selected,
           verificationId: verificationCode.trim(),
           faceSessionToken: verifyRes.face_session_token,
-          antiReplayToken,
+          antiReplayToken: activeToken,
           trapData: {
             verification_field_confirm: hpField1,
             hidden_field_name: hpField2,
             phone_confirm: hpField3,
-            submit_time_ms: elapsedMs
-          }
+            submit_time_ms: elapsedMs,
+          },
         });
 
         setConfirmed(true);
         toast.success("Vote cast successfully!");
       } else {
-        failLiveness("Biometric face match failed.");
+        setPassive("failed");
+        setPassiveError("Unable to verify live face. Please try again.");
       }
     } catch (err: any) {
       console.error(err);
-      failLiveness(err.message || "Failed to submit biometrics.");
+      frames.length = 0; // clear on error too
+      if (err.match_score !== undefined) {
+        setMatchScore(err.match_score);
+      }
+      const msg = err.message ?? "";
       if (
-        err.message?.toLowerCase().includes("lockout") ||
-        err.message?.toLowerCase().includes("locked") ||
-        err.message?.toLowerCase().includes("too many failed")
+        msg.toLowerCase().includes("lockout") ||
+        msg.toLowerCase().includes("locked") ||
+        msg.toLowerCase().includes("too many failed")
       ) {
-        setTimeout(() => {
-          logout();
-          nav({ to: "/" });
-        }, 3000);
+        setPassiveError(msg); // show lockout message verbatim
+        setPassive("failed");
+        setTimeout(() => { logout(); nav({ to: "/" }); }, 3000);
+      } else {
+        // Generic message for all other failures (req #8)
+        setPassive("failed");
+        setPassiveError("Unable to verify live face. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [antiReplayToken, captureFrame, hpField1, hpField2, hpField3, logout, nav, selected, verificationCode]);
 
-  function failLiveness(reason: string) {
-    updateLivenessState("failed");
-    setLivenessError(reason);
-    if (livenessTimerRef.current) clearInterval(livenessTimerRef.current);
-    if (livenessLoopRef.current) clearInterval(livenessLoopRef.current);
+  // ── Auto-start capture immediately when review opens ─────
+  useEffect(() => {
+    if (review && passiveStateRef.current === "idle") {
+      const t = setTimeout(() => runPassiveCapture(), 100);
+      return () => clearTimeout(t);
+    }
+  }, [review, runPassiveCapture]);
+
+  function abortPassive() {
+    captureAbortRef.current = true;
+    setPassive("idle");
+    setPassiveError("");
+    setCapturedCount(0);
+    setFaceDetected(false);
   }
 
   if (confirmed) {
@@ -815,210 +775,255 @@ function VotePage() {
               </p>
             </div>
 
+            {/* ── Passive Face Verification UI ─────────────── */}
             <div className="mb-6">
-              {livenessState === "idle" && (
-                <div className="border border-border rounded-xl p-6 bg-card text-center space-y-4">
-                  <div className="mx-auto h-16 w-16 rounded-full bg-[#6C63FF]/10 flex items-center justify-center animate-pulse">
-                    <Smile className="h-8 w-8 text-[#6C63FF]" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-foreground">Face Verification Required</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    To complete casting your vote, you must perform a brief biometric liveness check. 
-                    This ensures a real, authorized voter is casting the ballot.
-                  </p>
-                  <div className="flex justify-center gap-3 pt-2">
-                    <Button variant="outline" onClick={() => setReview(false)}>
-                      ← Back
-                    </Button>
-                    <Button
-                      className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 font-semibold"
-                      onClick={startLivenessCheck}
-                    >
-                      Start Face Verification
-                    </Button>
-                  </div>
+
+              {/* Camera feed — always mounted while review is open so capture is instant */}
+              <div
+                className={cn(
+                  "rounded-xl overflow-hidden border-2 relative bg-black max-w-sm mx-auto shadow-lg mb-4",
+                  passiveState === "failed" ? "border-destructive/50" :
+                  passiveState === "success" ? "border-emerald-500" :
+                  faceDetected ? "border-emerald-400" : "border-[#6C63FF]"
+                )}
+                style={{ aspectRatio: "3/4" }}
+              >
+                {/* Live badge */}
+                <div className="absolute top-2.5 left-2.5 bg-black/65 text-white text-[10px] px-2 py-1 rounded-md z-10 flex items-center gap-1.5 font-medium">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
+                  Face Verification
                 </div>
-              )}
 
-              {livenessState === "loading_model" && (
-                <div className="border border-border rounded-xl p-8 bg-card text-center space-y-4">
-                  <div className="animate-spin h-10 w-10 border-4 border-[#6C63FF] border-t-transparent rounded-full mx-auto" />
-                  <h3 className="text-lg font-semibold text-foreground">Initializing Biometrics</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Pre-loading face tracking models. Please grant camera access when prompted.
-                  </p>
-                </div>
-              )}
+                {/* Face oval guide */}
+                {(passiveState === "detecting" || passiveState === "capturing") && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                    <div
+                      className={cn(
+                        "w-[55%] h-[75%] rounded-[50%] border-2 transition-colors duration-300",
+                        faceDetected ? "border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]" : "border-dashed border-[#6C63FF]/70"
+                      )}
+                    />
+                  </div>
+                )}
 
-              {livenessState === "active" && (
-                <div className="space-y-4">
-                  <div className="rounded-xl overflow-hidden border-2 border-[#6C63FF] relative bg-black aspect-video max-w-md mx-auto flex items-center justify-center shadow-lg">
-                    <div className="absolute top-3 left-3 bg-black/60 text-white text-[10px] md:text-xs px-2.5 py-1 rounded-md z-10 flex items-center gap-1.5 font-medium tracking-wide">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                      </span>
-                      Liveness Verification
-                    </div>
-
-                    {/* Countdown Timer */}
-                    <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md z-10 flex items-center gap-1 font-semibold">
-                      <Clock className="h-3.5 w-3.5 text-amber-400" />
-                      <span>{timerLeft}s</span>
-                    </div>
-
-                    {/* Face placement silhouette guide */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                      <div className="w-[180px] h-[240px] rounded-[50%] border-2 border-dashed border-[#6C63FF]/80 bg-transparent flex items-center justify-center relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
-                        {/* Scanning Line */}
-                        <div className="absolute left-0 right-0 h-0.5 bg-[#6C63FF] shadow-[0_0_8px_#6C63FF] animate-scan"></div>
+                {/* Camera errors */}
+                {webcamError ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-5 gap-3 z-20">
+                    <AlertTriangle className="h-7 w-7 text-destructive" />
+                    <p className="text-xs text-destructive text-center">{webcamError}</p>
+                    <Button size="sm" variant="outline" onClick={runPassiveCapture}>Retry Camera</Button>
+                  </div>
+                ) : (
+                  <>
+                    {!webcamReady && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-20">
+                        <div className="text-center space-y-2">
+                          <div className="animate-spin h-6 w-6 border-2 border-[#6C63FF] border-t-transparent rounded-full mx-auto" />
+                          <p className="text-xs text-white">Starting camera...</p>
+                        </div>
                       </div>
-                    </div>
-
-                    {webcamError ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-muted/40 p-6 gap-3 z-20">
-                        <AlertTriangle className="h-8 w-8 text-destructive" />
-                        <p className="text-sm text-destructive font-medium text-center">{webcamError}</p>
-                        <Button size="sm" variant="outline" onClick={startLivenessCheck}>
-                          Retry Camera
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        {!webcamReady && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-20">
-                            <div className="text-center space-y-2">
-                              <div className="animate-spin h-6 w-6 border-2 border-[#6C63FF] border-t-transparent rounded-full mx-auto" />
-                              <p className="text-xs text-white">Starting camera feed...</p>
-                            </div>
-                          </div>
-                        )}
-                        <Webcam
-                          audio={false}
-                          ref={webcamRef}
-                          screenshotFormat="image/jpeg"
-                          screenshotQuality={0.95}
-                          videoConstraints={{ facingMode: "user", width: 640, height: 480 }}
-                          playsInline={true}
-                          muted={true}
-                          className="w-full h-full object-cover"
-                          onUserMedia={() => setWebcamReady(true)}
-                          onUserMediaError={() => {
-                            setWebcamError(
-                              "Camera access denied or unavailable. Please enable camera permissions in your browser settings and refresh.",
-                            );
-                            toast.error("Camera access denied. Please enable permissions to vote.");
-                          }}
-                        />
-                      </>
                     )}
+                    <Webcam
+                      audio={false}
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      screenshotQuality={JPEG_QUALITY}
+                      videoConstraints={{ facingMode: "user", width: FRAME_W, height: FRAME_H }}
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                      onUserMedia={() => setWebcamReady(true)}
+                      onUserMediaError={() => {
+                        setWebcamError("Camera access denied. Enable camera permissions and refresh.");
+                        toast.error("Camera access denied.");
+                      }}
+                    />
+                  </>
+                )}
+
+                {/* Success overlay */}
+                {passiveState === "success" && (
+                  <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center z-20">
+                    <div className="h-16 w-16 rounded-full bg-emerald-500/90 flex items-center justify-center animate-in zoom-in duration-300">
+                      <Check className="h-9 w-9 text-white" />
+                    </div>
                   </div>
+                )}
+              </div>
 
-                  {/* Challenge instruction card */}
-                  <div className="bg-card border border-border rounded-xl p-5 text-center space-y-4 max-w-md mx-auto shadow-sm">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                      Step {currentStep + 1} of {challenges.length}
-                    </div>
-                    
-                    <div className="text-lg font-bold text-foreground py-1">
-                      {challenges[currentStep] === "blink" && "👁️ Blink your eyes"}
-                      {challenges[currentStep] === "left" && "👈 Turn your head slowly to the left"}
-                      {challenges[currentStep] === "right" && "👉 Turn your head slowly to the right"}
-                      {challenges[currentStep] === "mouth" && "😮 Open your mouth wide"}
-                    </div>
+              {/* Status card below camera */}
+              <div className="bg-card border border-border rounded-xl p-5 text-center space-y-3 max-w-sm mx-auto shadow-sm">
 
-                    {/* Progress indicators */}
-                    <div className="flex justify-center gap-2">
-                      {challenges.map((_, idx) => (
+                {/* DETECTING */}
+                {passiveState === "detecting" && (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <ScanFace className={cn("h-5 w-5 transition-colors", faceDetected ? "text-emerald-500" : "text-[#6C63FF] animate-pulse")} />
+                      <span className="text-sm font-semibold">
+                        {faceDetected ? "Face detected — hold still..." : "Position your face in the frame"}
+                      </span>
+                    </div>
+                    {passiveError && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                        {passiveError}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">No gestures required — just look at the camera.</p>
+                  </>
+                )}
+
+                {/* CAPTURING */}
+                {passiveState === "capturing" && (
+                  <>
+                    <p className="text-sm font-semibold text-foreground">Hold still — verifying identity</p>
+                    <div className="flex justify-center gap-1.5">
+                      {Array.from({ length: TOTAL_FRAMES }).map((_, i) => (
                         <div
-                          key={idx}
+                          key={i}
                           className={cn(
                             "h-2.5 w-2.5 rounded-full transition-all duration-300",
-                            idx < currentStep
-                              ? "bg-emerald-500"
-                              : idx === currentStep
-                                ? "bg-[#6C63FF] w-6"
-                                : "bg-muted"
+                            i < capturedCount ? "bg-emerald-500 scale-110" : "bg-muted"
                           )}
                         />
                       ))}
                     </div>
-
-                    {/* Live feedback warnings (e.g. alignment issues) */}
-                    {livenessError && (
-                      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 py-1.5 px-3 rounded-md animate-in fade-in duration-300">
-                        {livenessError}
-                      </div>
-                    )}
-
-                    {/* Timer progress bar */}
-                    <div className="w-full bg-muted h-1 rounded-full overflow-hidden">
+                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
                       <div
-                        className={cn(
-                          "h-full transition-all duration-1000",
-                          timerLeft < 15 ? "bg-destructive" : timerLeft < 30 ? "bg-amber-500" : "bg-emerald-500"
-                        )}
-                        style={{ width: `${(timerLeft / 45) * 100}%` }}
+                        className="h-full bg-[#6C63FF] transition-all duration-500"
+                        style={{ width: `${(capturedCount / TOTAL_FRAMES) * 100}%` }}
                       />
                     </div>
-                  </div>
+                    <p className="text-xs text-muted-foreground">Capturing frame {capturedCount + 1} of {TOTAL_FRAMES}...</p>
+                  </>
+                )}
 
-                  <div className="flex justify-center">
-                    <Button variant="outline" size="sm" onClick={() => failLiveness("Verification canceled.")}>
+                {/* SUBMITTING */}
+                {passiveState === "submitting" && (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+                      <span className="text-sm font-semibold">Verifying...</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Matching against enrolled student photo.</p>
+                  </>
+                )}
+
+                {/* SUCCESS */}
+                {passiveState === "success" && (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <Check className="h-5 w-5 text-emerald-500" />
+                      <span className="text-sm font-semibold text-emerald-600">
+                        {isSubmitting ? "Casting your vote..." : "Verified successfully!"}
+                      </span>
+                    </div>
+                    {matchScore !== null && (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-xs text-muted-foreground">Face match</span>
+                        <span
+                          className={cn(
+                            "text-sm font-bold px-2.5 py-0.5 rounded-full",
+                            matchScore >= 80 ? "bg-emerald-100 text-emerald-700" :
+                            matchScore >= 65 ? "bg-amber-100 text-amber-700" :
+                            "bg-orange-100 text-orange-700"
+                          )}
+                        >
+                          {matchScore.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden max-w-xs mx-auto">
+                      <div
+                        className={cn(
+                          "h-full animate-pulse transition-all duration-500",
+                          matchScore !== null && matchScore >= 80 ? "bg-emerald-500" :
+                          matchScore !== null && matchScore >= 65 ? "bg-amber-500" :
+                          "bg-emerald-500"
+                        )}
+                        style={{ width: matchScore !== null ? `${Math.min(matchScore, 100)}%` : "90%" }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* FAILED */}
+                {passiveState === "failed" && (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <X className="h-5 w-5 text-destructive" />
+                      <span className="text-sm font-semibold text-destructive">Verification Failed</span>
+                    </div>
+                    {matchScore !== null && (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-xs text-muted-foreground">Face match</span>
+                        <span
+                          className={cn(
+                            "text-sm font-bold px-2.5 py-0.5 rounded-full",
+                            matchScore >= 80 ? "bg-emerald-100 text-emerald-700" :
+                            matchScore >= 65 ? "bg-amber-100 text-amber-700" :
+                            "bg-orange-100 text-orange-700"
+                          )}
+                        >
+                          {matchScore.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {passiveError || "Unable to verify live face. Please try again."}
+                    </p>
+                    {matchScore === 0.0 && (
+                      <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 mt-2 text-left">
+                        Tip: Make sure you are in a well-lit room, look straight at the camera, remove glasses/mask, and hold still.
+                      </p>
+                    )}
+                    {!(
+                      passiveError?.toLowerCase().includes("lockout") ||
+                      passiveError?.toLowerCase().includes("locked")
+                    ) ? (
+                      <div className="flex justify-center gap-2 pt-1">
+                        <Button variant="outline" size="sm" onClick={() => { abortPassive(); setReview(false); }}>
+                          ← Back
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+                          onClick={runPassiveCapture}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                          Retry
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-destructive font-semibold">
+                        You are temporarily locked out. Please try again later.
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {/* IDLE fallback — camera loading before auto-start fires */}
+                {passiveState === "idle" && (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+                      <span className="text-sm font-semibold">Starting camera...</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">No gestures required — just look at the camera.</p>
+                  </>
+                )}
+
+                {/* Cancel button during active phases */}
+                {(passiveState === "detecting" || passiveState === "capturing") && (
+                  <div className="pt-1">
+                    <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={() => { abortPassive(); setReview(false); }}>
                       Cancel
                     </Button>
                   </div>
-                </div>
-              )}
-
-              {livenessState === "success" && (
-                <div className="border border-border rounded-xl p-8 bg-card text-center space-y-4">
-                  <div className="mx-auto h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                    <Check className="h-8 w-8 text-emerald-500" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-foreground">Liveness Verified Successfully</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {isSubmitting
-                      ? "Transmitting biometrics and casting your vote..."
-                      : "Capturing secure facial frame reference..."}
-                  </p>
-                  <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden max-w-xs mx-auto">
-                    <div className="h-full bg-emerald-500 animate-pulse" style={{ width: "80%" }} />
-                  </div>
-                </div>
-              )}
-
-              {livenessState === "failed" && (
-                <div className="border border-destructive/20 rounded-xl p-6 bg-destructive/5 text-center space-y-4">
-                  <div className="mx-auto h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-                    <X className="h-8 w-8 text-destructive" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-destructive">Verification Failed</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    {livenessError || "We could not verify your liveness or biometric match."}
-                  </p>
-                  
-                  {/* Do not show retry button if lockout is active */}
-                  {!(livenessError?.toLowerCase().includes("lockout") || livenessError?.toLowerCase().includes("locked") || livenessError?.toLowerCase().includes("too many failed")) ? (
-                    <div className="flex justify-center gap-3 pt-2">
-                      <Button variant="outline" onClick={() => setReview(false)}>
-                        ← Back
-                      </Button>
-                      <Button
-                        className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 font-semibold"
-                        onClick={startLivenessCheck}
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Retry Verification
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-destructive font-semibold">
-                      You are temporarily locked out of biometric verification. Please try again later.
-                    </p>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         )}

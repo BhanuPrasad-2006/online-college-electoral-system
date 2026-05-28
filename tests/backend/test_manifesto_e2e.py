@@ -77,7 +77,6 @@ from app.api.deps import get_current_user, get_admin_user
 from app.middleware.rate_limit import limiter
 from app.services.supabase_storage import UploadedStorageObject
 
-app.dependency_overrides[get_db] = override_get_db
 limiter.enabled = False
 
 
@@ -98,8 +97,7 @@ async def mock_get_current_user():
 async def mock_get_admin_user():
     return {"user_id": "admin-uuid", "email": "admin@test.edu", "role": "admin"}
 
-app.dependency_overrides[get_current_user] = mock_get_current_user
-app.dependency_overrides[get_admin_user] = mock_get_admin_user
+
 
 
 # --- Fixtures ---
@@ -107,6 +105,9 @@ app.dependency_overrides[get_admin_user] = mock_get_admin_user
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_db():
     """Create tables before each test, drop after."""
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_admin_user] = mock_get_admin_user
+    app.dependency_overrides[get_db] = override_get_db
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     yield

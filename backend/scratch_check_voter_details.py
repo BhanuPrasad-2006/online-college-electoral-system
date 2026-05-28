@@ -15,6 +15,11 @@ async def main():
             print("Vote Permission:", v.vote_permission)
             print("Has Voted:", v.has_voted)
             print("Verification ID:", v.verification_id)
+            print("Reference Image URL:", v.reference_image_url)
+            print("Has Face Encoding:", v.face_encoding is not None)
+            print("Embedding Model Version:", v.embedding_model_version)
+            print("Failed Face Attempts:", getattr(v, 'failed_face_attempts', None))
+            print("Lockout Until:", v.lockout_until)
         else:
             print("Voter not found!")
 

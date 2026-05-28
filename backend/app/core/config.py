@@ -68,7 +68,9 @@ class Settings(BaseSettings):
     # FaceNet128 with euclidean_l2: typical range 0–4. Verified same person = ~0.3–0.9, different = 1.0+
     # Standard recommended threshold: 1.1–1.2 (DeepFace default is 0.8 which is too strict for webcam)
     FACE_MATCH_THRESHOLD: float = 1.15
-    FACE_MATCH_COSINE_THRESHOLD: float = 0.68
+    # Cosine threshold lowered to 0.45 — webcam compressed frames vs enrollment photo
+    # typically score 0.55–0.75. 0.68 was rejecting real matches.
+    FACE_MATCH_COSINE_THRESHOLD: float = 0.45
     ENABLE_FACE_VERIFICATION: bool = True
 
     ALLOWED_ORIGINS: list[str] = [

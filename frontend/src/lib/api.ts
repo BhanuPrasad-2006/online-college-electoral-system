@@ -508,6 +508,54 @@ export async function verifyFace(params: {
   return data;
 }
 
+/**
+ * Passive liveness face verification.
+ * Sends 3–8 base64-encoded JPEG frames to the backend.
+ * No active gestures required — backend performs passive liveness checks.
+ */
+export async function verifyFacePassive(params: {
+  frames: string[];
+  antiReplayToken: string;
+}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number; match_score?: number; frames_matched?: number; frames_total?: number }> {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetch(`${API_BASE_URL}/vote/verify-face-passive`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      frames: params.frames,
+      anti_replay_token: params.antiReplayToken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const detail = data.detail;
+    let errMsg = "Face verification failed";
+    let score: number | undefined = undefined;
+    if (detail) {
+      if (typeof detail === "string") {
+        errMsg = detail;
+      } else if (typeof detail === "object") {
+        errMsg = detail.message ?? "Face verification failed";
+        if (typeof detail.match_score === "number") {
+          score = detail.match_score;
+        }
+      }
+    }
+    const err = new Error(errMsg) as any;
+    if (score !== undefined) {
+      err.match_score = score;
+    }
+    throw err;
+  }
+  return data;
+}
+
 export async function castVote(params: {
   candidateId: string | null;
   verificationId: string;

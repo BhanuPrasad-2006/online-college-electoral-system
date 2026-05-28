@@ -79,7 +79,6 @@ from app.security.password_service import hash_password
 from app.api.deps import get_current_user
 from app.middleware.rate_limit import limiter
 
-app.dependency_overrides[get_db] = override_get_db
 limiter.enabled = False
 
 
@@ -107,6 +106,7 @@ async def mock_get_current_user():
 async def setup_db():
     """Create tables before each test, drop after."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_db] = override_get_db
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     yield
