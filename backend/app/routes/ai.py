@@ -13,6 +13,7 @@ Environment variables required (set in backend/.env):
   GEMINI_API_KEY=your_gemini_api_key_here
 """
 
+import asyncio
 import uuid
 import logging
 from typing import Dict, Optional
@@ -162,6 +163,39 @@ def _mock_response(message: str) -> str:
     # Default fallback
     _mock_counter += 1
     return _build_mock_system_preview()
+
+
+def _is_transient_gemini_error(error: Exception) -> bool:
+    text = str(error).lower()
+    transient_markers = (
+        "503",
+        "unavailable",
+        "high demand",
+        "overloaded",
+        "temporarily",
+        "rate limit",
+        "resource exhausted",
+        "deadline exceeded",
+        "timeout",
+    )
+    return any(marker in text for marker in transient_markers)
+
+
+def _format_gemini_fallback(error: Exception) -> str:
+    if _is_transient_gemini_error(error):
+        return (
+            "The live AI model is temporarily busy. I can still help with election rules, "
+            "candidate information, voting steps, and student concerns using the portal's built-in knowledge.\n\n"
+            "**Voting help:** Log in with your college email, complete OTP verification, open the voting page "
+            "during the active voting phase, review the candidates, and submit your vote once. Your submitted "
+            "vote cannot be changed."
+        )
+
+    return (
+        "I encountered an issue reaching the live AI service. I can still answer basic election questions "
+        "from the portal's built-in knowledge while the live model is unavailable.\n\n"
+        f"_(Error: {str(error)[:120]})_"
+    )
 
 
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
@@ -407,8 +441,30 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         else:
             chat_session = _chat_sessions[session_id]["chat"]
 
-        # Send the user message and get the AI response
-        response = chat_session.send_message(request.message)
+        # Send the user message and get the AI response. Gemini can occasionally
+        # return transient 503/high-demand errors, so retry once with a fresh chat.
+        try:
+            response = await asyncio.to_thread(chat_session.send_message, request.message)
+        except Exception as first_error:
+            if not _is_transient_gemini_error(first_error):
+                raise
+
+            logger.warning(
+                "Transient Gemini error for session %s; retrying once with a fresh chat: %s",
+                session_id,
+                first_error,
+            )
+            chat_session = client.chats.create(
+                model="gemini-2.5-flash",
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=instruction,
+                    temperature=0.3,
+                    max_output_tokens=1024,
+                ),
+            )
+            _chat_sessions[session_id] = {"chat": chat_session, "instruction": instruction}
+            response = await asyncio.to_thread(chat_session.send_message, request.message)
+
         reply_text = response.text
 
         return ChatResponse(
@@ -421,6 +477,12 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Gemini API error for session {session_id}: {e}")
         # On API error, return a safe fallback instead of crashing
+        return ChatResponse(
+            session_id=session_id,
+            reply=_format_gemini_fallback(e),
+            is_mock=True,
+            query_type=query_type,
+        )
         return ChatResponse(
             session_id=session_id,
             reply=(
