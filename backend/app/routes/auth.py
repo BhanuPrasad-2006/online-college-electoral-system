@@ -10,11 +10,13 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import get_db
 from app.api.deps import get_current_user
+from app.enums.roles import UserRoleEnum
 from app.models.voter import Voter
 from app.models.candidate import Candidate
 from app.models.position import Position
 from app.models.election import Election
 from app.enums.election_status import ElectionStatusEnum
+from app.services.phase_engine import PhaseEngine
 from app.schemas.auth_schema import (
     VoterLoginRequest,
     VoterOTPVerifyRequest,
@@ -623,6 +625,292 @@ async def candidate_resend_sms_otp_route(
         otp_session_token=body.otp_session_token,
     )
     return result
+
+# ─── Voting Token Endpoint ────────────────────────────────────
+
+@router.post(
+    "/voting-token",
+    status_code=status.HTTP_200_OK,
+    summary="Issue a time-limited voting token for vote casting",
+    description=(
+        "Grants a 15-minute voting-specific JWT. Requires an active normal session. "
+        "The voting token is the ONLY token accepted by vote casting endpoints. "
+        "Invalidated after successful vote submission."
+    ),
+)
+@limiter.limit("10/minute")
+async def issue_voting_token(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Issue a short-lived voting token (15 min) for vote casting.
+    Only voters who have not voted yet, have voting permission,
+    and are within an active voting period can get one.
+    """
+    # Must be a voter
+    if current_user["role"] != UserRoleEnum.VOTER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only voters can request a voting token."
+        )
+
+    voter_id = current_user.get("user_id")
+    if not voter_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized"
+        )
+
+    try:
+        voter_uuid = uuid.UUID(voter_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid voter ID"
+        )
+
+    # Fetch voter
+    voter_res = await db.execute(select(Voter).where(Voter.voter_id == voter_uuid))
+    voter = voter_res.scalar_one_or_none()
+    if not voter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Voter not found"
+        )
+
+    # Check not already voted
+    if voter.has_voted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already cast your vote."
+        )
+
+    # Check vote permission
+    if not voter.vote_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have voting permission. Contact the election admin."
+        )
+
+    # Check active election (uses PhaseEngine for consistency with cast_vote)
+    election_res = await db.execute(
+        select(Election).order_by(Election.created_at.desc())
+    )
+    election = election_res.scalars().first()
+    if not election or not PhaseEngine.is_voting_allowed(election):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Voting is not currently open."
+        )
+
+    # Generate CSRF token
+    import secrets
+    csrf_token = secrets.token_hex(16)
+
+    # Issue voting token
+    from app.security.jwt_service import create_voting_access_token
+    from app.security.device_fingerprint import generate_fingerprint
+
+    voting_token = create_voting_access_token(
+        voter_id=voter_id,
+        email=voter.college_email,
+        election_id=str(election.election_id),
+        csrf_token=csrf_token,
+        device_fingerprint=generate_fingerprint(request),
+    )
+
+    # Audit log
+    from app.models.audit_log import AuditLog
+    ip_addr = request.client.host if request.client else "127.0.0.1"
+    x_forwarded = request.headers.get("x-forwarded-for")
+    if x_forwarded:
+        ip_addr = x_forwarded.split(",")[0].strip()
+
+    audit = AuditLog(
+        event_type="VOTING_TOKEN_ISSUED",
+        actor_id=voter_uuid,
+        description=f"Voting token issued for voter {voter.college_email}",
+        ip_address=ip_addr,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "voting_token": voting_token,
+        "token_type": "voting",
+        "expires_in_seconds": 15 * 60,
+        "election_id": str(election.election_id),
+        "csrf_token": csrf_token,
+    }
+
+
+# ─── Password Reconfirmation Endpoint ────────────────────────
+
+from pydantic import BaseModel
+
+class ReconfirmPasswordRequest(BaseModel):
+    current_password: str
+
+
+@router.post(
+    "/reconfirm-password",
+    status_code=status.HTTP_200_OK,
+    summary="Reconfirm current password for sensitive actions",
+    description=(
+        "Validates the current password and re-issues the existing access token "
+        "with a 'reconfirmed_at' timestamp. This grants a 10-minute window "
+        "to perform sensitive actions (publish results, modify manifesto, etc.)."
+    ),
+)
+@limiter.limit("10/minute")
+async def reconfirm_password(
+    request: Request,
+    body: ReconfirmPasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Re-authenticate the current user for sensitive actions.
+    Returns a re-issued access token with 'reconfirmed_at' field.
+    """
+    user_id = current_user.get("user_id")
+    role = current_user.get("role")
+    email = current_user.get("email")
+
+    if not user_id or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized"
+        )
+
+    # Find the user based on role
+    password_hash = None
+    user_name = ""
+
+    if role == UserRoleEnum.VOTER:
+        try:
+            uid = uuid.UUID(user_id)
+        except ValueError:
+            uid = uuid.UUID(user_id)
+        # Try voter first
+        user_res = await db.execute(
+            select(Voter).where(
+                Voter.college_email == email
+            )
+        )
+        voter = user_res.scalar_one_or_none()
+        if voter:
+            password_hash = voter.password_hash
+            user_name = voter.full_name
+        else:
+            # Try candidate->voter chain
+            try:
+                uid = uuid.UUID(user_id)
+                cand_res = await db.execute(
+                    select(Candidate).where(Candidate.candidate_id == uid)
+                )
+                candidate = cand_res.scalar_one_or_none()
+                if candidate:
+                    voter_res2 = await db.execute(
+                        select(Voter).where(Voter.voter_id == candidate.voter_id)
+                    )
+                    voter2 = voter_res2.scalar_one_or_none()
+                    if voter2:
+                        password_hash = voter2.password_hash
+                        user_name = voter2.full_name
+            except (ValueError, Exception):
+                pass
+
+    elif role == UserRoleEnum.CANDIDATE:
+        # Look up via candidate->voter chain
+        try:
+            uid = uuid.UUID(user_id)
+            cand_res = await db.execute(
+                select(Candidate).where(Candidate.candidate_id == uid)
+            )
+            candidate = cand_res.scalar_one_or_none()
+            if candidate:
+                voter_res2 = await db.execute(
+                    select(Voter).where(Voter.voter_id == candidate.voter_id)
+                )
+                voter2 = voter_res2.scalar_one_or_none()
+                if voter2:
+                    password_hash = voter2.password_hash
+                    user_name = voter2.full_name
+        except (ValueError, Exception):
+            pass
+
+    elif role == UserRoleEnum.ADMIN:
+        from app.models.admin_user import AdminUser
+        try:
+            uid = uuid.UUID(user_id)
+            admin_res = await db.execute(
+                select(AdminUser).where(AdminUser.admin_id == uid)
+            )
+            admin_user = admin_res.scalar_one_or_none()
+            if admin_user:
+                password_hash = admin_user.password_hash
+                user_name = admin_user.full_name
+        except (ValueError, Exception):
+            pass
+
+    if not password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found"
+        )
+
+    from app.security.password_service import verify_password
+    if not verify_password(body.current_password, password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Current password is incorrect"
+        )
+
+    # Get the original bearer token to re-issue
+    from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+    bearer = HTTPBearer()
+    try:
+        creds = await bearer(request)
+        original_token = creds.credentials
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+
+    # Re-issue token with reconfirmed_at
+    from app.security.jwt_service import reissue_with_reconfirmation
+    new_token = reissue_with_reconfirmation(original_token)
+
+    # Audit log
+    from app.models.audit_log import AuditLog
+    ip_addr = request.client.host if request.client else "127.0.0.1"
+    x_forwarded = request.headers.get("x-forwarded-for")
+    if x_forwarded:
+        ip_addr = x_forwarded.split(",")[0].strip()
+
+    audit = AuditLog(
+        event_type="PASSWORD_RECONFIRMED",
+        actor_id=uuid.UUID(user_id) if user_id else None,
+        description=f"{role.capitalize()} {user_name} ({email}) reconfirmed password for sensitive action",
+        ip_address=ip_addr,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "access_token": new_token,
+        "token_type": "bearer",
+        "reconfirmed": True,
+        "reconfirmed_at": datetime.now(timezone.utc).isoformat(),
+        "message": "Password verified. You have 10 minutes to perform sensitive actions.",
+    }
+
 
 # ─── Logout Endpoint ──────────────────────────────────────────
 

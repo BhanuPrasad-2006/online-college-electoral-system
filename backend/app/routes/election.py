@@ -1,7 +1,7 @@
 import uuid
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -609,7 +609,15 @@ async def open_voting(
     admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
-    """Start voting phase for an election and notify all participants."""
+    """Start voting phase for an election and notify all participants.
+
+    Automatically ensures `voting_end` is set to a future time if:
+      - It was never configured (None), or
+      - It is in the past (stale date from a previous schedule).
+
+    This prevents PhaseEngine from returning "voting_closed" due to inconsistent
+    dates after a manual Force Open Voting override.
+    """
     try:
         election_uuid = uuid.UUID(election_id)
     except ValueError:
@@ -619,10 +627,26 @@ async def open_voting(
     election = result.scalar_one_or_none()
     if not election:
         raise HTTPException(status_code=404, detail="Election not found")
-        
+
+    now = datetime.now(timezone.utc)
+
     election.status = ElectionStatusEnum.VOTING_OPEN.value
-    election.voting_start = datetime.now(timezone.utc)
-    
+    election.voting_start = now
+
+    # ── Ensure voting_end is set to a valid future time ─────────────
+    # If voting_end is None or already in the past, extend it to 24h from now.
+    # This prevents PhaseEngine date-based logic from immediately returning
+    # "voting_closed" after Force Open Voting.
+    if election.voting_end is None:
+        election.voting_end = now + timedelta(hours=24)
+    else:
+        ve = election.voting_end
+        if ve.tzinfo is not None:
+            ve = ve.astimezone(timezone.utc).replace(tzinfo=None)
+        now_naive = now.replace(tzinfo=None)
+        if ve <= now_naive:
+            election.voting_end = now + timedelta(hours=24)
+
     await db.commit()
     await db.refresh(election)
     _reset_election_cache()
@@ -639,7 +663,12 @@ async def close_voting(
     admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER"])),
     db: AsyncSession = Depends(get_db)
 ):
-    """Close voting phase for an election."""
+    """Close voting phase for an election.
+
+    Sets status to CLOSED and records the closing time.
+    PhaseEngine.get_current_phase() will return "voting_closed" because
+    the CLOSED status is checked before date-based logic.
+    """
     try:
         election_uuid = uuid.UUID(election_id)
     except ValueError:

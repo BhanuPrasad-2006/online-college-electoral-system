@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ReconfirmPasswordModal } from "@/components/ReconfirmPasswordModal";
 import {
   Plus,
   X,
@@ -16,11 +18,13 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchVotersForAdmin,
   updateVoterPermission,
+  bulkUpdateVoterPermission,
   fetchCurrentElection,
   openVoting,
   closeVoting,
@@ -36,6 +40,7 @@ import {
   API_BASE_URL,
   getAuthToken,
   getCsrfToken,
+  resolveApiAssetUrl,
 } from "@/lib/api";
 
 function Page() {
@@ -58,6 +63,7 @@ function Page() {
 
   // Face ID upload states
   const [uploadingFaceId, setUploadingFaceId] = useState<string | null>(null);
+  const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
 
   const [election, setElection] = useState<any>(null);
   const [loadingElection, setLoadingElection] = useState(true);
@@ -65,7 +71,7 @@ function Page() {
   const [phaseData, setPhaseData] = useState<any>(null);
 
   // Form states
-  const [title, setTitle] = useState("Student Council Election 2025");
+  const [title, setTitle] = useState("Student Council Election 2026");
   const [registrationStart, setRegistrationStart] = useState("");
   const [registrationEnd, setRegistrationEnd] = useState("");
   const [documentDeadline, setDocumentDeadline] = useState("");
@@ -74,6 +80,9 @@ function Page() {
   const [eligibleDepartment, setEligibleDepartment] = useState("");
   const [savingElection, setSavingElection] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [reconfirmOpen, setReconfirmOpen] = useState(false);
+  const [reconfirmAction, setReconfirmAction] = useState<string | null>(null);
+  const [reconfirmDescription, setReconfirmDescription] = useState("");
 
   function formatDateTimeForInput(dateStr?: string) {
     if (!dateStr) return "";
@@ -137,7 +146,7 @@ function Page() {
       const data = await fetchCurrentElection();
       setElection(data);
       if (data) {
-        setTitle(data.title || "Student Council Election 2025");
+        setTitle(data.title || "Student Council Election 2026");
         setRegistrationStart(formatDateTimeForInput(data.registration_start));
         setRegistrationEnd(formatDateTimeForInput(data.registration_end));
         setDocumentDeadline(formatDateTimeForInput(data.document_deadline));
@@ -229,12 +238,6 @@ function Page() {
   }
   async function handleAnnounce() {
     if (!election) return;
-    if (
-      !confirm(
-        "Are you sure you want to announce the election schedule to all users? Emails will be sent.",
-      )
-    )
-      return;
     setUpdatingStatus(true);
     try {
       const res = await announceElectionSchedule(election.election_id);
@@ -453,30 +456,45 @@ function Page() {
       return;
     }
     setBulkUpdating(true);
-    let success = 0;
-    let fail = 0;
-    for (const v of targets) {
-      try {
-        await updateVoterPermission(v.voter_id, grant);
-        success++;
-      } catch {
-        fail++;
-      }
-    }
-    // Refresh local state
-    setVoters((prev) =>
-      prev.map((v) => {
-        const inTarget = targets.some((t) => t.voter_id === v.voter_id);
-        return inTarget ? { ...v, vote_permission: grant } : v;
-      }),
-    );
-    setBulkUpdating(false);
-    if (fail === 0) {
-      toast.success(
-        `${success} voter${success !== 1 ? "s" : ""} ${grant ? "allowed" : "blocked"} successfully.`,
+    try {
+      // Use the efficient bulk endpoint instead of looping one-by-one
+      const deptParam = dept === "All" ? "All" : dept;
+      const res = await bulkUpdateVoterPermission(deptParam, grant);
+      // Update local state
+      setVoters((prev) =>
+        prev.map((v) => {
+          const matchesDept = dept === "All" || (v.department || "").trim() === dept;
+          return matchesDept ? { ...v, vote_permission: grant } : v;
+        }),
       );
-    } else {
-      toast.warning(`${success} updated, ${fail} failed.`);
+      toast.success(res.message || `${res.affected_count} voter(s) updated.`);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to bulk update permissions");
+      // Fallback: try individual updates
+      let success = 0;
+      let fail = 0;
+      for (const v of targets) {
+        try {
+          await updateVoterPermission(v.voter_id, grant);
+          success++;
+        } catch {
+          fail++;
+        }
+      }
+      setVoters((prev) =>
+        prev.map((v) => {
+          const inTarget = targets.some((t) => t.voter_id === v.voter_id);
+          return inTarget ? { ...v, vote_permission: grant } : v;
+        }),
+      );
+      if (fail === 0) {
+        toast.success(`${success} voter${success !== 1 ? "s" : ""} ${grant ? "allowed" : "blocked"} (fallback).`);
+      } else {
+        toast.warning(`${success} updated, ${fail} failed (fallback).`);
+      }
+    } finally {
+      setBulkUpdating(false);
     }
   }
 
@@ -518,7 +536,7 @@ function Page() {
 
             {/* ── Summary stats row ── */}
             {!loadingVoters && voters.length > 0 && (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { label: "Total Voters", value: voters.length, color: "text-foreground" },
                   {
@@ -529,6 +547,11 @@ function Page() {
                   {
                     label: "Already Voted",
                     value: voters.filter((v) => v.has_voted).length,
+                    color: "text-emerald-500",
+                  },
+                  {
+                    label: "✅ Ready to Vote",
+                    value: voters.filter((v) => v.vote_permission && v.verification_id_set && v.face_enrolled && !v.has_voted).length,
                     color: "text-success",
                   },
                 ].map((stat) => (
@@ -749,9 +772,30 @@ function Page() {
                         <td className="p-3 text-center">
                           <div className="flex flex-col items-center justify-center gap-2">
                             {v.face_enrolled ? (
-                              <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium">
-                                Enrolled ✓
-                              </Badge>
+                              <div className="flex flex-col items-center gap-1.5">
+                                <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium">
+                                  Enrolled ✓
+                                </Badge>
+                                {v.reference_image_url && (
+                                  <div
+                                    className="relative group cursor-pointer h-10 w-10 rounded-full overflow-hidden border border-[#6C63FF]/30 hover:border-[#6C63FF] transition-all"
+                                    onClick={() => setSelectedPreviewImage(resolveApiAssetUrl(v.reference_image_url))}
+                                    title="Click to zoom reference photo"
+                                  >
+                                    <img
+                                      src={resolveApiAssetUrl(v.reference_image_url)}
+                                      alt="Face preview"
+                                      className="h-full w-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + v.full_name;
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Eye className="h-3.5 w-3.5 text-white" />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <Badge
                                 variant="destructive"
@@ -760,7 +804,7 @@ function Page() {
                                 Not Enrolled
                               </Badge>
                             )}
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-[11px] text-muted-foreground mt-0.5">
                               {v.face_enrolled ? "Uploaded" : "No face uploaded"}
                             </span>
                             <div>
@@ -1063,7 +1107,11 @@ function Page() {
                 <div className="flex flex-col gap-2 pt-2">
                   <Button
                     className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full"
-                    onClick={handleAnnounce}
+                    onClick={() => {
+                      setReconfirmDescription("Announcing the election schedule will send emails to all users.");
+                      setReconfirmAction("announce");
+                      setReconfirmOpen(true);
+                    }}
                     disabled={updatingStatus}
                   >
                     Announce Schedule
@@ -1073,7 +1121,11 @@ function Page() {
                     {phaseData.is_paused ? (
                       <Button
                         variant="outline"
-                        onClick={handleResume}
+                        onClick={() => {
+                          setReconfirmDescription("Resume the election from its current phase.");
+                          setReconfirmAction("resume");
+                          setReconfirmOpen(true);
+                        }}
                         disabled={updatingStatus}
                         className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                       >
@@ -1082,7 +1134,11 @@ function Page() {
                     ) : (
                       <Button
                         variant="outline"
-                        onClick={handlePause}
+                        onClick={() => {
+                          setReconfirmDescription("Pause the election to temporarily halt all voting activity.");
+                          setReconfirmAction("pause");
+                          setReconfirmOpen(true);
+                        }}
                         disabled={updatingStatus}
                         className="border-amber-200 text-amber-700 hover:bg-amber-50"
                       >
@@ -1092,7 +1148,11 @@ function Page() {
 
                     <Button
                       variant="destructive"
-                      onClick={handleEmergencyStop}
+                      onClick={() => {
+                        setReconfirmDescription("Emergency Stop will immediately close voting. This cannot be undone.");
+                        setReconfirmAction("emergency_stop");
+                        setReconfirmOpen(true);
+                      }}
                       disabled={
                         updatingStatus ||
                         phaseData.phase === "voting_closed" ||
@@ -1119,7 +1179,11 @@ function Page() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleOpenVoting}
+                  onClick={() => {
+                    setReconfirmDescription("Force open voting to allow all eligible voters to cast their ballots.");
+                    setReconfirmAction("open_voting");
+                    setReconfirmOpen(true);
+                  }}
                   disabled={
                     updatingStatus ||
                     !election ||
@@ -1132,20 +1196,98 @@ function Page() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleCloseVoting}
+                  onClick={() => {
+                    setReconfirmDescription("Force close voting to end the election voting phase immediately.");
+                    setReconfirmAction("close_voting");
+                    setReconfirmOpen(true);
+                  }}
                   disabled={updatingStatus || !election || phaseData?.phase !== "voting_open"}
                 >
                   Force Close Voting
                 </Button>
                 <Button
                   className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 mt-2"
-                  onClick={handlePublishResults}
+                  onClick={() => {
+                    setReconfirmDescription("Publishing results will make them visible to all voters and candidates.");
+                    setReconfirmAction("publish_results");
+                    setReconfirmOpen(true);
+                  }}
                   disabled={updatingStatus || !election || phaseData?.phase !== "voting_closed"}
                 >
                   Publish Results & Notify
                 </Button>
               </div>
             </div>
+      {/* Password Reconfirmation Modal */}
+      <ReconfirmPasswordModal
+        open={reconfirmOpen}
+        onOpenChange={(o) => { setReconfirmOpen(o); if (!o) setReconfirmAction(null); }}
+        title={{
+          announce: "Announce Schedule",
+          pause: "Pause Election",
+          resume: "Resume Election",
+          emergency_stop: "Emergency Stop",
+          open_voting: "Force Open Voting",
+          close_voting: "Force Close Voting",
+          publish_results: "Publish Results",
+        }[reconfirmAction ?? ""] || "Confirm Action"}
+        description={reconfirmDescription}
+        actionLabel={{
+          announce: "Confirm & Announce",
+          pause: "Confirm & Pause",
+          resume: "Confirm & Resume",
+          emergency_stop: "Confirm Emergency Stop",
+          open_voting: "Confirm & Open",
+          close_voting: "Confirm & Close",
+          publish_results: "Confirm & Publish",
+        }[reconfirmAction ?? ""] || "Confirm & Continue"}
+        onVerified={async () => {
+          if (!election || !reconfirmAction) return;
+          setUpdatingStatus(true);
+          try {
+            let res;
+            switch (reconfirmAction) {
+              case "announce":
+                res = await announceElectionSchedule(election.election_id);
+                toast.success(res.message);
+                break;
+              case "pause":
+                res = await pauseElection(election.election_id);
+                toast.success(res.message);
+                break;
+              case "resume":
+                res = await resumeElection(election.election_id);
+                toast.success(res.message);
+                break;
+              case "emergency_stop":
+                if (!confirm("EMERGENCY STOP will immediately close voting. This cannot be undone. Proceed?"))
+                  return;
+                res = await emergencyStopElection(election.election_id);
+                toast.success(res.message);
+                break;
+              case "open_voting":
+                res = await openVoting(election.election_id);
+                toast.success(res.message || "Voting successfully opened!");
+                break;
+              case "close_voting":
+                res = await closeVoting(election.election_id);
+                toast.success(res.message || "Voting successfully closed!");
+                break;
+              case "publish_results":
+                res = await publishResults(election.election_id);
+                toast.success(res.message || "Results successfully published!");
+                break;
+            }
+            await loadElection();
+          } catch (e: any) {
+            toast.error(e.message || "Action failed");
+          } finally {
+            setUpdatingStatus(false);
+            setReconfirmAction(null);
+          }
+        }}
+      />
+
             <div className="bg-muted/50 rounded-lg p-3 font-mono text-[10px] break-all mt-4">
               <span className="text-muted-foreground">SHA-256 Hash: </span>
               {election?.result_integrity_hash ||
@@ -1154,6 +1296,32 @@ function Page() {
           </div>
         </div>
       </div>
+      
+      {/* ── Voter reference photo zoom preview dialog ── */}
+      <Dialog open={!!selectedPreviewImage} onOpenChange={(b) => !b && setSelectedPreviewImage(null)}>
+        <DialogContent className="max-w-md p-6 flex flex-col items-center gap-4">
+          <DialogTitle className="text-lg font-bold text-center w-full">Voter Reference Face Photo</DialogTitle>
+          <div className="aspect-[3/4] w-full max-w-[280px] rounded-xl overflow-hidden border border-border shadow-md bg-muted flex items-center justify-center">
+            {selectedPreviewImage ? (
+              <img
+                src={selectedPreviewImage}
+                alt="Enrolled face zoom reference"
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=preview";
+                }}
+              />
+            ) : (
+              <span className="text-xs text-muted-foreground">No image loaded</span>
+            )}
+          </div>
+          <div className="w-full flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => setSelectedPreviewImage(null)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

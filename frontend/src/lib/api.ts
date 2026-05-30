@@ -159,6 +159,22 @@ export function getAuthToken() {
   }
 }
 
+export function getVotingToken() {
+  try {
+    return sessionStorage.getItem("collegevote-voting-token");
+  } catch {
+    return null;
+  }
+}
+
+export function saveVotingToken(token: string) {
+  try {
+    sessionStorage.setItem("collegevote-voting-token", token);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getFullName() {
   try {
     return sessionStorage.getItem(KEYS.fullName) ?? "";
@@ -206,7 +222,7 @@ async function post<T>(path: string, body: object): Promise<T> {
         window.location.href = "/";
       }
     }
-    const err = new Error(data.detail ?? "Request failed");
+    const err = new Error(data.error ?? data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
   }
@@ -240,7 +256,7 @@ async function get<T>(path: string): Promise<T> {
         window.location.href = "/";
       }
     }
-    const err = new Error(data.detail ?? "Request failed");
+    const err = new Error(data.error ?? data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
   }
@@ -279,7 +295,7 @@ async function put<T>(path: string, body: object): Promise<T> {
         window.location.href = "/";
       }
     }
-    const err = new Error(data.detail ?? "Request failed");
+    const err = new Error(data.error ?? data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
   }
@@ -465,9 +481,15 @@ export async function uploadVoterOwnPhoto(file: File): Promise<{
 }
 
 // ── Vote Casting ──────────────────────────────────────────────
+
+/** Get the best available token: voting token preferred, fallback to normal access token */
+function getBestToken(): string {
+  return getVotingToken() || getAuthToken();
+}
+
 // verifyVoterId: Pre-validates verification ID against the DB before candidate selection.
 export async function verifyVoterId(verificationId: string) {
-  const token = getAuthToken();
+  const token = getBestToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   headers["Authorization"] = `Bearer ${token}`;
@@ -488,7 +510,7 @@ export async function verifyFace(params: {
   liveFaceImage: string;
   antiReplayToken: string;
 }): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number }> {
-  const token = getAuthToken();
+  const token = getBestToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -517,7 +539,7 @@ export async function verifyFacePassive(params: {
   frames: string[];
   antiReplayToken: string;
 }): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number; match_score?: number; frames_matched?: number; frames_total?: number }> {
-  const token = getAuthToken();
+  const token = getBestToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -569,7 +591,7 @@ export async function castVote(params: {
     submit_time_ms?: number;
   };
 }) {
-  const token = getAuthToken();
+  const token = getBestToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -749,6 +771,14 @@ export async function setVoterVerificationCode(voterId: string, verificationId: 
   return put<{ message: string; voter_id: string; verification_id_set: boolean }>(
     `/vote/admin/voters/${voterId}/verification-code`,
     { verification_code: verificationId },
+  );
+}
+
+// ── Bulk Permission Update ──────────────────────────────────────
+export async function bulkUpdateVoterPermission(department: string, grant: boolean) {
+  return post<{ message: string; affected_count: number; vote_permission: boolean; department: string }>(
+    "/vote/admin/voters/bulk-permission",
+    { vote_permission: grant, department },
   );
 }
 
@@ -1195,7 +1225,7 @@ async function del<T>(path: string): Promise<T> {
         window.location.href = "/";
       }
     }
-    const err = new Error(data.detail ?? "Request failed");
+    const err = new Error(data.error ?? data.detail ?? "Request failed");
     if (data.remarks) (err as any).remarks = data.remarks;
     throw err;
   }
@@ -1224,6 +1254,40 @@ export async function createNotice(data: { title: string; priority: string; cont
   return post<any>("/admin/notices", data);
 }
 
+// ── Voting Token Endpoints ───────────────────────────────────
+export async function requestVotingToken() {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetch(`${API_BASE_URL}/auth/voting-token`, { method: "POST", headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? data.detail ?? "Failed to request voting token");
+  return data as { voting_token: string; token_type: string; expires_in_seconds: number; election_id: string; csrf_token: string };
+}
+
+// ── Password Reconfirmation ────────────────────────────────────
+export async function reconfirmPassword(currentPassword: string) {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetch(`${API_BASE_URL}/auth/reconfirm-password`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ current_password: currentPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? data.detail ?? "Password reconfirmation failed");
+  return data as { access_token: string; token_type: string; reconfirmed: boolean; reconfirmed_at: string; message: string };
+}
+
 // ── Admin Meetings ────────────────────────────────────────────
 export async function fetchMeetings() {
   return get<any[]>("/admin/meetings");
@@ -1235,4 +1299,107 @@ export async function createMeeting(data: { title: string; agenda: string; meeti
 
 export async function attendMeeting(meetingId: string) {
   return post<any>(`/admin/meetings/${meetingId}/attend`, {});
+}
+
+// ── Party Management (Candidate Portal) ──────────────────────
+
+export async function createParty(
+  sessionToken: string,
+  details: {
+    party_name: string;
+    party_symbol?: string;
+    party_slogan?: string;
+    party_manifesto: string;
+    logo_url?: string;
+    position_id: string;
+    new_password?: string;
+    full_name?: string;
+    department?: string;
+    student_id?: string;
+  },
+) {
+  return post<{ message: string; party_id: string; candidate_id: string; status: string }>(
+    "/parties/create",
+    { otp_session_token: sessionToken, ...details },
+  );
+}
+
+export async function fetchMyParty() {
+  return get<any>("/parties/me");
+}
+
+export async function updatePartyManifesto(manifesto: string) {
+  return put<{ message: string }>("/parties/me/manifesto", { manifesto });
+}
+
+export async function sendPartyInvitation(details: {
+  invited_usn: string;
+  invited_email: string;
+  role: string;
+  position?: string;
+  message?: string;
+}) {
+  return post<{ message: string; invitation_id: string; expires_at: string }>(
+    "/parties/me/invite",
+    details,
+  );
+}
+
+export async function cancelPartyInvitation(invitationId: string) {
+  const token = getAuthToken();
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const fp = sessionStorage.getItem("collegevote-fingerprint");
+  if (fp) headers["X-Device-Fingerprint"] = fp;
+  const res = await fetchWithRetry(`${API_BASE_URL}/parties/me/invite/${invitationId}`, {
+    method: "DELETE",
+    headers,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? data.detail ?? "Failed to cancel invitation");
+  return data;
+}
+
+export async function fetchPublicParty(partyId: string) {
+  return get<any>(`/parties/public/${partyId}`);
+}
+
+// ── Admin Party Management ────────────────────────────────────
+
+export async function fetchAdminParties(statusFilter?: string) {
+  const q = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+  return get<any[]>(`/parties/admin/list${q}`);
+}
+
+export async function reviewPartyStatus(
+  partyId: string,
+  status: "APPROVED" | "REJECTED" | "CHANGES_REQUESTED",
+  adminRemarks?: string,
+) {
+  return put<{ message: string; party_id: string; new_status: string }>(
+    `/parties/admin/${partyId}/status`,
+    { status, admin_remarks: adminRemarks },
+  );
+}
+
+// ── Voter Party Invitations (Voter Dashboard) ─────────────────
+
+export async function fetchMyPartyInvitations() {
+  return get<any[]>("/voter/party-invitations");
+}
+
+export async function acceptPartyInvitation(invitationId: string) {
+  return post<{ message: string; candidate_id: string; party_id: string; role: string }>(
+    `/voter/party-invitations/${invitationId}/accept`,
+    {},
+  );
+}
+
+export async function rejectPartyInvitation(invitationId: string) {
+  return post<{ message: string; invitation_id: string }>(
+    `/voter/party-invitations/${invitationId}/reject`,
+    {},
+  );
 }

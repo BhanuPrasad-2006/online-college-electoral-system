@@ -29,7 +29,13 @@ class PhaseEngine:
 
     @staticmethod
     def get_current_phase(election: Election, current_time: datetime = None) -> str:
-        """Calculate the current phase of the election based on its dates and document_deadline."""
+        """
+        Calculate the current phase of the election based on its dates and document_deadline.
+
+        IMPORTANT: When an admin explicitly sets the election status (e.g. "Force Open Voting"),
+        the explicit status overrides date-based logic. This prevents stale `voting_end` dates
+        from blocking voting after a manual override.
+        """
         n = PhaseEngine._normalize
         now = n(current_time or datetime.now(timezone.utc))
         reg_start = n(election.registration_start)
@@ -42,6 +48,27 @@ class PhaseEngine:
             return "paused"
         if election.status == ElectionStatusEnum.RESULTS_PUBLISHED.value:
             return "results_announced"
+
+        # ── Explicit status override ───────────────────────────────────
+        # If the admin has explicitly set the status to VOTING_OPEN or CLOSED,
+        # respect that over date-based logic (handles Force Open/Close Voting).
+        # BUT only if the dates are inconsistent – if dates are normal, prefer
+        # date-based logic.
+
+        if election.status == ElectionStatusEnum.VOTING_OPEN.value:
+            # Check if dates would agree or disagree
+            if vote_start and vote_end:
+                if vote_start <= now < vote_end:
+                    return "voting_open"        # dates agree
+                if now >= vote_end:
+                    # Dates say closed, but admin forced open → respect admin override
+                    return "voting_open"
+            # voting_end is None or dates are missing → respect admin status
+            return "voting_open"
+
+        if election.status == ElectionStatusEnum.CLOSED.value:
+            # Respect admin's close decision even if dates say otherwise
+            return "voting_closed"
 
         # 1. Pre-registration
         if reg_start and now < reg_start:
@@ -66,14 +93,17 @@ class PhaseEngine:
                 return "campaign_period"
             # If we're past vote_start, fall through to voting checks
 
-        # 4. Voting
+        # 4. Voting (date-based)
         if vote_start and vote_end:
             if vote_start <= now < vote_end:
                 return "voting_open"
             if now >= vote_end:
+                # Fallback status check — if status says open, respect it
+                if election.status == ElectionStatusEnum.VOTING_OPEN.value:
+                    return "voting_open"
                 return "voting_closed"
 
-        # Fallback based on election status
+        # 5. Status fallback (no valid dates configured)
         if election.status == ElectionStatusEnum.VOTING_OPEN.value:
             return "voting_open"
         if election.status == ElectionStatusEnum.CLOSED.value:
@@ -145,7 +175,13 @@ class PhaseEngine:
 
     @staticmethod
     def is_voting_allowed(election: Election) -> bool:
-        return PhaseEngine.get_current_phase(election) == "voting_open"
+        phase = PhaseEngine.get_current_phase(election)
+        return phase == "voting_open"
+
+    @staticmethod
+    def is_election_status_voting_open(election: Election) -> bool:
+        """Check the raw election.status field directly (bypasses PhaseEngine)."""
+        return election.status == ElectionStatusEnum.VOTING_OPEN.value
         
     @staticmethod
     def is_registration_allowed(election: Election) -> bool:

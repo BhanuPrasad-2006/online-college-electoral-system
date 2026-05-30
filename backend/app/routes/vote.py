@@ -9,7 +9,6 @@ import base64
 import os
 import secrets
 import jwt
-import threading
 from datetime import timezone, datetime, timedelta
 from app.services.face_service import (
     extract_face_embedding,
@@ -18,6 +17,10 @@ from app.services.face_service import (
     serialize_embedding,
     normalize_image,
     check_image_quality,
+    compute_face_lockout_duration,
+    redis_daily_counter,
+    redis_face_lockout,
+    redis_biometric_token_cache,
 )
 from app.utils.image_validator import validate_image
 from app.services.passive_liveness_service import (
@@ -27,9 +30,10 @@ from app.services.passive_liveness_service import (
     MIN_FRAMES,
     MAX_FRAMES,
 )
+from app.services.phase_engine import PhaseEngine
 
 from app.db.session import get_db
-from app.api.deps import get_current_user, get_admin_user
+from app.api.deps import get_current_user, get_voter_user, get_admin_user, get_voting_session
 from app.models.voter import Voter
 from app.models.candidate import Candidate
 from app.models.election import Election
@@ -46,33 +50,14 @@ from app.middleware.rate_limit import limiter
 from app.models.audit_log import AuditLog
 
 router = APIRouter()
+_sqlite_locks = {}
 
-class BiometricTokenCache:
-    def __init__(self):
-        # Maps jti -> expiration timestamp (int)
-        self.active_tokens = {}
-        self.lock = threading.Lock()
-        
-    def register_token(self, jti: str, exp_ts: int):
-        with self.lock:
-            self._prune_expired()
-            self.active_tokens[jti] = exp_ts
-            
-    def validate_and_consume(self, jti: str) -> bool:
-        with self.lock:
-            self._prune_expired()
-            if jti in self.active_tokens:
-                self.active_tokens.pop(jti)
-                return True
-            return False
-            
-    def _prune_expired(self):
-        now = int(datetime.now(timezone.utc).timestamp())
-        expired = [jti for jti, exp in self.active_tokens.items() if exp < now]
-        for jti in expired:
-            self.active_tokens.pop(jti, None)
+def get_sqlite_lock() -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    if loop not in _sqlite_locks:
+        _sqlite_locks[loop] = asyncio.Lock()
+    return _sqlite_locks[loop]
 
-biometric_token_cache = BiometricTokenCache()
 
 class FaceVerifyRequest(BaseModel):
     live_face_image: str
@@ -102,7 +87,7 @@ class VoteCastRequest(BaseModel):
 async def verify_face_passive(
     request: Request,
     body: PassiveFaceVerifyRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_voting_session),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -118,6 +103,14 @@ async def verify_face_passive(
     if not voter_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
+    # ── Early lockout check (Redis-backed, distributed) ──────────
+    redis_locked, redis_remaining = await redis_face_lockout.check_lockout(str(voter_id))
+    if redis_locked and redis_remaining is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Face verification is locked. Try again in {redis_remaining // 60}m {redis_remaining % 60}s."
+        )
+
     # ── Fetch voter ────────────────────────────────────────────
     query = select(Voter).where(Voter.voter_id == voter_id)
     result = await db.execute(query)
@@ -130,22 +123,31 @@ async def verify_face_passive(
 
     # ── Lockout check ──────────────────────────────────────────
     now = datetime.now(timezone.utc)
-    if voter.lockout_until:
-        lockout_until = voter.lockout_until
-        if lockout_until.tzinfo is None:
-            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
-        if now < lockout_until:
-            remaining = int((lockout_until - now).total_seconds())
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Face verification is locked. Try again in {remaining // 60}m {remaining % 60}s."
-            )
+    if not redis_locked:
+        # DB fallback check (used when Redis was unavailable)
+        if voter.lockout_until:
+            lockout_until = voter.lockout_until
+            if lockout_until.tzinfo is None:
+                lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+            if now < lockout_until:
+                remaining = int((lockout_until - now).total_seconds())
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Face verification is locked. Try again in {remaining // 60}m {remaining % 60}s."
+                )
 
-    # ── Election check ─────────────────────────────────────────
+    # ── Daily face verification cap (Redis-backed, distributed) ─
+    if not await redis_daily_counter.check_and_increment(str(voter.voter_id), settings.FACE_DAILY_LIMIT):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You have exceeded the maximum number of face verification attempts for today. Please try again tomorrow."
+        )
+
+    # ── Election check (uses PhaseEngine for consistency with cast_vote) ──
     election_query = select(Election).order_by(Election.created_at.desc())
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
-    if not election or election.status != ElectionStatusEnum.VOTING_OPEN.value:
+    if not election or not PhaseEngine.is_voting_allowed(election):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Voting is not currently open.")
 
     # ── Anti-replay token ──────────────────────────────────────
@@ -219,7 +221,11 @@ async def verify_face_passive(
                 await db.commit()
                 voter.failed_face_attempts += 1
                 if voter.failed_face_attempts >= 3:
-                    voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                    lockout_minutes = compute_face_lockout_duration(voter.failed_face_attempts)
+                    voter.lockout_until = datetime.now(timezone.utc) + timedelta(
+                        minutes=lockout_minutes
+                    )
+                    await redis_face_lockout.set_lockout(str(voter.voter_id), lockout_minutes)
                 await db.commit()
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -247,7 +253,7 @@ async def verify_face_passive(
 
             # Extract ArcFace embedding
             try:
-                emb = extract_face_embedding(image_data)
+                emb = await extract_face_embedding(image_data, rate_limit_key=str(voter.voter_id))
                 frames_bgr.append(img_bgr)
                 embeddings.append(emb)
             except ValueError as ve:
@@ -273,11 +279,13 @@ async def verify_face_passive(
             )
             db.add(audit_entry)
             if voter.failed_face_attempts >= 3:
-                voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                lockout_minutes = compute_face_lockout_duration(voter.failed_face_attempts)
+                voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+                await redis_face_lockout.set_lockout(str(voter.voter_id), lockout_minutes)
                 audit_lockout = AuditLog(
                     event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
                     actor_id=voter.voter_id,
-                    description="Voter locked out for 15 minutes due to 3 consecutive passive biometric failures.",
+                    description=f"Voter locked out for {lockout_minutes} minutes due to 3 consecutive passive biometric failures.",
                     ip_address=ip_addr,
                     created_at=datetime.now(timezone.utc)
                 )
@@ -305,11 +313,13 @@ async def verify_face_passive(
             )
             db.add(audit_entry)
             if voter.failed_face_attempts >= 3:
-                voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                lockout_minutes = compute_face_lockout_duration(voter.failed_face_attempts)
+                voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+                await redis_face_lockout.set_lockout(str(voter.voter_id), lockout_minutes)
                 audit_lockout = AuditLog(
                     event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
                     actor_id=voter.voter_id,
-                    description="Voter locked out for 15 minutes due to 3 consecutive passive biometric failures.",
+                    description=f"Voter locked out for {lockout_minutes} minutes due to 3 consecutive passive biometric failures.",
                     ip_address=ip_addr,
                     created_at=datetime.now(timezone.utc)
                 )
@@ -357,11 +367,13 @@ async def verify_face_passive(
             )
             db.add(audit_entry)
             if voter.failed_face_attempts >= 3:
-                voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                lockout_minutes = compute_face_lockout_duration(voter.failed_face_attempts)
+                voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+                await redis_face_lockout.set_lockout(str(voter.voter_id), lockout_minutes)
                 audit_lockout = AuditLog(
                     event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
                     actor_id=voter.voter_id,
-                    description="Voter locked out for 15 minutes due to 3 consecutive passive biometric failures.",
+                    description=f"Voter locked out for {lockout_minutes} minutes due to 3 consecutive passive biometric failures.",
                     ip_address=ip_addr,
                     created_at=datetime.now(timezone.utc)
                 )
@@ -378,6 +390,7 @@ async def verify_face_passive(
         # ── Success — issue face_session_token ────────────────
         voter.failed_face_attempts = 0
         voter.lockout_until = None
+        await redis_face_lockout.clear_lockout(str(voter.voter_id))
 
         device_fingerprint = request.headers.get("x-device-fingerprint") or "unknown_device"
         ip_hash = hashlib.sha256(ip_addr.encode("utf-8")).hexdigest()
@@ -386,7 +399,6 @@ async def verify_face_passive(
         jti = str(uuid.uuid4())
         nonce = secrets.token_hex(16)
         expire = datetime.now(timezone.utc) + timedelta(minutes=2)
-        exp_ts = int(expire.timestamp())
 
         payload = {
             "sub": str(voter.voter_id),
@@ -400,7 +412,7 @@ async def verify_face_passive(
             "iat": datetime.now(timezone.utc)
         }
         face_session_token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-        biometric_token_cache.register_token(jti, exp_ts)
+        await redis_biometric_token_cache.register_token(jti, str(voter.voter_id))
 
         logger.info(f"PASSIVE_BIOMETRIC_SUCCESS voter={voter.college_email} matched={matched_count}/{total_count} avg_score={avg_score_pct}% frames_valid={len(frames_bgr)} embeddings_valid={len(embeddings)}")
 
@@ -447,12 +459,20 @@ async def verify_face_passive(
 async def verify_face(
     request: Request,
     body: FaceVerifyRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_voting_session),
     db: AsyncSession = Depends(get_db)
 ):
     voter_id = current_user.get("user_id")
     if not voter_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    # ── Early lockout check (Redis-backed, distributed) ──────────
+    redis_locked, redis_remaining = await redis_face_lockout.check_lockout(str(voter_id))
+    if redis_locked and redis_remaining is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Face verification is locked. Try again in {redis_remaining // 60}m {redis_remaining % 60}s."
+        )
 
     # Fetch voter details
     query = select(Voter).where(Voter.voter_id == voter_id)
@@ -465,24 +485,32 @@ async def verify_face(
     if voter.has_voted:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You have already cast your vote.")
 
-    # Enforce Lockouts
+    # Enforce Lockouts (DB fallback — used when Redis was unavailable)
     now = datetime.now(timezone.utc)
-    if voter.lockout_until:
-        lockout_until = voter.lockout_until
-        if lockout_until.tzinfo is None:
-            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
-        if now < lockout_until:
-            remaining = int((lockout_until - now).total_seconds())
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Face verification is locked. Try again in {remaining // 60}m {remaining % 60}s."
-            )
+    if not redis_locked:
+        if voter.lockout_until:
+            lockout_until = voter.lockout_until
+            if lockout_until.tzinfo is None:
+                lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+            if now < lockout_until:
+                remaining = int((lockout_until - now).total_seconds())
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Face verification is locked. Try again in {remaining // 60}m {remaining % 60}s."
+                )
 
-    # Fetch and validate active election
+    # ── Daily face verification cap (Redis-backed, distributed) ─
+    if not await redis_daily_counter.check_and_increment(str(voter.voter_id), settings.FACE_DAILY_LIMIT):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You have exceeded the maximum number of face verification attempts for today. Please try again tomorrow."
+        )
+
+    # Fetch and validate active election (uses PhaseEngine for consistency with cast_vote)
     election_query = select(Election).order_by(Election.created_at.desc())
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
-    if not election or election.status != ElectionStatusEnum.VOTING_OPEN.value:
+    if not election or not PhaseEngine.is_voting_allowed(election):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Voting is not currently open.")
 
     # Validate election verification code token (already passed verify-id)
@@ -521,7 +549,7 @@ async def verify_face(
 
     # Perform liveness, normalization & quality checks
     try:
-        live_emb = extract_face_embedding(image_data)
+        live_emb = await extract_face_embedding(image_data, rate_limit_key=str(voter.voter_id))
     except ValueError as ve:
         voter.failed_face_attempts += 1
         description = f"Biometric verification poor quality/liveness failed: {ve}"
@@ -537,12 +565,14 @@ async def verify_face(
         db.add(audit_entry)
 
         if voter.failed_face_attempts >= 3:
-            voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
-            logger.warning(f"Voter {voter.college_email} locked out due to 3 failed face attempts.")
+            lockout_minutes = compute_face_lockout_duration(voter.failed_face_attempts)
+            voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+            await redis_face_lockout.set_lockout(str(voter.voter_id), lockout_minutes)
+            logger.warning(f"Voter {voter.college_email} locked out for {lockout_minutes} min due to failed face attempts.")
             audit_lockout = AuditLog(
                 event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
                 actor_id=voter.voter_id,
-                description="Voter locked out for 15 minutes due to 3 consecutive biometric verification failures.",
+                description=f"Voter locked out for {lockout_minutes} minutes due to 3 consecutive biometric verification failures.",
                 ip_address=request.client.host if request.client else "127.0.0.1",
                 created_at=datetime.now(timezone.utc)
             )
@@ -570,12 +600,14 @@ async def verify_face(
         db.add(audit_entry)
 
         if voter.failed_face_attempts >= 3:
-            voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
-            logger.warning(f"Voter {voter.college_email} locked out due to 3 mismatch failures.")
+            lockout_minutes = compute_face_lockout_duration(voter.failed_face_attempts)
+            voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+            await redis_face_lockout.set_lockout(str(voter.voter_id), lockout_minutes)
+            logger.warning(f"Voter {voter.college_email} locked out for {lockout_minutes} min due to mismatch failures.")
             audit_lockout = AuditLog(
                 event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
                 actor_id=voter.voter_id,
-                description="Voter locked out for 15 minutes due to 3 consecutive biometric verification failures.",
+                description=f"Voter locked out for {lockout_minutes} minutes due to 3 consecutive biometric verification failures.",
                 ip_address=request.client.host if request.client else "127.0.0.1",
                 created_at=datetime.now(timezone.utc)
             )
@@ -587,6 +619,7 @@ async def verify_face(
     # Success: reset lockout, issue face session token
     voter.failed_face_attempts = 0
     voter.lockout_until = None
+    await redis_face_lockout.clear_lockout(str(voter.voter_id))
 
     ip_addr = request.client.host if request.client else "127.0.0.1"
     x_forwarded = request.headers.get("x-forwarded-for")
@@ -600,7 +633,6 @@ async def verify_face(
     jti = str(uuid.uuid4())
     nonce = secrets.token_hex(16)
     expire = datetime.now(timezone.utc) + timedelta(minutes=2)
-    exp_ts = int(expire.timestamp())
 
     payload = {
         "sub": str(voter.voter_id),
@@ -616,7 +648,7 @@ async def verify_face(
     face_session_token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     # Register token in unconsumed cache
-    biometric_token_cache.register_token(jti, exp_ts)
+    await redis_biometric_token_cache.register_token(jti, str(voter.voter_id))
 
     # Logs & Audits
     logger.info(f"Biometric token issued successfully for voter {voter.college_email}")
@@ -652,7 +684,7 @@ async def verify_face(
 async def cast_vote(
     request: Request,
     body: VoteCastRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_voting_session),
     db: AsyncSession = Depends(get_db),
 ):
     """Cast a vote for a candidate securely and send SMS/email confirmations."""
@@ -742,7 +774,7 @@ async def cast_vote(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Biometric session device mismatch. Security validation failed.")
             
         jti = payload.get("jti")
-        if not jti or not biometric_token_cache.validate_and_consume(jti):
+        if not jti or not await redis_biometric_token_cache.validate_and_consume(jti, str(voter_id)):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Biometric token has already been consumed or is invalid.")
             
         audit_consume = AuditLog(
@@ -773,7 +805,7 @@ async def cast_vote(
             )
             
         try:
-            live_emb = extract_face_embedding(image_data)
+            live_emb = await extract_face_embedding(image_data, rate_limit_key=str(voter.voter_id))
             stored_emb = deserialize_embedding(voter.face_encoding)
             
             if not compare_face_embeddings(live_emb, stored_emb):
@@ -888,57 +920,67 @@ async def cast_vote(
             detail="You have already cast your vote."
         )
 
-    # 3. Get next ledger sequence atomically
-    #    PostgreSQL: uses nextval() which is concurrency-safe
-    #    SQLite: falls back to MAX(ledger_sequence) + 1 (tests only)
+    # 3. SQLite write serialization to prevent unique constraint failures in tests
+    is_sqlite = db.bind.dialect.name == "sqlite"
+    lock = get_sqlite_lock() if is_sqlite else None
+    if lock:
+        await lock.acquire()
+
     try:
-        seq_result = await db.execute(text("SELECT nextval('votes_ledger_sequence_seq')"))
-        next_seq = seq_result.scalar()
-    except Exception:
-        # Fallback for SQLite/Test environments
-        seq_query = select(func.max(Vote.ledger_sequence))
-        seq_result = await db.execute(seq_query)
-        max_seq = seq_result.scalar() or 0
-        next_seq = max_seq + 1
+        # Get next ledger sequence atomically
+        #    PostgreSQL: uses nextval() which is concurrency-safe
+        #    SQLite: falls back to MAX(ledger_sequence) + 1 (tests only)
+        try:
+            seq_result = await db.execute(text("SELECT nextval('votes_ledger_sequence_seq')"))
+            next_seq = seq_result.scalar()
+        except Exception:
+            # Fallback for SQLite/Test environments
+            seq_query = select(func.max(Vote.ledger_sequence))
+            seq_result = await db.execute(seq_query)
+            max_seq = seq_result.scalar() or 0
+            next_seq = max_seq + 1
 
-    # 4. Compute previous hash from the preceding committed vote
-    previous_hash = None
-    if next_seq > 1:
-        prev_query = select(Vote.current_hash).where(Vote.ledger_sequence == next_seq - 1)
-        prev_result = await db.execute(prev_query)
-        previous_hash = prev_result.scalar()
+        # 4. Compute previous hash from the preceding committed vote
+        previous_hash = None
+        if next_seq > 1:
+            prev_query = select(Vote.current_hash).where(Vote.ledger_sequence == next_seq - 1)
+            prev_result = await db.execute(prev_query)
+            previous_hash = prev_result.scalar()
 
-    # 5. Generate timestamp string
-    now_utc = datetime.now(timezone.utc)
-    timestamp_str = now_utc.replace(tzinfo=None).isoformat()
+        # 5. Generate timestamp string
+        now_utc = datetime.now(timezone.utc)
+        timestamp_str = now_utc.replace(tzinfo=None).isoformat()
 
-    # 6. Generate current hash
-    current_hash = await calculate_vote_hash(
-        candidate_id=str(candidate.candidate_id) if candidate else None,
-        timestamp_utc=timestamp_str,
-        election_id=str(election.election_id),
-        previous_hash=previous_hash,
-        ledger_sequence=next_seq
-    )
+        # 6. Generate current hash
+        current_hash = await calculate_vote_hash(
+            candidate_id=str(candidate.candidate_id) if candidate else None,
+            timestamp_utc=timestamp_str,
+            election_id=str(election.election_id),
+            previous_hash=previous_hash,
+            ledger_sequence=next_seq
+        )
 
-    # 7. Create anonymous vote
-    new_vote = Vote(
-        vote_id=str(uuid.uuid4()),
-        voter_token_hash=voter_token_hash,
-        candidate_id=str(candidate.candidate_id) if candidate else None,
-        election_id=str(election.election_id),
-        position_id=str(position_id),
-        previous_hash=previous_hash,
-        current_hash=current_hash,
-        ledger_sequence=next_seq,
-        timestamp_utc=now_utc
-    )
-    
-    db.add(new_vote)
+        # 7. Create anonymous vote
+        new_vote = Vote(
+            vote_id=str(uuid.uuid4()),
+            voter_token_hash=voter_token_hash,
+            candidate_id=str(candidate.candidate_id) if candidate else None,
+            election_id=str(election.election_id),
+            position_id=str(position_id),
+            previous_hash=previous_hash,
+            current_hash=current_hash,
+            ledger_sequence=next_seq,
+            timestamp_utc=now_utc
+        )
+        
+        db.add(new_vote)
 
-    # 8. Mark voter as having voted (under the same lock)
-    locked_voter.has_voted = True
-    await db.commit()
+        # 8. Mark voter as having voted (under the same lock)
+        locked_voter.has_voted = True
+        await db.commit()
+    finally:
+        if lock:
+            lock.release()
 
     # Append to secure vault
     vote_data = {
@@ -1086,7 +1128,7 @@ async def upload_voter_own_photo(
 
     # Extract face embedding
     try:
-        embedding = extract_face_embedding(image_data)
+        embedding = await extract_face_embedding(image_data, rate_limit_key=str(voter.voter_id))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
@@ -1236,7 +1278,8 @@ async def list_voters_for_admin(
             "has_voted": v.has_voted,
             "vote_permission": v.vote_permission,
             "verification_id_set": v.verification_id is not None,
-            "face_enrolled": v.reference_image_url is not None and v.face_encoding is not None
+            "face_enrolled": v.reference_image_url is not None and v.face_encoding is not None,
+            "reference_image_url": v.reference_image_url
         }
         for v in voters
     ]
@@ -1273,6 +1316,49 @@ async def update_voter_permission(
         "message": f"Voting permission successfully {'granted' if body.vote_permission else 'revoked'} for {voter.full_name}",
         "voter_id": str(voter.voter_id),
         "vote_permission": voter.vote_permission
+    }
+
+
+class BulkPermissionRequest(BaseModel):
+    vote_permission: bool
+    department: str = "All"  # "All" = all voters, or a specific department name
+
+
+@router.post("/admin/voters/bulk-permission")
+@limiter.limit("10/minute")
+async def bulk_update_voter_permission(
+    request: Request,
+    body: BulkPermissionRequest,
+    current_user: dict = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk grant or revoke voting permission for all voters, optionally filtered by department.
+    More efficient than calling the individual endpoint in a loop.
+    """
+    from sqlalchemy import update as sa_update
+
+    if body.department == "All":
+        stmt = (
+            sa_update(Voter)
+            .values(vote_permission=body.vote_permission)
+        )
+    else:
+        stmt = (
+            sa_update(Voter)
+            .where(Voter.department == body.department)
+            .values(vote_permission=body.vote_permission)
+        )
+
+    result = await db.execute(stmt)
+    await db.commit()
+
+    action = "granted" if body.vote_permission else "revoked"
+    return {
+        "message": f"Voting permission {action} for {result.rowcount} voter(s) in '{body.department}'.",
+        "affected_count": result.rowcount,
+        "vote_permission": body.vote_permission,
+        "department": body.department
     }
 
 
@@ -1335,7 +1421,7 @@ class VerifyIdRequest(BaseModel):
 async def verify_voter_id(
     request: Request,
     body: VerifyIdRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_voter_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Verify the voter's 8-character verification ID against the bcrypt hash in the DB."""
