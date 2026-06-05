@@ -20,6 +20,34 @@ services:
         sync: false
       - key: FAST2SMS_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RECAPTCHA_SECRET_KEY
+        sync: false
+      - key: AI_SERVICE_URL
+        value: ${oces-ai-service}
+      - key: AI_SERVICE_API_KEY
+        value: default-ai-service-key-change-in-prod
+
+  - type: web
+    name: oces-ai-service
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: ai_service
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_SERVICE_API_KEY
+        value: default-ai-service-key-change-in-prod
+      - key: BACKEND_URL
+        value: ${oces-backend}
 
   - type: web
     name: oces-frontend
@@ -34,4 +62,5 @@ services:
         value: ${oces-backend}
       - key: VITE_RECAPTCHA_SITE_KEY
         value: 6LfMDQEtAAAAADFEVY8Eg1BsgnMtxhW5JScO2h6I
+
 
