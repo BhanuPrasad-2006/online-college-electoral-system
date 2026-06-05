@@ -146,10 +146,11 @@ async def seeded_data(db_session: AsyncSession):
         title="Test Election 2026",
         description="Load test election",
         status=ElectionStatusEnum.VOTING_OPEN.value,
-        voting_start=now - timedelta(hours=1),
-        voting_end=now + timedelta(hours=1),
+        voting_start=now + timedelta(hours=3),
+        voting_end=now + timedelta(hours=5),
         registration_start=now - timedelta(days=7),
-        registration_end=now - timedelta(hours=2),
+        registration_end=now - timedelta(hours=1),
+        document_deadline=now + timedelta(hours=2),
     )
     db_session.add(election)
 
@@ -178,8 +179,12 @@ async def seeded_data(db_session: AsyncSession):
     }
 
 
-def _run_concurrent_uploads(client, n: int):
-    """Fire n concurrent upload requests using a single patched mock."""
+async def _run_concurrent_uploads(client, n: int):
+    """Fire n concurrent upload requests using a single patched mock.
+
+    Must be async and await the gather inside the with block so that
+    the mock patches remain active while the tasks execute.
+    """
     _current_auth.update({
         "user_id": CANDIDATE_VOTER_ID,
         "email": "candidate@test.edu",
@@ -207,11 +212,14 @@ def _run_concurrent_uploads(client, n: int):
 
     with patch("app.routes.candidates.settings.SUPABASE_URL", "https://test.supabase.co"), \
          patch("app.routes.candidates.settings.SUPABASE_SERVICE_ROLE_KEY", "test-key"), \
+         patch("app.routes.candidates.validate_image") as mock_val_img, \
          patch(
              "app.routes.candidates.upload_manifesto_media",
              new_callable=AsyncMock,
              side_effect=_make_side_effect(),
          ):
+        mock_val_img.return_value.passed = True
+        mock_val_img.return_value.reason = "ok"
         tasks = [
             client.post(
                 "/api/v1/candidates/me/manifesto/upload",
@@ -219,7 +227,7 @@ def _run_concurrent_uploads(client, n: int):
             )
             for i in range(n)
         ]
-        return asyncio.gather(*tasks)
+        return await asyncio.gather(*tasks)
 
     # ── Tests ──────────────────────────────────────────────
 

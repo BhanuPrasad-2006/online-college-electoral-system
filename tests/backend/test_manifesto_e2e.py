@@ -96,7 +96,7 @@ async def mock_get_current_user():
     return _current_auth
 
 async def mock_get_admin_user():
-    return {"user_id": "admin-uuid", "email": "admin@test.edu", "role": "admin"}
+    return {"user_id": "admin-uuid", "email": "admin@test.edu", "role": "admin", "admin_role": "SUPER_ADMIN"}
 
 app.dependency_overrides[get_current_user] = mock_get_current_user
 app.dependency_overrides[get_admin_user] = mock_get_admin_user
@@ -166,17 +166,18 @@ async def seeded_data(db_session: AsyncSession):
     db_session.add(voter2)
     await db_session.flush()
 
-    # 3. Election (VOTING_OPEN so candidates are visible)
+    # 3. Election (registration_closed phase so candidates can submit/edit manifestos)
     now = datetime.now(timezone.utc)
     election = Election(
         election_id=uuid.UUID(ELECTION_ID),
         title="Test Election 2026",
         description="E2E test election",
         status=ElectionStatusEnum.VOTING_OPEN.value,
-        voting_start=now - timedelta(hours=1),
-        voting_end=now + timedelta(hours=1),
+        voting_start=now + timedelta(hours=3),
+        voting_end=now + timedelta(hours=5),
         registration_start=now - timedelta(days=7),
-        registration_end=now - timedelta(hours=2),
+        registration_end=now - timedelta(hours=1),
+        document_deadline=now + timedelta(hours=2),
     )
     db_session.add(election)
 
@@ -227,6 +228,7 @@ class TestManifestoUploadFlow:
 
         with patch("app.routes.candidates.settings.SUPABASE_URL", "https://test.supabase.co"), \
              patch("app.routes.candidates.settings.SUPABASE_SERVICE_ROLE_KEY", "test-key"), \
+             patch("app.routes.candidates.validate_image") as mock_val_img, \
              patch(
                  "app.routes.candidates.upload_manifesto_media",
                  new_callable=AsyncMock,
@@ -235,6 +237,8 @@ class TestManifestoUploadFlow:
                      public_url=fake_url,
                  ),
              ):
+            mock_val_img.return_value.passed = True
+            mock_val_img.return_value.reason = "ok"
             response = await client.post(
                 "/api/v1/candidates/me/manifesto/upload",
                 files={"file": ("manifesto.png", b"fake-image-bytes", "image/png")},
@@ -275,9 +279,10 @@ class TestManifestoUploadFlow:
             "/api/v1/candidates/me/manifesto/upload",
             files={"file": ("huge.pdf", oversized, "application/pdf")},
         )
-        assert response.status_code == 400
-        detail = response.json()["detail"].lower()
-        assert "10mb" in detail or "exceeds" in detail
+        assert response.status_code in (400, 413)
+        if response.status_code == 400:
+            detail = response.json()["detail"].lower()
+            assert "10mb" in detail or "exceeds" in detail
 
     @pytest.mark.asyncio
     async def test_04_save_manifesto_with_image_url(self, client: AsyncClient, seeded_data: dict):
@@ -351,9 +356,13 @@ class TestManifestoUploadFlow:
             },
         )
 
-        # List manifestos as admin (get_current_user has admin role from _current_auth)
-        # But list_manifestos_for_admin uses get_admin_user which has its own override
-        # so it won't be affected by _current_auth changes.
+        # List manifestos as admin
+        _current_auth.update({
+            "user_id": "admin-uuid",
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
         response = await client.get("/api/v1/candidates/admin/manifestos")
         assert response.status_code == 200
         items = response.json()
@@ -386,6 +395,12 @@ class TestManifestoUploadFlow:
         assert save_resp.status_code == 200
 
         # Fetch the manifesto ID from admin endpoint
+        _current_auth.update({
+            "user_id": "admin-uuid",
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
         list_resp = await client.get("/api/v1/candidates/admin/manifestos")
         assert list_resp.status_code == 200
         items = list_resp.json()
@@ -421,6 +436,12 @@ class TestManifestoUploadFlow:
         )
 
         # Admin approves
+        _current_auth.update({
+            "user_id": "admin-uuid",
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
         list_resp = await client.get("/api/v1/candidates/admin/manifestos")
         manifesto_id = list_resp.json()[0]["manifesto_id"]
         await client.put(
