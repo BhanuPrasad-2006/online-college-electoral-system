@@ -41,31 +41,241 @@ class ReplayCache:
 
 replay_cache = ReplayCache()
 
-# Wrap deepface import to give a clear user-facing error if it's missing
+
+# ── Service-level rate limiter (Redis-backed, in-memory fallback) ──
+async def _check_face_extract_rate_limit(key: str, max_requests: int, window_seconds: int = 60) -> bool:
+    """
+    Distributed sliding-window rate limiter for face extraction.
+    Delegates to ``check_rate_limit`` from the rate-limiting middleware,
+    which uses Redis sorted sets when Redis is available, and falls back
+    to per-process in-memory storage otherwise.
+    """
+    from app.middleware.redis_rate_limiter import check_rate_limit
+    return await check_rate_limit(key, max_requests, window_seconds)
+
+
+# ── Daily face verification counter (Redis-backed, with in-memory fallback) ─
+class RedisDailyCounter:
+    """
+    Distributed daily attempt counter backed by Redis.
+    Automatically falls back to per-process in-memory counting if Redis is unavailable.
+
+    Uses the same sliding-window sorted-set pattern as ``check_rate_limit``
+    from the rate-limiting middleware.
+    """
+
+    async def check_and_increment(self, voter_id: str, max_per_day: int = 50) -> bool:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        key = f"face_daily:{voter_id}:{today}"
+        # Reuse the existing distributed rate limiter with 86400-second window
+        from app.middleware.redis_rate_limiter import check_rate_limit
+        return await check_rate_limit(key, max_per_day, window_seconds=86400)
+
+redis_daily_counter = RedisDailyCounter()
+
+
+# ── Redis-backed face lockout store (distributed across workers) ──
+class RedisFaceLockoutStore:
+    """
+    Distributed lockout store for face verification.
+
+    Stores lockout_until timestamps in Redis with auto-expiry via TTL.
+    Falls back gracefully (returns not-locked) if Redis is unavailable.
+
+    The Voter model DB field is kept in sync for persistence across restarts.
+    """
+
+    async def check_lockout(self, voter_id: str) -> tuple[bool, int | None]:
+        """
+        Check if a voter is currently locked out.
+
+        Returns (is_locked: bool, remaining_seconds: int | None).
+        If Redis is unavailable, returns (False, None) — caller should
+        fall back to the DB field.
+        """
+        key = f"face_lockout:{voter_id}"
+        if not settings.USE_REDIS:
+            return False, None
+
+        try:
+            from app.core.redis import redis_client
+            ttl = await redis_client.ttl(key)
+            if ttl is None or ttl <= 0:
+                return False, None
+            return True, int(ttl)
+        except Exception:
+            return False, None
+
+    async def set_lockout(self, voter_id: str, duration_minutes: int) -> None:
+        """Set a lockout for the given voter with Redis TTL (best-effort)."""
+        key = f"face_lockout:{voter_id}"
+        if not settings.USE_REDIS:
+            return
+
+        try:
+            from app.core.redis import redis_client
+            lockout_ts = datetime.now(timezone.utc).isoformat()
+            await redis_client.setex(key, duration_minutes * 60, lockout_ts)
+        except Exception:
+            pass  # Non-critical — DB field is the persistent fallback
+
+    async def clear_lockout(self, voter_id: str) -> None:
+        """Remove a lockout from Redis (best-effort)."""
+        key = f"face_lockout:{voter_id}"
+        if not settings.USE_REDIS:
+            return
+
+        try:
+            from app.core.redis import redis_client
+            await redis_client.delete(key)
+        except Exception:
+            pass  # Non-critical — DB field is the persistent fallback
+
+
+redis_face_lockout = RedisFaceLockoutStore()
+
+
+# ── Redis-backed biometric token cache (distributed, one-time use) ──
+class RedisBiometricTokenCache:
+    """
+    Distributed one-time-use token cache for face_session_token replay protection.
+
+    Tokens are registered on successful face verification and consumed atomically
+    when the vote is cast. Uses Redis ``SETEX`` + ``GETDEL`` for atomic
+    register-and-consume semantics across all workers.
+
+    Falls back to per-process in-memory store if Redis is unavailable.
+    """
+
+    def __init__(self):
+        self._fallback_store: dict[str, str] = {}
+        self._fallback_lock = threading.Lock()
+
+    async def register_token(self, jti: str, voter_id: str, ttl_seconds: int = 900) -> None:
+        """Register a JTI as a one-time-use token with Redis TTL."""
+        key = f"biometric_token:{jti}"
+        if settings.USE_REDIS:
+            try:
+                from app.core.redis import redis_client
+                await redis_client.setex(key, ttl_seconds, voter_id)
+                return
+            except Exception:
+                pass  # Fall through to in-memory
+
+        with self._fallback_lock:
+            self._fallback_store[key] = voter_id
+
+    async def validate(self, jti: str, voter_id: str) -> bool:
+        """Check that a token exists and belongs to the given voter without consuming it."""
+        key = f"biometric_token:{jti}"
+        if settings.USE_REDIS:
+            try:
+                from app.core.redis import redis_client
+                stored_voter_id = await redis_client.get(key)
+                return stored_voter_id == voter_id
+            except Exception:
+                pass  # Fall through to in-memory
+
+        with self._fallback_lock:
+            return self._fallback_store.get(key) == voter_id
+
+    async def consume(self, jti: str, voter_id: str) -> bool:
+        """
+        Atomically check and consume a one-time-use token.
+
+        Returns True if the token exists and belongs to the given voter.
+        The token is deleted atomically regardless — it can only be used once.
+        """
+        key = f"biometric_token:{jti}"
+        if settings.USE_REDIS:
+            try:
+                from app.core.redis import redis_client
+                stored_voter_id = await redis_client.getdel(key)
+                return stored_voter_id == voter_id
+            except Exception:
+                pass  # Fall through to in-memory
+
+        with self._fallback_lock:
+            stored = self._fallback_store.pop(key, None)
+            return stored == voter_id
+
+    async def validate_and_consume(self, jti: str, voter_id: str) -> bool:
+        """Backward-compatible helper for callers that still need one-step consume semantics."""
+        return await self.consume(jti, voter_id)
+
+
+redis_biometric_token_cache = RedisBiometricTokenCache()
+
+
+# Legacy sync-only fallback (not distributed, kept for backward compatibility)
+class DailyFaceCounter:
+    """In-memory per-voter daily attempt tracker. Per-process only.
+    Prefer ``RedisDailyCounter`` for multi-worker deployments."""
+    def __init__(self):
+        self.counts: dict[str, tuple[str, int]] = {}
+        self.lock = threading.Lock()
+
+    def check_and_increment(self, voter_id: str, max_per_day: int = 50) -> bool:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        with self.lock:
+            record = self.counts.get(voter_id)
+            if record is None or record[0] != today:
+                self.counts[voter_id] = (today, 1)
+                return True
+            if record[1] >= max_per_day:
+                return False
+            self.counts[voter_id] = (today, record[1] + 1)
+            return True
+
+daily_face_counter = DailyFaceCounter()  # sync fallback (kept for tests / sync contexts)
+
+
+# ── Exponential lockout backoff ─────────────────────────────────
+def compute_face_lockout_duration(failed_attempts: int) -> int:
+    """
+    Returns lockout minutes based on consecutive failure count.
+    Uses exponential backoff: 15min, 30min, 1hr, then 24hr.
+    """
+    backoff = settings.LOCKOUT_BACKOFF_MINUTES
+    if failed_attempts < 6:
+        return backoff[0]  # 15 min
+    elif failed_attempts < 10:
+        return backoff[1]  # 30 min
+    elif failed_attempts < 15:
+        return backoff[2]  # 60 min
+    else:
+        return backoff[3]  # 1440 min (24 hr)
+
 _DeepFace = None
 _deepface_import_error = None
-try:
-    from deepface import DeepFace as _DeepFace
-except ImportError as e:
-    _deepface_import_error = f"DeepFace library is not installed. Run: pip install deepface (Error: {e})"
-    logger.warning(_deepface_import_error)
-except Exception as e:
-    _deepface_import_error = f"DeepFace library failed to load: {e}"
-    logger.error(_deepface_import_error)
 
 
 def _ensure_deepface_available():
     """Raise a clear service-unavailable error if deepface cannot be used."""
+    global _DeepFace, _deepface_import_error
     if _DeepFace is None:
-        msg = _deepface_import_error or "Face recognition module is not available on this server."
-        raise RuntimeError(msg)
+        try:
+            from deepface import DeepFace as _DeepFace
+        except ImportError as e:
+            _deepface_import_error = f"DeepFace library is not installed. Run: pip install deepface (Error: {e})"
+            logger.warning(_deepface_import_error)
+            raise RuntimeError(_deepface_import_error)
+        except Exception as e:
+            _deepface_import_error = f"DeepFace library failed to load: {e}"
+            logger.error(_deepface_import_error)
+            raise RuntimeError(_deepface_import_error)
+
+
+_model_warmed_up = False
+_model_warmup_lock = threading.Lock()
 
 
 def warmup_model():
     """
-    Warmup DeepFace's ArcFace model during startup with dummy data.
+    Warmup DeepFace's ArcFace model with dummy data.
     Fails app startup if model initialization fails.
     """
+    global _model_warmed_up
     _ensure_deepface_available()
     logger.info(f"Initializing face recognition model warmup: {MODEL_NAME}...")
     try:
@@ -74,9 +284,19 @@ def warmup_model():
         # DeepFace represent will load ArcFace weights and check setup
         _DeepFace.represent(img_path=dummy_img, model_name=MODEL_NAME, enforce_detection=False)
         logger.info(f"Biometric model {MODEL_NAME} successfully warmed up and loaded in memory.")
+        _model_warmed_up = True
     except Exception as e:
         logger.critical(f"CRITICAL: Failed to warmup biometric model {MODEL_NAME}: {e}")
         raise RuntimeError(f"Biometric model initialization failed: {e}")
+
+
+def ensure_model_loaded():
+    """Ensure the ArcFace model is loaded in memory (thread-safe)."""
+    global _model_warmed_up
+    if not _model_warmed_up:
+        with _model_warmup_lock:
+            if not _model_warmed_up:
+                warmup_model()
 
 
 def normalize_image(image_data: bytes) -> np.ndarray:
@@ -155,6 +375,8 @@ def check_image_quality(img: np.ndarray) -> tuple[bool, str | None]:
         )
         eyes = eye_cascade.detectMultiScale(face_roi, 1.1, 3, minSize=(15, 15))
         if len(eyes) < 1:
+            if settings.FACE_ENFORCE_SIDE_ANGLE:
+                return False, "Face appears to be at a side angle. Please face the camera directly so both eyes are visible."
             logger.warning("Side-angle eye check: No eyes detected in face ROI. Proceeding with warning.")
     except Exception as e:
         logger.warning(f"Side-angle eye check failed to run: {e}")
@@ -162,12 +384,27 @@ def check_image_quality(img: np.ndarray) -> tuple[bool, str | None]:
     return True, None
 
 
-def extract_face_embedding(image_data: bytes) -> list[float]:
+async def extract_face_embedding(image_data: bytes, rate_limit_key: str | None = None) -> list[float]:
     """
     Extracts face embedding from image bytes using ArcFace.
     Returns a list of floats (embedding vector).
+    
+    Args:
+        image_data: Raw image bytes.
+        rate_limit_key: Optional identifier for service-level rate limiting.
+            Pass voter_id or IP to add defense-in-depth rate limiting.
+            Pass None to skip (e.g., for admin migration tasks).
     """
     _ensure_deepface_available()
+    ensure_model_loaded()
+
+    # ── Service-level rate limiting (Redis-backed, defense-in-depth) ─
+    if rate_limit_key is not None:
+        rl_key = f"face_extract:{rate_limit_key}"
+        allowed = await _check_face_extract_rate_limit(rl_key, settings.FACE_SERVICE_RATE_LIMIT, 60)
+        if not allowed:
+            logger.warning(f"Service-level rate limit hit for key: {rate_limit_key}")
+            raise ValueError("Too many face verification requests. Please slow down and try again.")
 
     # Image Normalization
     img = normalize_image(image_data)
@@ -275,33 +512,14 @@ async def migrate_voters_to_arcface(db):
             continue
             
         logger.info(f"Migrating embedding for voter: {voter.full_name} ({voter.college_email})")
-        image_bytes = None
-        
-        # Load local image or download external image
-        if ref_url.startswith("/uploads/"):
-            local_path = ref_url.lstrip("/")
-            if os.path.exists(local_path):
-                try:
-                    with open(local_path, "rb") as f:
-                        image_bytes = f.read()
-                except Exception as e:
-                    logger.error(f"Failed to read local reference photo {local_path}: {e}")
-        else:
-            # Download URL
-            try:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.get(ref_url, timeout=15.0)
-                    if resp.status_code == 200:
-                        image_bytes = resp.content
-                    else:
-                        logger.error(f"Failed downloading reference image from {ref_url}: HTTP {resp.status_code}")
-            except Exception as e:
-                logger.error(f"Exception downloading reference image from {ref_url}: {e}")
+        from app.services.face_storage import load_reference_image_bytes
+
+        image_bytes = await load_reference_image_bytes(ref_url)
                 
         if image_bytes:
             try:
                 # Extract new ArcFace embedding
-                new_emb = extract_face_embedding(image_bytes)
+                new_emb = await extract_face_embedding(image_bytes)
                 voter.face_encoding = serialize_embedding(new_emb)
                 voter.embedding_model_version = "arcface_v1"
                 logger.info(f"Voter {voter.full_name} successfully migrated to ArcFace.")

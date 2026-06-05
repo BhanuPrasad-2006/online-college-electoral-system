@@ -509,7 +509,7 @@ export async function verifyVoterId(verificationId: string) {
 export async function verifyFace(params: {
   liveFaceImage: string;
   antiReplayToken: string;
-}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number }> {
+}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number; anti_replay_token: string }> {
   const token = getBestToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -538,7 +538,7 @@ export async function verifyFace(params: {
 export async function verifyFacePassive(params: {
   frames: string[];
   antiReplayToken: string;
-}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number; match_score?: number; frames_matched?: number; frames_total?: number }> {
+}): Promise<{ success: boolean; face_session_token: string; expires_in_seconds: number; anti_replay_token: string; match_score?: number; frames_matched?: number; frames_total?: number }> {
   const token = getBestToken();
   const csrfToken = getCsrfToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };

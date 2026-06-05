@@ -1,6 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { PageLoader } from "@/components/PageLoader";
-import { useAiAlerts, useKpi } from "@/hooks/use-election-data";
+import { useAiAlerts, useKpi, useElection } from "@/hooks/use-election-data";
+import { useAntiAbuse } from "@/hooks/useAntiAbuse";
 import { Users, CheckCircle2, TrendingUp, AlertTriangle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,17 +11,72 @@ import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+import { resolveAiAlert, publishResults } from "@/lib/api";
 
 function Page() {
-  const { data: kpi, isPending: loadingKpi } = useKpi();
-  const { data: aiAlerts = [], isPending: loadingAlerts } = useAiAlerts();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { adminRole } = useAuth();
-
-  if (loadingKpi || loadingAlerts || !kpi) return <PageLoader />;
-
+  
   const canManageElection = adminRole === "SUPER_ADMIN" || adminRole === "ELECTION_MANAGER";
   const canManageAlerts = adminRole === "SUPER_ADMIN" || adminRole === "AUDIT_SECURITY_ADMIN";
   const isSuperAdmin = adminRole === "SUPER_ADMIN";
+
+  const { data: kpi, isPending: loadingKpi } = useKpi();
+  const { data: election, isPending: loadingElection } = useElection();
+  const { data: aiAlerts = [], isPending: loadingAlerts, refetch: refetchAlerts } = useAiAlerts({
+    enabled: canManageAlerts,
+  });
+  const antiAbuse = useAntiAbuse();
+
+  const [sealing, setSealing] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  if (loadingKpi || loadingElection || (canManageAlerts && loadingAlerts) || !kpi) {
+    return <PageLoader />;
+  }
+
+  const activeAlerts = aiAlerts.filter((a: any) => !a.is_resolved);
+
+  const handleDismiss = async (alertId: string) => {
+    if (resolvingId) return;
+    setResolvingId(alertId);
+    try {
+      await resolveAiAlert(alertId);
+      toast.success("Alert resolved successfully");
+      refetchAlerts();
+      queryClient.invalidateQueries({ queryKey: ["kpi"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to resolve alert");
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const handleSealResults = async () => {
+    if (!election || !election.election_id) {
+      toast.error("No active election found.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Are you sure you want to seal and publish the results? This action is irreversible and will finalize the election."
+    );
+    if (!confirmed) return;
+
+    setSealing(true);
+    try {
+      await publishResults(election.election_id);
+      toast.success("Results sealed and published successfully!");
+      queryClient.invalidateQueries({ queryKey: ["election"] });
+      queryClient.invalidateQueries({ queryKey: ["kpi"] });
+      antiAbuse.startCooldown("seal-results", 5);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to seal/publish results");
+    } finally {
+      setSealing(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -71,65 +129,84 @@ function Page() {
         <Phase title="Results" status="PENDING" tone="bg-muted text-muted-foreground" delay={350} />
       </div>
 
-      <SectionCard delay={400}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold">AI Fraud Alerts</h2>
-          <Badge variant="outline" className="border-destructive/40 text-destructive animate-pulse">
-            Live
-          </Badge>
-        </div>
-        <div className="space-y-3">
-          {aiAlerts.map((a, i) => (
-            <div
-              key={a.id}
-              className={cn(
-                "flex items-start justify-between gap-3 p-4 bg-muted/40 rounded-xl border border-transparent",
-                "transition-all duration-200 hover:border-border hover:bg-muted/60 hover:shadow-sm",
-                "animate-fade-in-up opacity-0 [animation-fill-mode:forwards]",
-              )}
-              style={{ animationDelay: `${450 + i * 60}ms` }}
-            >
-              <div className="flex items-start gap-3">
-                <Badge
-                  className={
-                    a.severity === "HIGH"
-                      ? "bg-destructive text-white"
-                      : "bg-warning text-warning-foreground"
-                  }
+      {canManageAlerts && (
+        <SectionCard delay={400}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold">AI Fraud Alerts</h2>
+            <Badge variant="outline" className="border-destructive/40 text-destructive animate-pulse">
+              Live
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {activeAlerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No active AI alerts detected.</p>
+            ) : (
+              activeAlerts.map((a: any, i: number) => (
+                <div
+                  key={a.alert_id}
+                  className={cn(
+                    "flex items-start justify-between gap-3 p-4 bg-muted/40 rounded-xl border border-transparent",
+                    "transition-all duration-200 hover:border-border hover:bg-muted/60 hover:shadow-sm",
+                    "animate-fade-in-up opacity-0 [animation-fill-mode:forwards]"
+                  )}
+                  style={{ animationDelay: `${450 + i * 60}ms` }}
                 >
-                  {a.severity}
-                </Badge>
-                <div>
-                  <p className="font-semibold text-sm">{a.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {a.detail} · {a.time}
-                  </p>
+                  <div className="flex items-start gap-3">
+                    <Badge
+                      className={
+                        a.severity === "HIGH"
+                          ? "bg-destructive text-white"
+                          : "bg-warning text-warning-foreground"
+                      }
+                    >
+                      {a.severity}
+                    </Badge>
+                    <div>
+                      <p className="font-semibold text-sm">{a.alert_type}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.description} · {a.created_at ? new Date(a.created_at).toLocaleString() : "just now"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate({ to: "/admin/ai-monitoring" })}
+                      disabled={resolvingId !== null}
+                      className="hover:border-[#6C63FF]/40 hover:text-[#6C63FF]"
+                    >
+                      Investigate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDismiss(a.alert_id)}
+                      disabled={resolvingId !== null}
+                    >
+                      {resolvingId === a.alert_id ? "Dismissing..." : "Dismiss"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!canManageAlerts}
-                  className="hover:border-[#6C63FF]/40 hover:text-[#6C63FF]"
-                >
-                  Investigate
-                </Button>
-                <Button size="sm" variant="ghost" disabled={!canManageAlerts}>
-                  Dismiss
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
+              ))
+            )}
+          </div>
+        </SectionCard>
+      )}
 
       <Button
-        disabled={!isSuperAdmin}
+        disabled={!isSuperAdmin || antiAbuse.isBlocked("seal-results") || sealing}
         className="w-full h-12 bg-muted text-muted-foreground animate-fade-in-up opacity-0 [animation-fill-mode:forwards]"
         style={{ animationDelay: "550ms" }}
+        onClick={handleSealResults}
       >
-        <Lock className="h-4 w-4 mr-2" /> Seal & Publish Results {!isSuperAdmin ? "(Super Admin only)" : "(locked until voting closes)"}
+        <Lock className="h-4 w-4 mr-2" />
+        {sealing
+          ? "Sealing & Publishing..."
+          : antiAbuse.isBlocked("seal-results")
+          ? `Wait ${Math.ceil(antiAbuse.cooldowns["seal-results"]?.remaining || 0)}s`
+          : `Seal & Publish Results ${!isSuperAdmin ? "(Super Admin only)" : election?.status === "VOTING_CLOSED" ? "" : "(locked until voting closes)"}`
+        }
       </Button>
     </div>
   );

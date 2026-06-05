@@ -68,6 +68,11 @@ class Voter(Base):
 
     lockout_until = Column(DateTime(timezone=True), nullable=True, index=True)
 
+    # ── Verification ID lockout (DB fallback for Redis) ──────
+    failed_verify_id_attempts = Column(Integer, default=0, nullable=False)
+
+    verify_id_lockout_until = Column(DateTime(timezone=True), nullable=True, index=True)
+
     embedding_model_version = Column(String(50), nullable=True, index=True)
 
     failed_face_attempts = Column(Integer, default=0, nullable=False, index=True)

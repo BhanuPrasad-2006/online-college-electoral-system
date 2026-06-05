@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.services.supabase_storage import SupabaseStorageError, upload_campaign_media
 from app.utils.image_validator import validate_image
 from app.utils.logger import logger
+from app.validators.file_upload_validator import validate_media_upload, validate_image_upload
 
 router = APIRouter()
 
@@ -243,25 +244,22 @@ async def submit_media(
                 detail="Security rejection: Invalid file format or MIME type. Only PNG/JPEG images or MP4 videos are allowed."
             )
 
-        # File content check (block HTML / executable code headers)
+        # Multi-layer file upload validation via centralized validator
         file_data = await file.read()
         file_len = len(file_data)
-        
-        if file_len > max_size:
-            max_size_mb = max_size / (1024 * 1024)
+
+        # Run centralized file upload validator (magic bytes, size, MIME cross-check)
+        validation_result = validate_media_upload(
+            data=file_data,
+            filename=filename,
+            content_type=content_type,
+            max_size_bytes=max_size,
+        )
+        if not validation_result.passed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File exceeds maximum allowed size of {max_size_mb}MB."
+                detail=validation_result.reason,
             )
-            
-        # Malware signature/code checks: verify no <script>, <?php, html headers, etc.
-        suspicious_signatures = [b"<script", b"<?php", b"<% ", b"exec(", b"eval(", b"<!DOCTYPE html", b"<html>"]
-        for sig in suspicious_signatures:
-            if sig in file_data[:4096]:  # Check header bytes
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Security rejection: File contains disallowed scripts or code signatures."
-                )
 
         # AI-generated image detection for images
         if content_type and content_type.startswith("image/"):

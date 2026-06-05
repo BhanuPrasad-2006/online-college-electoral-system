@@ -41,20 +41,18 @@ async def seed_all_admins(db: AsyncSession):
         existing = result.scalars().first()
         
         if existing:
-            print(f"Admin {item['email']} already exists. Updating details...")
-            existing.full_name = item["full_name"]
-            existing.password_hash = hash_password(item["password"])
-            existing.role = item["role"]
-        else:
-            print(f"Creating Admin {item['email']} with role {item['role']}...")
-            new_admin = AdminUser(
-                full_name=item["full_name"],
-                email=item["email"],
-                password_hash=hash_password(item["password"]),
-                role=item["role"]
-            )
-            db.add(new_admin)
+            print(f"Admin {item['email']} already exists. Skipping updates...")
+            continue
             
+        print(f"Creating Admin {item['email']} with role {item['role']}...")
+        new_admin = AdminUser(
+            full_name=item["full_name"],
+            email=item["email"],
+            password_hash=hash_password(item["password"]),
+            role=item["role"]
+        )
+        db.add(new_admin)
+             
     await db.commit()
     print("✅ All admins seeded successfully!")
 

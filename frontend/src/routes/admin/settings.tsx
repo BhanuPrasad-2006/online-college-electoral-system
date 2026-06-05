@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { ShieldCheck, Mail, KeyRound, X, Shield, Trash2, UserPlus, Loader2 } from "lucide-react";
+import { ReconfirmPasswordModal } from "@/components/ReconfirmPasswordModal";
 
 function decodeJwtPayload(): { email?: string; name?: string; sub?: string } {
   try {
@@ -58,6 +59,9 @@ function Page() {
   const [newRole, setNewRole] = useState("CANDIDATE_MODERATOR");
   const [newPasswordVal, setNewPasswordVal] = useState("");
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [reconfirmOpen, setReconfirmOpen] = useState(false);
+  const [reconfirmAction, setReconfirmAction] = useState<"create_admin" | "delete_admin" | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const loadAdmins = useCallback(async () => {
     if (!isSuperAdmin) return;
@@ -286,9 +290,17 @@ function Page() {
               </div>
 
               <Button
-                type="submit"
+                type="button"
                 disabled={creatingAdmin}
                 className="w-full bg-[#6C63FF] hover:bg-[#5A52D5] text-white h-10 shadow-sm"
+                onClick={() => {
+                  if (!newName.trim() || !newEmail.trim() || !newPasswordVal.trim() || !newRole) {
+                    toast.error("Please fill in all fields for the new admin account.");
+                    return;
+                  }
+                  setReconfirmAction("create_admin");
+                  setReconfirmOpen(true);
+                }}
               >
                 {creatingAdmin ? (
                   <>
@@ -330,7 +342,11 @@ function Page() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDeleteAdmin(adm.admin_id)}
+                              onClick={() => {
+                                setDeleteTargetId(adm.admin_id);
+                                setReconfirmAction("delete_admin");
+                                setReconfirmOpen(true);
+                              }}
                               className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -358,6 +374,27 @@ function Page() {
           ))}
         </div>
       </div>
+
+      {/* Password Reconfirmation Modal */}
+      <ReconfirmPasswordModal
+        open={reconfirmOpen}
+        onOpenChange={(o) => { setReconfirmOpen(o); if (!o) { setReconfirmAction(null); setDeleteTargetId(null); } }}
+        title={reconfirmAction === "create_admin" ? "Create Admin Account" : "Delete Admin Account"}
+        description={reconfirmAction === "create_admin"
+          ? "Creating a new admin account is a sensitive action. Please confirm your password to proceed."
+          : "Deleting an admin account is a sensitive action. Please confirm your password to proceed."
+        }
+        actionLabel={reconfirmAction === "create_admin" ? "Confirm & Create" : "Confirm & Delete"}
+        onVerified={async () => {
+          if (reconfirmAction === "create_admin") {
+            await handleCreateAdmin(new Event("submit") as any);
+          } else if (reconfirmAction === "delete_admin" && deleteTargetId) {
+            await handleDeleteAdmin(deleteTargetId);
+          }
+          setReconfirmAction(null);
+          setDeleteTargetId(null);
+        }}
+      />
 
       {otpModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">

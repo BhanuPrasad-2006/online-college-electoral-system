@@ -5,9 +5,11 @@ export type AdminRole = "SUPER_ADMIN" | "ELECTION_MANAGER" | "CANDIDATE_MODERATO
 
 const AUTH_STORAGE_KEY = "collegevote-demo-auth";
 const TOKEN_STORAGE_KEY = "collegevote-token";
+const VOTING_TOKEN_STORAGE_KEY = "collegevote-voting-token";
 const SESSION_KEYS_TO_CLEAR = [
   AUTH_STORAGE_KEY,
   TOKEN_STORAGE_KEY,
+  VOTING_TOKEN_STORAGE_KEY,
   "collegevote-otp-session",
   "collegevote-otp-email",
   "collegevote-otp-mobile",
@@ -27,6 +29,14 @@ type Ctx = {
   candidateRegistered: boolean;
   setCandidateRegistered: (v: boolean) => void;
   authReady: boolean;
+  /** 15-minute voting token for vote casting */
+  votingToken: string | null;
+  setVotingToken: (t: string | null) => void;
+  /** Whether the current token has been reconfirmed for sensitive actions */
+  reconfirmed: boolean;
+  setReconfirmed: (v: boolean) => void;
+  reconfirmedAt: string | null;
+  setReconfirmedAt: (v: string | null) => void;
 };
 
 const AuthContext = createContext<Ctx | null>(null);
@@ -77,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [adminRole, setAdminRole] = useState<AdminRole>(null);
   const [candidateRegistered, setCandidateRegistered] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [votingToken, setVotingToken] = useState<string | null>(null);
+  const [reconfirmed, setReconfirmed] = useState(false);
+  const [reconfirmedAt, setReconfirmedAt] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = readStoredRole();
@@ -117,6 +130,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setRole(null);
     setAdminRole(null);
+    setVotingToken(null);
+    setReconfirmed(false);
+    setReconfirmedAt(null);
     try {
       for (const key of SESSION_KEYS_TO_CLEAR) {
         sessionStorage.removeItem(key);
@@ -137,8 +153,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       candidateRegistered,
       setCandidateRegistered,
+      votingToken,
+      setVotingToken,
+      reconfirmed,
+      setReconfirmed,
+      reconfirmedAt,
+      setReconfirmedAt,
     }),
-    [role, adminRole, authReady, login, logout, candidateRegistered, setCandidateRegistered],
+    [role, adminRole, authReady, login, logout, candidateRegistered, setCandidateRegistered, votingToken, setVotingToken, reconfirmed, setReconfirmed, reconfirmedAt, setReconfirmedAt],
   );
 
   return (

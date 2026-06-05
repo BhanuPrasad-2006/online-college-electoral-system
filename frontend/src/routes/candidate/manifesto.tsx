@@ -17,6 +17,7 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
+import { ReconfirmPasswordModal } from "@/components/ReconfirmPasswordModal";
 import { toast } from "sonner";
 import {
   fetchCandidateProfile,
@@ -67,6 +68,7 @@ function Page() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageRemoved, setImageRemoved] = useState(false);
+  const [reconfirmOpen, setReconfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -336,7 +338,7 @@ function Page() {
                 size="sm"
                 className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
                 disabled={submitting || isLocked}
-                onClick={() => persist(true)}
+                onClick={() => setReconfirmOpen(true)}
               >
                 {submitting ? "Submitting..." : "Submit for Approval"}
               </Button>
@@ -435,6 +437,18 @@ function Page() {
           )}
         </aside>
       </div>
+
+      {/* Password Reconfirmation Modal */}
+      <ReconfirmPasswordModal
+        open={reconfirmOpen}
+        onOpenChange={setReconfirmOpen}
+        title="Submit Manifesto for Approval"
+        description="Submitting your manifesto for admin approval is a sensitive action. Please confirm your password to proceed."
+        actionLabel="Confirm & Submit"
+        onVerified={async () => {
+          await persist(true);
+        }}
+      />
     </div>
   );
 }

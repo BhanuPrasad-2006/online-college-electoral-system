@@ -81,6 +81,32 @@ class Candidate(Base):
     )
 
     # =========================================================
+    # PARTY ARCHITECTURE FIELDS
+    # =========================================================
+
+    candidate_type = Column(
+        String(20),
+        nullable=False,
+        default="INDEPENDENT",
+        index=True,
+    )
+    # Values: INDEPENDENT | PARTY
+
+    party_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("parties.party_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Set for PARTY candidates, NULL for INDEPENDENT
+
+    party_role = Column(
+        String(100),
+        nullable=True,
+    )
+    # e.g. LEADER, CO_LEADER, SECRETARY, TREASURER, MEMBER
+
+    # =========================================================
     # TIMESTAMPS
     # =========================================================
 
@@ -108,6 +134,11 @@ class Candidate(Base):
         back_populates="candidates",
     )
 
+    party = relationship(
+        "Party",
+        foreign_keys=[party_id],
+    )
+
     # =========================================================
     # STRING REPRESENTATION
     # =========================================================
@@ -117,5 +148,6 @@ class Candidate(Base):
             f"<Candidate "
             f"id={self.candidate_id} "
             f"voter_id={self.voter_id} "
+            f"type={self.candidate_type} "
             f"status={self.status}>"
         )

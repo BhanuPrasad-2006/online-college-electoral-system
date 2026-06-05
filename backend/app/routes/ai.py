@@ -89,79 +89,117 @@ def _get_gemini_client():
 
 # ── Mock fallback responses ────────────────────────────────────────────────────
 
-def _build_mock_system_preview() -> str:
-    """Build a preview of the system knowledge for mock mode."""
-    candidate_names = list(CANDIDATE_MANIFESTOS.keys())
-    concern_names = list(STUDENT_CONCERNS.keys())
-    phase_names = [p["label"] for p in ELECTION_PHASES]
-
-    return (
-        "**Demo Mode Active** — I don't have a live Gemini API key yet.\n\n"
-        "In production, I can answer questions about:\n\n"
-        f"**Candidates:** {', '.join(candidate_names)}\n"
-        f"**Student Concerns:** {', '.join(concern_names[:4])}, and more\n"
-        f"**Election Phases:** {', '.join(phase_names)}\n\n"
-        "**Try asking me:**\n"
-        "• Compare all candidates on Wi-Fi improvements\n"
-        "• How do I register to vote?\n"
-        "• What are the top student concerns?\n"
-        "• Who is running for General Secretary?\n"
-        "• How is vote security maintained?\n\n"
-        "Set a **GEMINI_API_KEY** in your `.env` file to activate the live AI!"
-    )
-
-_mock_counter = 0
-
-def _mock_response(message: str) -> str:
-    global _mock_counter
+async def _mock_response(message: str, db: AsyncSession) -> str:
     message_lower = message.lower().strip()
 
-    # Try to simulate basic intent matching for mock mode
-    if any(w in message_lower for w in ["register", "how do i vote", "how to vote"]):
+    # 1. Fetch current election & phase
+    election_res = await db.execute(select(Election).order_by(Election.created_at.desc()).limit(1))
+    election = election_res.scalars().first()
+    phase = "unknown"
+    remaining_time = None
+    if election:
+        phase = PhaseEngine.get_current_phase(election)
+        remaining_time = PhaseEngine.get_time_remaining(election, phase)
+
+    # 2. Check for candidate/manifesto queries
+    if any(w in message_lower for w in ["candidate", "manifesto", "platform", "contest", "who is running", "running for"]):
+        cands_res = await db.execute(
+            select(Candidate)
+            .options(joinedload(Candidate.voter), joinedload(Candidate.position))
+            .where(Candidate.status == "APPROVED")
+        )
+        candidates = cands_res.scalars().all()
+        if not candidates:
+            return "There are currently no approved candidates registered for this election."
+        
+        reply = "**Registered Candidates & Manifestos:**\n\n"
+        for c in candidates:
+            if not c.voter:
+                continue
+            man_res = await db.execute(select(Manifesto).where(Manifesto.candidate_id == c.candidate_id))
+            man = man_res.scalars().first()
+            manifesto_txt = man.content if man else "No manifesto submitted yet."
+            party_txt = f" ({c.party})" if hasattr(c, "party") and c.party else ""
+            reply += f"• **{c.voter.full_name}**{party_txt}\n"
+            reply += f"  - Running for: {c.position.title if c.position else 'Unknown'}\n"
+            reply += f"  - Dept: {c.voter.department} · Sem: {c.voter.semester}\n"
+            reply += f"  - Manifesto: {manifesto_txt[:300]}...\n\n"
+        return reply
+
+    # 3. Check for registration/voting queries
+    if any(w in message_lower for w in ["register", "how to vote", "how do i vote", "voting process", "step"]):
         return (
-            "**Demo Mode** — Here's how voting registration works:\n\n"
-            "1. Log in with your student ID and college email.\n"
-            "2. Go to the registration section.\n"
-            "3. Fill in your details (department, year, mobile).\n"
-            "4. Verify your email via OTP.\n"
-            "5. Wait for admin to grant voting permission.\n\n"
-            "Set GEMINI_API_KEY for detailed live responses!"
+            "**Voting & Registration Process:**\n\n"
+            "1. **Registration**: When Candidate Registration is open, eligible students can register as candidates. Voters must have their profiles authorized by the election coordinator.\n"
+            "2. **Identity Verification**: On voting day, go to the Vote portal and enter your 8-character Verification ID code.\n"
+            "3. **Face Verification**: Complete the passive liveness check. Look at the camera while it captures a few frames to match against your student profile photo.\n"
+            "4. **Ballot**: Choose your preferred candidate ticket or NOTA (None of the Above) on the ballot screen.\n"
+            "5. **Cast Vote**: Click 'Cast Vote' to securely and anonymously record your vote in the database.\n"
+            "All votes are cryptographically signed and stored in the audit logs."
         )
 
-    if any(w in message_lower for w in ["manifesto", "platform", "candidate", "compare"]):
-        candidates_info = "\n".join(
-            f"• **{n}** — {info['party']} ({info['department']}, {info['year']})"
-            for n, info in CANDIDATE_MANIFESTOS.items()
-        )
-        return (
-            f"**Demo Mode** — Current candidates in this election:\n\n{candidates_info}\n\n"
-            "Ask me to compare them on topics like Wi-Fi, Placements, Sports, or Mental Health!\n"
-            "(Set GEMINI_API_KEY for live AI responses.)"
-        )
+    # 4. Check for notices
+    if any(w in message_lower for w in ["notice", "announcement", "broadcast", "official notice"]):
+        from app.models.notice import Notice
+        notices_res = await db.execute(select(Notice).order_by(Notice.created_at.desc()).limit(5))
+        notices = notices_res.scalars().all()
+        if not notices:
+            return "There are no official notices published by the election commission yet."
+        
+        reply = "**Recent Official Notices:**\n\n"
+        for n in notices:
+            reply += f"• **{n.title}** ({n.created_at.strftime('%b %d, %Y') if n.created_at else 'Recent'})\n"
+            reply += f"  {n.content[:200]}...\n\n"
+        return reply
 
-    if any(w in message_lower for w in ["concern", "issue", "problem", "student"]):
-        concerns_info = "\n".join(
-            f"• **{c}** ({d['vote_count']} votes, {d['severity']} severity)"
-            for c, d in list(STUDENT_CONCERNS.items())[:5]
-        )
-        return (
-            f"**Demo Mode** — Top student concerns:\n\n{concerns_info}\n\n"
-            "Set GEMINI_API_KEY for detailed analysis!"
-        )
+    # 5. Check for concerns
+    if any(w in message_lower for w in ["concern", "issue", "complaint", "student concern", "feedback"]):
+        concerns_res = await db.execute(select(Concern))
+        concerns = concerns_res.scalars().all()
+        if not concerns:
+            return "No student concerns have been logged in the system yet."
+        
+        from collections import defaultdict
+        groups = defaultdict(int)
+        for c in concerns:
+            cat_val = c.category.value if hasattr(c.category, "value") else c.category
+            groups[cat_val] += 1
+            
+        reply = f"**Student Concerns Summary ({len(concerns)} total):**\n\n"
+        for cat, cnt in groups.items():
+            display_cat = cat.replace("_", " ").title()
+            reply += f"• **{display_cat}**: {cnt} logged concern(s)\n"
+        reply += "\nStudents can submit their concerns via the voter portal, which are analyzed by AI to help candidates shape their manifestos."
+        return reply
 
-    if any(w in message_lower for w in ["phase", "schedule", "timeline", "when"]):
-        phases_info = "\n".join(
-            f"• **{p['label']}** — {p['description'][:80]}..."
-            for p in ELECTION_PHASES
-        )
-        return (
-            f"**Demo Mode** — Election phases:\n\n{phases_info}\n\n"
-            "Set GEMINI_API_KEY for live responses with real-time phase data!"
-        )
+    # 6. Check for phase/timeline/schedule
+    if any(w in message_lower for w in ["phase", "schedule", "timeline", "when", "date", "status"]):
+        if not election:
+            return "No election is currently configured in the system."
+        
+        reply = f"**Election Phase & Timeline:**\n\n"
+        reply += f"• **Current Phase**: {phase.replace('_', ' ').upper()}\n"
+        if remaining_time:
+            reply += f"• **Time Remaining**: {remaining_time}\n"
+        reply += f"• **Registration Period**: {election.registration_start.strftime('%b %d, %Y') if election.registration_start else 'N/A'} to {election.registration_end.strftime('%b %d, %Y') if election.registration_end else 'N/A'}\n"
+        reply += f"• **Voting Period**: {election.voting_start.strftime('%b %d, %Y') if election.voting_start else 'N/A'} to {election.voting_end.strftime('%b %d, %Y') if election.voting_end else 'N/A'}\n"
+        return reply
 
     # Default fallback
-    _mock_counter += 1
-    return _build_mock_system_preview()
+    reply = (
+        "I am your CollegeVote Assistant. I can help you with questions about candidates, voting rules, schedules, and student concerns.\n\n"
+    )
+    if election:
+        reply += f"The current election is **{election.title}** and the active phase is **{phase.replace('_', ' ').upper()}**.\n\n"
+    
+    reply += (
+        "**Try asking me:**\n"
+        "• Who is running in this election?\n"
+        "• What are the steps to cast a vote?\n"
+        "• Show recent notices\n"
+        "• What concerns have students reported?"
+    )
+    return reply
 
 
 # ── Pydantic schemas ───────────────────────────────────────────────────────────
@@ -383,7 +421,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         _chat_sessions[session_id] = None  # Register session even in mock
         return ChatResponse(
             session_id=session_id,
-            reply=_mock_response(request.message),
+            reply=await _mock_response(request.message, db),
             is_mock=True,
             query_type=query_type,
         )

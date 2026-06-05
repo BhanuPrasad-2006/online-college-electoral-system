@@ -50,6 +50,7 @@ from app.services.auth_service import (
     resend_candidate_email_otp,
     resend_candidate_sms_otp,
 )
+from app.utils.helpers import extract_client_ip
 from app.exceptions.auth_exceptions import MobileEmailMismatchError
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -721,12 +722,8 @@ async def issue_voting_token(
         device_fingerprint=generate_fingerprint(request),
     )
 
-    # Audit log
     from app.models.audit_log import AuditLog
-    ip_addr = request.client.host if request.client else "127.0.0.1"
-    x_forwarded = request.headers.get("x-forwarded-for")
-    if x_forwarded:
-        ip_addr = x_forwarded.split(",")[0].strip()
+    ip_addr = extract_client_ip(request)
 
     audit = AuditLog(
         event_type="VOTING_TOKEN_ISSUED",
@@ -888,10 +885,7 @@ async def reconfirm_password(
 
     # Audit log
     from app.models.audit_log import AuditLog
-    ip_addr = request.client.host if request.client else "127.0.0.1"
-    x_forwarded = request.headers.get("x-forwarded-for")
-    if x_forwarded:
-        ip_addr = x_forwarded.split(",")[0].strip()
+    ip_addr = extract_client_ip(request)
 
     audit = AuditLog(
         event_type="PASSWORD_RECONFIRMED",

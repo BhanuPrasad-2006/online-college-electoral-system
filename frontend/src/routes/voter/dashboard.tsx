@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useCandidates, useVoterProfile, useKpi, useCurrentPhase, useElection } from "@/hooks/use-election-data";
+import { useCandidates, useVoterProfile, useKpi, useCurrentPhase } from "@/hooks/use-election-data";
 import { useNotifications } from "@/context/NotificationStore";
 import { PageLoader } from "@/components/PageLoader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,64 +23,15 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { resolveApiAssetUrl } from "@/lib/api";
-// ── helpers for election phase ─────────────────────────────────
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-function fmtCountdown(ms: number) {
-  const t = Math.max(0, ms);
-  const d = Math.floor(t / 86_400_000);
-  const h = Math.floor((t / 3_600_000) % 24);
-  const m = Math.floor((t / 60_000) % 60);
-  const s = Math.floor((t / 1_000) % 60);
-  return d > 0
-    ? `${pad2(d)}d ${pad2(h)}h ${pad2(m)}m ${pad2(s)}s`
-    : `${pad2(h)}h ${pad2(m)}m ${pad2(s)}s`;
-}
-
-function deriveFallbackPhase(election: any) {
-  if (!election) return { phase: "unknown", remaining_time: "" };
-  const now = Date.now();
-  const regStart = election.registration_start
-    ? new Date(election.registration_start).getTime()
-    : election.votingStart
-      ? null
-      : null;
-  const regEnd = election.registration_end
-    ? new Date(election.registration_end).getTime()
-    : election.registrationEnd
-      ? new Date(election.registrationEnd).getTime()
-      : null;
-  const votStart = election.voting_start
-    ? new Date(election.voting_start).getTime()
-    : election.votingStart
-      ? new Date(election.votingStart).getTime()
-      : null;
-  const votEnd = election.voting_end
-    ? new Date(election.voting_end).getTime()
-    : election.votingEnd
-      ? new Date(election.votingEnd).getTime()
-      : null;
-
-  if (regStart && now < regStart) return { phase: "pre_registration", remaining_time: fmtCountdown(regStart - now) };
-  if (regStart && regEnd && now >= regStart && now < regEnd) return { phase: "registration_open", remaining_time: fmtCountdown(regEnd - now) };
-  if (votStart && now < votStart) return { phase: "registration_closed", remaining_time: fmtCountdown(votStart - now) };
-  if (votStart && votEnd && now >= votStart && now < votEnd) return { phase: "voting_open", remaining_time: fmtCountdown(votEnd - now) };
-  return { phase: "voting_closed", remaining_time: "" };
-}
-
-function reconcilePhase(livePhase: any, election: any) {
-  // Trust the backend election status as the source of truth.
-  // Fall back to date-derived phase only if backend hasn't responded yet.
-  if (livePhase?.phase) {
-    const fallback = deriveFallbackPhase(election);
-    return {
-      ...livePhase,
-      remaining_time: livePhase.remaining_time || fallback.remaining_time || "",
-    };
-  }
-  return deriveFallbackPhase(election);
+import { resolveApiAssetUrl, fetchMyPartyInvitations, acceptPartyInvitation, rejectPartyInvitation } from "@/lib/api";
+import { useAntiAbuse } from "@/hooks/useAntiAbuse";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+// ── Election phase helpers ─────────────────────────────────────
+// Backend /election/current-phase is the single source of truth for phase.
+// No client-side date math — we trust the backend PhaseEngine completely.
+function reconcilePhase(livePhase: any) {
+  if (livePhase?.phase) return livePhase;
+  return { phase: "unknown", remaining_time: "" };
 }
 
 export const Route = createFileRoute("/voter/dashboard")({ component: VoterDash });
@@ -91,12 +42,44 @@ function VoterDash() {
   const { data: voter, isPending } = useVoterProfile();
   const { data: candidates = [] } = useCandidates();
   const { data: kpi } = useKpi();
-  const { data: election } = useElection();
   const { data: phaseData } = useCurrentPhase();
   const { notifications = [] } = useNotifications();
   const [timeLeft, setTimeLeft] = useState<string>("");
+  const antiAbuse = useAntiAbuse();
+  const qc = useQueryClient();
 
-  const effectivePhase = reconcilePhase(phaseData, election);
+  // Party invitations query
+  const { data: partyInvitations = [], refetch: refetchInvitations } = useQuery({
+    queryKey: ["voter-party-invitations"],
+    queryFn: fetchMyPartyInvitations,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const pendingInvitations = (partyInvitations as any[]).filter(
+    (i) => (i.status || "").toLowerCase() === "pending",
+  );
+
+  const acceptInvitationMutation = useMutation({
+    mutationFn: acceptPartyInvitation,
+    onSuccess: (data) => {
+      toast.success(data.message);
+      qc.invalidateQueries({ queryKey: ["voter-party-invitations"] });
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to accept invitation"),
+  });
+
+  const rejectInvitationMutation = useMutation({
+    mutationFn: rejectPartyInvitation,
+    onSuccess: () => {
+      toast.success("Invitation rejected.");
+      qc.invalidateQueries({ queryKey: ["voter-party-invitations"] });
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to reject invitation"),
+  });
+
+
+  const effectivePhase = reconcilePhase(phaseData);
   const isRegOpen = effectivePhase?.phase === "registration_open";
   const isVoteOpen = effectivePhase?.phase === "voting_open";
   const regOpensSoon = effectivePhase?.phase === "pre_registration";
@@ -154,14 +137,22 @@ function VoterDash() {
   const matched = [...approvedCandidates].sort((a, b) => (b.match || 75) - (a.match || 75));
   const firstName = voter.name.split(" ")[0];
 
-  const hasVoted =
+  // Check voted status: use API data (live from server) OR localStorage fallback
+  // localStorage is set immediately after a successful vote on the /voter/vote page
+  const hasVoted = Boolean(
     voter.voted ||
     (typeof localStorage !== "undefined" &&
-      localStorage.getItem("collegevote-has-voted") === "true");
+      localStorage.getItem("collegevote-has-voted") === "true")
+  );
   const votePermission = voter.vote_permission;
+  // Phase data loading guard: don't show "Voting Closed" when election/phase hasn't loaded yet
+  const isPhaseLoading = !phaseData;
+  const isPhaseUnknown = effectivePhase?.phase === "unknown";
 
   function handleVoteNowClick() {
+    if (antiAbuse.isBlocked("go-vote")) return;
     if (!hasVoted && votePermission) nav({ to: "/voter/vote" });
+    antiAbuse.startCooldown("go-vote", 2);
   }
 
   return (
@@ -234,10 +225,14 @@ function VoterDash() {
               </p>
             </div>
             {!hasVoted && (
-              <button onClick={() => nav({ to: "/voter/vote" })} className="shrink-0 z-10">
-                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition-all shadow-md animate-pulse">
+              <button
+                onClick={handleVoteNowClick}
+                disabled={antiAbuse.isBlocked("go-vote")}
+                className="shrink-0 z-10"
+              >
+                <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md ${antiAbuse.isBlocked("go-vote") ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-violet-600 text-white hover:bg-violet-700 animate-pulse'}`}>
                   <Sparkles className="h-4 w-4" />
-                  Vote Now
+                  {antiAbuse.isBlocked("go-vote") ? `Wait ${Math.ceil(antiAbuse.cooldowns["go-vote"]?.remaining || 0)}s` : "Vote Now"}
                 </div>
               </button>
             )}
@@ -435,52 +430,62 @@ function VoterDash() {
         </div>
       </div>
 
-      <div className="flex justify-center items-center w-full py-8 my-4 bg-transparent z-10">
-        {hasVoted ? (
-          <div
-            className="flex items-center gap-3 px-16 py-5 bg-success/15 border-2 border-success/40 text-success font-bold text-xl rounded-2xl shadow-md cursor-not-allowed select-none animate-in fade-in duration-300"
-            style={{ minWidth: "280px", justifyContent: "center" }}
-          >
-            <CheckCircle2 className="h-6 w-6 text-success" />
-            Already Voted
-          </div>
-        ) : !votePermission ? (
-          <div className="w-full max-w-lg bg-warning/10 border border-warning/30 rounded-2xl p-6 text-center space-y-3 animate-in zoom-in duration-300">
-            <div className="mx-auto h-12 w-12 rounded-full bg-warning/20 flex items-center justify-center">
-              <Lock className="h-6 w-6 text-warning" />
+      {effectivePhase?.phase !== "results_announced" && (
+        <div className="flex justify-center items-center w-full py-8 my-4 bg-transparent z-10">
+          {hasVoted ? (
+            <div
+              className="flex items-center gap-3 px-16 py-5 bg-success/15 border-2 border-success/40 text-success font-bold text-xl rounded-2xl shadow-md cursor-not-allowed select-none animate-in fade-in duration-300"
+              style={{ minWidth: "280px", justifyContent: "center" }}
+            >
+              <CheckCircle2 className="h-6 w-6 text-success" />
+              Already Voted
             </div>
-            <div>
-              <p className="font-bold text-warning-foreground text-lg">Voting Blocked</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                The election admin has not authorized your student profile to vote yet. Please wait
-                for approval or contact the election coordinator.
-              </p>
+          ) : !votePermission ? (
+            <div className="w-full max-w-lg bg-warning/10 border border-warning/30 rounded-2xl p-6 text-center space-y-3 animate-in zoom-in duration-300">
+              <div className="mx-auto h-12 w-12 rounded-full bg-warning/20 flex items-center justify-center">
+                <Lock className="h-6 w-6 text-warning" />
+              </div>
+              <div>
+                <p className="font-bold text-warning-foreground text-lg">Voting Blocked</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The election admin has not authorized your student profile to vote yet. Please wait
+                  for approval or contact the election coordinator.
+                </p>
+              </div>
+              {timeLeft && (
+                <p className="text-xs text-destructive font-semibold flex items-center justify-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Remaining login time: {timeLeft}
+                </p>
+              )}
             </div>
-            {timeLeft && (
-              <p className="text-xs text-destructive font-semibold flex items-center justify-center gap-1">
-                <Clock className="h-3 w-3" />
-                Remaining login time: {timeLeft}
-              </p>
-            )}
-          </div>
-        ) : isVoteOpen ? (
-          <button
-            onClick={handleVoteNowClick}
-            className="px-16 py-5 bg-gradient-to-r from-blue-600 via-[#2563EB] to-[#1F3A6E] hover:from-blue-700 hover:via-blue-700 hover:to-[#172B52] text-white font-bold text-xl rounded-2xl shadow-2xl shadow-blue-600/30 transition-all duration-200 transform hover:scale-105 hover:-translate-y-0.5 block opacity-100 ring-4 ring-blue-500/15"
-            style={{ minWidth: "280px", display: "block", color: "#ffffff" }}
-          >
-            Vote Now
-          </button>
-        ) : (
-          <div
-            className="flex items-center gap-3 px-16 py-5 bg-muted/50 border-2 border-border/50 text-muted-foreground font-bold text-xl rounded-2xl shadow-sm cursor-not-allowed select-none transition-all duration-300"
-            style={{ minWidth: "280px", justifyContent: "center" }}
-          >
-            <Clock className="h-6 w-6 opacity-70" />
-            {voteOpensSoon ? "Voting Opens Soon" : "Voting Closed"}
-          </div>
-        )}
-      </div>
+          ) : isVoteOpen ? (
+            <button
+              onClick={handleVoteNowClick}
+              className="px-16 py-5 bg-gradient-to-r from-blue-600 via-[#2563EB] to-[#1F3A6E] hover:from-blue-700 hover:via-blue-700 hover:to-[#172B52] text-white font-bold text-xl rounded-2xl shadow-2xl shadow-blue-600/30 transition-all duration-200 transform hover:scale-105 hover:-translate-y-0.5 block opacity-100 ring-4 ring-blue-500/15"
+              style={{ minWidth: "280px", display: "block", color: "#ffffff" }}
+            >
+              Vote Now
+            </button>
+          ) : isPhaseLoading || isPhaseUnknown ? (
+            <div
+              className="flex items-center gap-3 px-16 py-5 bg-muted/50 border-2 border-border/50 text-muted-foreground font-bold text-xl rounded-2xl shadow-sm cursor-not-allowed select-none transition-all duration-300"
+              style={{ minWidth: "280px", justifyContent: "center" }}
+            >
+              <div className="animate-spin h-5 w-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full" />
+              <span className="opacity-60">Checking Election Status...</span>
+            </div>
+          ) : (
+            <div
+              className="flex items-center gap-3 px-16 py-5 bg-muted/50 border-2 border-border/50 text-muted-foreground font-bold text-xl rounded-2xl shadow-sm cursor-not-allowed select-none transition-all duration-300"
+              style={{ minWidth: "280px", justifyContent: "center" }}
+            >
+              <Clock className="h-6 w-6 opacity-70" />
+              {voteOpensSoon ? "Voting Opens Soon" : "Voting Closed"}
+            </div>
+          )}
+        </div>
+      )}
 
       <SectionCard delay={200}>
         <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
@@ -563,6 +568,144 @@ function VoterDash() {
           ))}
         </div>
       </SectionCard>
+
+      {/* ── Party Invitations Section ── */}
+      {(partyInvitations as any[]).length > 0 && (
+        <SectionCard
+          title="Party Invitations"
+          subtitle={`${pendingInvitations.length} pending invitation${pendingInvitations.length !== 1 ? "s" : ""}`}
+          icon={Users}
+          action={
+            pendingInvitations.length > 0 ? (
+              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-[#6C63FF] text-white text-[10px] font-bold">
+                {pendingInvitations.length}
+              </span>
+            ) : undefined
+          }
+        >
+          <div className="space-y-3">
+            {(partyInvitations as any[]).map((inv: any, idx: number) => {
+              const isPending = (inv.status || "").toLowerCase() === "pending";
+              const isAccepted = (inv.status || "").toLowerCase() === "accepted";
+              const isRejected = (inv.status || "").toLowerCase() === "rejected";
+              const isExpired = (inv.status || "").toLowerCase() === "expired";
+              const expiresAt = inv.expires_at ? new Date(inv.expires_at) : null;
+              const expiresLabel = expiresAt ? `Expires ${expiresAt.toLocaleDateString()}` : "";
+
+              return (
+                <div
+                  key={inv.invitation_id}
+                  className={cn(
+                    "rounded-2xl border p-5 transition-all duration-200 animate-fade-in-up opacity-0 [animation-fill-mode:forwards]",
+                    isPending
+                      ? "border-[#6C63FF]/25 bg-gradient-to-br from-[#6C63FF]/5 to-transparent"
+                      : "border-border bg-muted/30 opacity-75",
+                  )}
+                  style={{ animationDelay: `${idx * 80}ms` }}
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Party Logo / Avatar */}
+                    {inv.party_logo_url ? (
+                      <img
+                        src={inv.party_logo_url}
+                        alt={inv.party_name}
+                        className="h-12 w-12 rounded-xl object-cover shadow shrink-0"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/20 flex items-center justify-center shrink-0 shadow">
+                        <span className="text-lg font-bold text-[#6C63FF]">
+                          {inv.party_symbol || (inv.party_name || "P").charAt(0)}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 flex-wrap">
+                        <div>
+                          <p className="font-semibold text-sm">{inv.party_name}</p>
+                          {inv.party_slogan && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5">"{inv.party_slogan}"</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-semibold",
+                              isPending
+                                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                                : isAccepted
+                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
+                                  : isRejected
+                                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
+                                    : "bg-muted text-muted-foreground border-border",
+                            )}
+                          >
+                            {isPending ? "⏳ Pending" : isAccepted ? "✓ Accepted" : isRejected ? "✗ Rejected" : "Expired"}
+                          </span>
+                          {isPending && expiresLabel && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-2.5 w-2.5" /> {expiresLabel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <span className="text-xs bg-[#6C63FF]/10 text-[#6C63FF] px-2 py-0.5 rounded-full font-medium">
+                          {inv.role?.replace(/_/g, " ")}
+                        </span>
+                        {inv.position && (
+                          <span className="text-xs text-muted-foreground">{inv.position}</span>
+                        )}
+                        {inv.invited_by_name && (
+                          <span className="text-xs text-muted-foreground">
+                            Invited by <strong>{inv.invited_by_name}</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      {inv.message && (
+                        <p className="text-xs text-muted-foreground italic mt-2 p-2 bg-muted/50 rounded-lg">
+                          "{inv.message}"
+                        </p>
+                      )}
+
+                      {isPending && (
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => acceptInvitationMutation.mutate(inv.invitation_id)}
+                            disabled={acceptInvitationMutation.isPending || rejectInvitationMutation.isPending}
+                            className="flex-1 py-2 rounded-lg text-sm font-semibold bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                          >
+                            {acceptInvitationMutation.isPending ? (
+                              <><span className="animate-spin h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full" /> Accepting...</>
+                            ) : (
+                              <><CheckCircle2 className="h-3.5 w-3.5" /> Accept</>  
+                            )}
+                          </button>
+                          <button
+                            onClick={() => rejectInvitationMutation.mutate(inv.invitation_id)}
+                            disabled={acceptInvitationMutation.isPending || rejectInvitationMutation.isPending}
+                            className="flex-1 py-2 rounded-lg text-sm font-semibold border border-destructive/40 text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+
+                      {isAccepted && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-2 font-medium">
+                          ✓ You have joined this party. Login as a Candidate to access the Party Dashboard.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      )}
 
     </div>
   );

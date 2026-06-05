@@ -55,8 +55,47 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     USE_REDIS: bool = False
 
+    # ── Security Settings ──────────────────────────────────────
+
     # Google reCAPTCHA
     RECAPTCHA_SECRET_KEY: str = ""
+
+    # Rate limiting
+    RATE_LIMIT_NORMAL_PER_MINUTE: int = 100
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 10
+    RATE_LIMIT_OTP_SEND_PER_MINUTE: int = 3
+    RATE_LIMIT_OTP_VERIFY_PER_MINUTE: int = 5
+    RATE_LIMIT_FACE_PER_MINUTE: int = 3
+    RATE_LIMIT_VOTE_PER_MINUTE: int = 5
+    RATE_LIMIT_ADMIN_ACTION_PER_MINUTE: int = 10
+
+    # OTP abuse prevention
+    OTP_MAX_ATTEMPTS: int = 5
+    OTP_RESEND_COOLDOWN_SECONDS: int = 60
+    OTP_MAX_SENDS_PER_HOUR: int = 10
+    OTP_LOCKOUT_MINUTES: int = 15
+
+    # Face verification abuse
+    FACE_MAX_ATTEMPTS: int = 3
+    FACE_LOCKOUT_MINUTES: int = 15
+    FACE_DAILY_LIMIT: int = 50       # Max face verification attempts per voter per day
+    FACE_SERVICE_RATE_LIMIT: int = 10 # Max calls to extract_face_embedding per identifier per minute
+    FACE_ENFORCE_SIDE_ANGLE: bool = True
+
+    # Suspicious activity detection
+    SUSPICIOUS_ACTIVITY_ENABLED: bool = True
+    SUSPICIOUS_MAX_FAILED_LOGINS: int = 10
+    SUSPICIOUS_WINDOW_MINUTES: int = 15
+    SUSPICIOUS_TEMP_BLOCK_MINUTES: int = 30
+
+    # Exponential lockout backoff multipliers (consecutive lockout cycles)
+    LOCKOUT_BACKOFF_MINUTES: list[int] = [15, 30, 60, 1440]  # 15min → 30min → 1hr → 24hr
+
+    # File upload limits
+    MAX_IMAGE_SIZE: int = 5 * 1024 * 1024  # 5 MB
+    MAX_DOCUMENT_SIZE: int = 10 * 1024 * 1024  # 10 MB
+    MAX_VIDEO_SIZE: int = 20 * 1024 * 1024  # 20 MB
+    MAX_REQUEST_SIZE: int = 25 * 1024 * 1024  # 25 MB
 
     # AI Chatbot (Gemini 2.5 Flash)
     # Get your free API key at: https://aistudio.google.com/app/apikey
@@ -75,6 +114,8 @@ class Settings(BaseSettings):
     # typically score 0.55–0.75. 0.68 was rejecting real matches.
     FACE_MATCH_COSINE_THRESHOLD: float = 0.45
     ENABLE_FACE_VERIFICATION: bool = True
+    PRELOAD_ARCFACE: bool = False
+    SQLALCHEMY_ECHO: bool = False
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",

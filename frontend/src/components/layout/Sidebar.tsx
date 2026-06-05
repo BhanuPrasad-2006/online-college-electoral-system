@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import {
   Home,
   Users,
+  Users2,
   BarChart2,
   Bell,
   Settings,
@@ -26,6 +27,7 @@ import {
   Camera,
   Calendar,
   FileText,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
@@ -57,6 +59,7 @@ const CANDIDATE_LINKS: SidebarLink[] = [
   { to: "/candidate/manifesto", label: "Manifesto Editor", icon: FileEdit },
   { to: "/candidate/media", label: "Campaign Media", icon: Film },
   { to: "/candidate/ai-report", label: "AI Report", icon: Brain },
+  { to: "/candidate/party-dashboard", label: "Party Dashboard", icon: Building2 },
   { to: "/candidate/status", label: "Application Status", icon: ListChecks },
   { to: "/candidate/concerns", label: "Student Concerns", icon: MessageSquarePlus },
   { to: "/candidate/notifications", label: "Notifications", icon: Bell, badge: 2 },
@@ -66,6 +69,7 @@ const CANDIDATE_LINKS: SidebarLink[] = [
 const ADMIN_LINKS: SidebarLink[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: Shield },
   { to: "/admin/candidates", label: "Manage Candidates", icon: Users },
+  { to: "/admin/parties", label: "Party Applications", icon: Building2 },
   { to: "/admin/manifestos", label: "Manifesto Approval", icon: FileEdit },
   { to: "/admin/media", label: "Content Approval", icon: ShieldCheck },
   { to: "/admin/election", label: "Election Control", icon: Cog },
@@ -83,6 +87,7 @@ const ADMIN_LINKS: SidebarLink[] = [
 export const ADMIN_LINK_ROLES: Record<string, string[]> = {
   "/admin/dashboard": ["SUPER_ADMIN", "ELECTION_MANAGER", "CANDIDATE_MODERATOR", "AUDIT_SECURITY_ADMIN"],
   "/admin/candidates": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
+  "/admin/parties": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
   "/admin/manifestos": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
   "/admin/media": ["SUPER_ADMIN", "CANDIDATE_MODERATOR"],
   "/admin/election": ["SUPER_ADMIN", "ELECTION_MANAGER"],
@@ -163,7 +168,15 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
           ].includes(l.to);
           const isLocked = kind === "candidate" && isCampaignTab && !isApproved;
 
-          if (isLocked) {
+          // Party Dashboard: only visible for PARTY candidates; hidden for INDEPENDENT
+          const isPartyTab = l.to === "/candidate/party-dashboard";
+          const candidateType = (profile as any)?.candidate_type?.toUpperCase() || "INDEPENDENT";
+          if (kind === "candidate" && isPartyTab && candidateType !== "PARTY") {
+            return null; // Hidden for Independent candidates
+          }
+          const isPartyLocked = kind === "candidate" && isPartyTab && !isApproved;
+
+          if (isLocked || isPartyLocked) {
             return (
               <button
                 key={l.to}

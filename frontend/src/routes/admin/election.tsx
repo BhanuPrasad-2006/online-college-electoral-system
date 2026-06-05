@@ -572,7 +572,7 @@ function Page() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search voters by name, student ID, or email..."
+                placeholder="Search by USN, name, or email..."
                 className="pl-9 h-10 rounded-xl"
               />
             </div>
@@ -683,7 +683,7 @@ function Page() {
                       <th className="p-3">Student Details</th>
                       <th className="p-3">Dept / Year</th>
                       <th className="p-3 text-center">Verification ID</th>
-                      <th className="p-3 text-center">Face ID</th>
+                      <th className="p-3 text-center">Face ID (Dept / USN)</th>
                       <th className="p-3 text-center">Voted?</th>
                       <th className="p-3 text-center">Permission</th>
                       <th className="p-3 text-right">Action</th>
@@ -804,8 +804,11 @@ function Page() {
                                 Not Enrolled
                               </Badge>
                             )}
-                            <span className="text-[11px] text-muted-foreground mt-0.5">
-                              {v.face_enrolled ? "Uploaded" : "No face uploaded"}
+                            <span className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                              {v.department !== "—" ? v.department : "—"} · {v.student_id !== "—" ? v.student_id : "No USN"}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {v.face_enrolled ? "Photo on file" : "No face uploaded"}
                             </span>
                             <div>
                               <input

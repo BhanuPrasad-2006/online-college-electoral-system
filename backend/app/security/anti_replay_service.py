@@ -62,12 +62,13 @@ class AntiReplayService:
         token: str,
         user_id: str,
         db_session: AsyncSession = None,
+        consume: bool = True,
     ) -> bool:
         """Validate and consume an anti-replay token (one-time use).
 
         1. Check Redis cache first (fast path).
         2. If not in Redis, check DB.
-        3. Delete on success (one-time use).
+        3. Delete on success (only if consume is True).
         """
         user_id_str = str(user_id)
 
@@ -84,7 +85,8 @@ class AntiReplayService:
                     stored = stored.decode("utf-8")
                 if str(stored) != user_id_str:
                     return False
-                await redis_client.delete(f"anti_replay:{token}")
+                if consume:
+                    await redis_client.delete(f"anti_replay:{token}")
                 return True
         except Exception:
             pass  # Redis unavailable — continue to DB
@@ -103,7 +105,7 @@ class AntiReplayService:
 
         # Normalize to timezone-aware UTC for comparison
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            expires_at = expires_at.replace(timezone.utc)
         else:
             expires_at = expires_at.astimezone(timezone.utc)
 
@@ -114,12 +116,13 @@ class AntiReplayService:
             return False
 
         # ── Step 4: Consume the token (delete from DB) ─────────
-        await db_session.delete(db_token)
-        try:
-            await db_session.commit()
-        except Exception as e:
-            await db_session.rollback()
-            logger.error(f"Failed to consume anti-replay token: {e}")
-            return False
+        if consume:
+            await db_session.delete(db_token)
+            try:
+                await db_session.commit()
+            except Exception as e:
+                await db_session.rollback()
+                logger.error(f"Failed to consume anti-replay token: {e}")
+                return False
 
         return True

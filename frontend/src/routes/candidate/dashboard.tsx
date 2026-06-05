@@ -10,17 +10,18 @@ import { PageHeader, SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { CheckCircle2, Clock, FileCheck, Brain, Bell, AlertCircle, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAntiAbuse } from "@/hooks/useAntiAbuse";
 
 function Page() {
   const nav = useNavigate();
   const { data: profile, isPending: loadingProfile, isError: profileError } = useCandidateProfile();
   const { data: phaseData } = useCurrentPhase();
   const { data: election } = useElection();
+  const antiAbuse = useAntiAbuse();
   const { notifications = [] } = useNotifications();
 
   // ── Access control: block unregistered candidates when registration is not open ──
   const [accessChecked, setAccessChecked] = useState(false);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
   useEffect(() => {
     if (!loadingProfile && profileError && phaseData && !accessChecked) {
       const isRegOpen = phaseData.phase === "registration_open";
@@ -36,37 +37,30 @@ function Page() {
   }, [loadingProfile, profileError, profile, phaseData, nav, accessChecked]);
 
   const handleDownloadPdf = async () => {
-    try {
-      setDownloadingPdf(true);
-      const { getAuthToken, API_BASE_URL } = await import("@/lib/api");
-      const token = getAuthToken();
-      
-      const response = await fetch(`${API_BASE_URL}/candidates/me/report/pdf`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to download PDF report");
+    const { getAuthToken, API_BASE_URL } = await import("@/lib/api");
+    const token = getAuthToken();
+    
+    const response = await fetch(`${API_BASE_URL}/candidates/me/report/pdf`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`
       }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Election_Report_${profile?.full_name?.replace(/ /g, "_") || "Candidate"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success("PDF downloaded successfully");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to download PDF");
-    } finally {
-      setDownloadingPdf(false);
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to download PDF report");
     }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Election_Report_${profile?.full_name?.replace(/ /g, "_") || "Candidate"}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success("PDF downloaded successfully");
   };
 
   if (loadingProfile || !profile) return <PageLoader />;
@@ -323,14 +317,14 @@ function Page() {
 
           {phaseData?.phase === "results_announced" && (
             <button
-              onClick={handleDownloadPdf}
-              disabled={downloadingPdf}
+              onClick={() => antiAbuse.runWithProtection("download-pdf", handleDownloadPdf, 10)}
+              disabled={antiAbuse.isBlocked("download-pdf")}
               className="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-semibold shadow-md hover:opacity-95 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {downloadingPdf ? (
+              {antiAbuse.isBlocked("download-pdf") ? (
                 <>
                   <div className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Generating PDF...
+                  Please wait...
                 </>
               ) : (
                 <>

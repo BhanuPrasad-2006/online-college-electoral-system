@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCandidateProfile, useCandidates, useMediaItems } from "@/hooks/use-election-data";
-import { resolveApiAssetUrl } from "@/lib/api";
-import { submitCampaignMedia } from "@/lib/demo-api";
+import { ReconfirmPasswordModal } from "@/components/ReconfirmPasswordModal";
+import { resolveApiAssetUrl, submitCampaignMedia } from "@/lib/api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/candidate/media")({ component: Page });
@@ -27,6 +27,7 @@ function Page() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState<"all" | "poster" | "video">("all");
+  const [reconfirmOpen, setReconfirmOpen] = useState(false);
 
   if (loadingProfile || loadingCandidates || loadingMedia) {
     return <PageLoader />;
@@ -96,19 +97,7 @@ function Page() {
     setSelectedFile(nextFile);
   }
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-
-    if (!title.trim()) {
-      toast.error("Title is required.");
-      return;
-    }
-
-    if (!selectedFile && !externalUrl.trim()) {
-      toast.error("Upload a file or provide a media URL.");
-      return;
-    }
-
+  async function submitMedia() {
     setSubmitting(true);
     try {
       const form = new FormData();
@@ -130,6 +119,22 @@ function Page() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+
+    if (!title.trim()) {
+      toast.error("Title is required.");
+      return;
+    }
+
+    if (!selectedFile && !externalUrl.trim()) {
+      toast.error("Upload a file or provide a media URL.");
+      return;
+    }
+
+    await submitMedia();
   }
 
   return (
@@ -224,9 +229,10 @@ function Page() {
               </div>
 
               <Button
-                type="submit"
+                type="button"
                 disabled={submitting}
                 className="w-full bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+                onClick={() => setReconfirmOpen(true)}
               >
                 {submitting ? "Submitting..." : "Submit for Approval"}
               </Button>
@@ -331,6 +337,26 @@ function Page() {
           </div>
         </div>
       )}
+
+      {/* Password Reconfirmation Modal */}
+      <ReconfirmPasswordModal
+        open={reconfirmOpen}
+        onOpenChange={setReconfirmOpen}
+        title="Submit Campaign Media"
+        description="Submitting campaign media for admin approval is a sensitive action. Please confirm your password to proceed."
+        actionLabel="Confirm & Submit"
+        onVerified={async () => {
+          if (!title.trim()) {
+            toast.error("Title is required.");
+            return;
+          }
+          if (!selectedFile && !externalUrl.trim()) {
+            toast.error("Upload a file or provide a media URL.");
+            return;
+          }
+          await submitMedia();
+        }}
+      />
     </div>
   );
 }

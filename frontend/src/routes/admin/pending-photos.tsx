@@ -1,20 +1,40 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchPendingPhotos, approvePendingPhoto, rejectPendingPhoto, resolveApiAssetUrl, fetchReuploadRequests, requestPhotoReupload, clearReuploadRequest } from "@/lib/api";
+import {
+  fetchPendingPhotos,
+  approvePendingPhoto,
+  rejectPendingPhoto,
+  resolveApiAssetUrl,
+  fetchReuploadRequests,
+  requestPhotoReupload,
+  clearReuploadRequest,
+  fetchVotersForAdmin,
+} from "@/lib/api";
 import { PageLoader } from "@/components/PageLoader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, Eye, ArrowRight, Camera, AlertTriangle, Clock } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Eye,
+  ArrowRight,
+  Camera,
+  AlertTriangle,
+  Clock,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 
 function Page() {
   const queryClient = useQueryClient();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [reviewVoter, setReviewVoter] = useState<any | null>(null);
-  const [tab, setTab] = useState<"pending" | "requests">("pending");
+  const [tab, setTab] = useState<"pending" | "requests" | "enrolled">("pending");
   const [reuploadDialogVoter, setReuploadDialogVoter] = useState<any | null>(null);
+  const [enrolledSearch, setEnrolledSearch] = useState("");
 
   const { data: pendingList = [], isPending: pendingLoading } = useQuery({
     queryKey: ["pending-photos"],
@@ -26,7 +46,22 @@ function Page() {
     queryFn: fetchReuploadRequests,
   });
 
-  if (pendingLoading && requestsLoading) return <PageLoader />;
+  const { data: votersList = [], isPending: votersLoading } = useQuery({
+    queryKey: ["voters-list"],
+    queryFn: fetchVotersForAdmin,
+  });
+
+  const enrolledList = useMemo(() => {
+    return votersList.filter(
+      (v: any) =>
+        v.face_enrolled &&
+        ((v.full_name || "").toLowerCase().includes(enrolledSearch.toLowerCase()) ||
+          (v.college_email || "").toLowerCase().includes(enrolledSearch.toLowerCase()) ||
+          (v.student_id || "").toLowerCase().includes(enrolledSearch.toLowerCase())),
+    );
+  }, [votersList, enrolledSearch]);
+
+  if (pendingLoading && requestsLoading && (tab === "enrolled" ? votersLoading : false)) return <PageLoader />;
 
   async function handleApprove(voterId: string, name: string) {
     setActionLoading(voterId);
@@ -127,6 +162,21 @@ function Page() {
           Re-upload Requests
           {reuploadList.length > 0 && (
             <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-warning/20 text-warning-foreground rounded-full">{reuploadList.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setTab("enrolled")}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            tab === "enrolled"
+              ? "bg-[#6C63FF]/10 text-[#6C63FF] border-b-2 border-[#6C63FF]"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Enrolled Photos
+          {votersList.filter((v: any) => v.face_enrolled).length > 0 && (
+            <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-success/20 text-success rounded-full">
+              {votersList.filter((v: any) => v.face_enrolled).length}
+            </span>
           )}
         </button>
       </div>
@@ -279,6 +329,76 @@ function Page() {
         </>
       )}
 
+      {/* ── Tab: Enrolled Photos ── */}
+      {tab === "enrolled" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 max-w-sm">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search enrolled voters..."
+              value={enrolledSearch}
+              onChange={(e) => setEnrolledSearch(e.target.value)}
+              className="h-9 font-medium"
+            />
+          </div>
+
+          {enrolledList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Camera className="h-12 w-12 text-muted-foreground/40 mb-4" />
+              <h3 className="text-lg font-semibold text-muted-foreground">No enrolled photos found</h3>
+              <p className="text-sm text-muted-foreground/60 mt-1">
+                {enrolledSearch ? "No matches found for your search query." : "No voters currently have a face photo enrolled."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {enrolledList.map((voter: any) => (
+                <div key={voter.voter_id} className="bg-card rounded-2xl border border-border/60 p-4 space-y-3 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="truncate">
+                        <h3 className="font-semibold text-sm truncate">{voter.full_name}</h3>
+                        <p className="text-xs text-muted-foreground truncate">{voter.college_email}</p>
+                      </div>
+                      <Button size="sm" variant="outline" className="shrink-0" onClick={() => setReviewVoter({
+                        voter_id: voter.voter_id,
+                        full_name: voter.full_name,
+                        college_email: voter.college_email,
+                        current_image_url: voter.reference_image_url,
+                        has_current_photo: true
+                      })}>
+                        <Eye className="h-3.5 w-3.5 mr-1" /> View
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-center py-3">
+                      <div className="w-28 aspect-[3/4] rounded-xl bg-muted overflow-hidden border border-border/60 shadow-sm relative group">
+                        {voter.reference_image_url ? (
+                          <img src={resolveApiAssetUrl(voter.reference_image_url)} alt={voter.full_name} className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + voter.full_name; }} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                            <Camera className="h-8 w-8" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-border/40">
+                    <Button size="sm" variant="outline" className="w-full text-[#6C63FF] border-[#6C63FF]/30 hover:bg-[#6C63FF]/10"
+                      onClick={() => setReuploadDialogVoter(voter)} disabled={!!actionLoading}>
+                      <Camera className="h-3.5 w-3.5 mr-1" />Request Re-upload
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Side-by-side Review Dialog ── */}
       <Dialog open={!!reviewVoter} onOpenChange={(b) => !b && setReviewVoter(null)}>
         <DialogContent className="max-w-2xl p-6">
@@ -294,11 +414,13 @@ function Page() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
+              <div className={reviewVoter.pending_image_url ? "grid grid-cols-2 gap-6" : "flex justify-center"}>
+                <div className={reviewVoter.pending_image_url ? "space-y-2" : "space-y-2 w-full max-w-[280px]"}>
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold">Current Photo</span>
+                    <span className="text-sm font-semibold">
+                      {reviewVoter.pending_image_url ? "Current Photo" : "Active Reference Photo"}
+                    </span>
                     {!reviewVoter.has_current_photo && <Badge variant="outline" className="text-[10px]">No photo</Badge>}
                   </div>
                   <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border border-border/60">
@@ -314,30 +436,22 @@ function Page() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold">Pending Photo</span>
-                    {!reviewVoter.pending_image_url && (
-                      <Badge variant="outline" className="text-[10px]">No photo</Badge>
-                    )}
-                  </div>
-                  <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border-2 border-[#6C63FF]/40 ring-2 ring-[#6C63FF]/10">
-                    {reviewVoter.pending_image_url ? (
+                {reviewVoter.pending_image_url && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Camera className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-semibold">Pending Photo</span>
+                    </div>
+                    <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border-2 border-[#6C63FF]/40 ring-2 ring-[#6C63FF]/10">
                       <img
                         src={resolveApiAssetUrl(reviewVoter.pending_image_url)}
                         alt="Pending"
                         className="w-full h-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=pending"; }}
                       />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/40 gap-2">
-                        <Camera className="h-8 w-8" />
-                        <p className="text-xs">No pending photo</p>
-                      </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2">
@@ -349,23 +463,27 @@ function Page() {
                   disabled={!!actionLoading}>
                   <Camera className="h-3.5 w-3.5 mr-1" />Request Re-upload
                 </Button>
-                <Button
-                  size="sm"
-                  className="bg-success text-white hover:bg-success/90"
-                  onClick={() => handleApprove(reviewVoter.voter_id, reviewVoter.full_name)}
-                  disabled={!!actionLoading}
-                >
-                  {actionLoading === reviewVoter.voter_id ? "..." : (<><CheckCircle className="h-3.5 w-3.5 mr-1" />Approve</>)}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                  onClick={() => handleReject(reviewVoter.voter_id, reviewVoter.full_name)}
-                  disabled={!!actionLoading}
-                >
-                  <XCircle className="h-3.5 w-3.5 mr-1" />Reject
-                </Button>
+                {reviewVoter.pending_image_url && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="bg-success text-white hover:bg-success/90"
+                      onClick={() => handleApprove(reviewVoter.voter_id, reviewVoter.full_name)}
+                      disabled={!!actionLoading}
+                    >
+                      {actionLoading === reviewVoter.voter_id ? "..." : (<><CheckCircle className="h-3.5 w-3.5 mr-1" />Approve</>)}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => handleReject(reviewVoter.voter_id, reviewVoter.full_name)}
+                      disabled={!!actionLoading}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1" />Reject
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           )}

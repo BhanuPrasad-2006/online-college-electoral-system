@@ -21,6 +21,7 @@ structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
+        structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="iso"),
         # JSON renderer avoids all Unicode rendering issues on Windows terminals.
         structlog.processors.JSONRenderer(ensure_ascii=True),

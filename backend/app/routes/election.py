@@ -3,7 +3,7 @@ import asyncio
 import time
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -444,7 +444,7 @@ async def get_notifications(
             "unread": True,
             "type": "notice",
             "priority": n.priority,
-            "pdf_url": n.pdf_url,
+            "pdf_url": f"/api/v1/admin/notices/{n.notice_id}/pdf" if n.pdf_url else None,
             "content": n.content[:200] + "..." if len(n.content) > 200 else n.content
         })
 
@@ -691,6 +691,7 @@ async def close_voting(
 
 @router.post("/{election_id}/publish-results")
 async def publish_results(
+    request: Request,
     election_id: str,
     admin: dict = Depends(require_admin_roles(["SUPER_ADMIN"])),
     db: AsyncSession = Depends(get_db)
@@ -707,18 +708,51 @@ async def publish_results(
         raise HTTPException(status_code=404, detail="Election not found")
         
     election.status = ElectionStatusEnum.RESULTS_PUBLISHED.value
-    
-    # We can also compute final integrity hash here if needed
-    # (Since we are publishing, we lock in the state)
-    
+
+    # ── Compute and store integrity hash snapshot ───────────
+    integrity = IntegrityService()
+    integrity_hash = await integrity.generate_result_hash(db, str(election_uuid))
+    election.result_integrity_hash = integrity_hash
+
+    # ── Audit log ───────────────────────────────────────────
+    from app.utils.helpers import extract_client_ip
+    from app.models.audit_log import AuditLog
+    from app.models.admin_user import AdminUser
+    admin_id = admin.get("user_id")
+    admin_uuid = None
+    admin_name = "Unknown Admin"
+    if admin_id:
+        try:
+            admin_uuid = uuid.UUID(admin_id)
+            admin_res = await db.execute(select(AdminUser).where(AdminUser.admin_id == admin_uuid))
+            admin_user = admin_res.scalar_one_or_none()
+            if admin_user:
+                admin_name = admin_user.full_name
+        except Exception:
+            pass
+
+    ip_addr = extract_client_ip(request)
+    audit_entry = AuditLog(
+        event_type="RESULTS_PUBLISHED",
+        actor_id=admin_uuid,
+        description=f"Admin {admin_name} published results for election '{election.title}'. Integrity hash: {integrity_hash[:16]}...",
+        ip_address=ip_addr,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(audit_entry)
+
     await db.commit()
     await db.refresh(election)
     _reset_election_cache()
-    
+
     # Notify voters in background
     asyncio.create_task(notify_results_published(election.title))
-    
-    return {"message": "Results successfully published", "status": election.status}
+
+    return {
+        "message": "Results successfully published",
+        "status": election.status,
+        "integrity_hash": integrity_hash,
+    }
 
 
 @router.get("/public-results")

@@ -44,6 +44,7 @@ class Election(Base):
     ai_alerts  = relationship("AIAlert",   back_populates="election")
     ai_reports = relationship("AIReport",  back_populates="election")
     phases     = relationship("ElectionPhase", back_populates="election", cascade="all, delete-orphan")
+    parties    = relationship("Party", back_populates="election", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Election {self.title} [{self.status}]>"

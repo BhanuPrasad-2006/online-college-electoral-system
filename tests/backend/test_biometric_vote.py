@@ -8,7 +8,7 @@ import pytest_asyncio
 import jwt
 import base64
 import hashlib
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock, mock_open, AsyncMock
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select
@@ -54,9 +54,10 @@ from app.models.voter import Voter
 from app.models.election import Election
 from app.models.position import Position
 from app.models.election_phase import ElectionPhase
+from app.models.vote import Vote
 from app.enums.election_status import ElectionStatusEnum
 from app.security.password_service import hash_password
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_voting_session
 from app.middleware.rate_limit import limiter
 from app.core.config import settings
 
@@ -76,12 +77,14 @@ async def mock_get_current_user():
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_db():
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_voting_session] = mock_get_current_user
     app.dependency_overrides[get_db] = override_get_db
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.drop_all)
+    app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
 async def db_session():
@@ -261,6 +264,7 @@ class TestBiometricVerify:
             data = resp.json()
             assert data["success"] is True
             assert "face_session_token" in data
+            assert "anti_replay_token" in data
             
             # Decode the JWT token to verify claims
             token = data["face_session_token"]
@@ -387,8 +391,8 @@ class TestBiometricVerify:
         token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         
         # Register in cache
-        from app.routes.vote import biometric_token_cache
-        biometric_token_cache.register_token(jti, int(expire.timestamp()))
+        from app.services.face_service import redis_biometric_token_cache
+        await redis_biometric_token_cache.register_token(jti, str(VOTER_ID_STR))
         
         # Mocks for external dependencies inside cast
         with patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True), \
@@ -428,6 +432,57 @@ class TestBiometricVerify:
             assert resp.status_code == 401
             assert "already been consumed" in resp.json()["detail"].lower()
 
+    async def test_cast_vote_commit_failure_does_not_consume_biometric_token(
+        self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
+    ):
+        await _valid_voter()
+        settings.ENABLE_FACE_VERIFICATION = True
+
+        ip_hash = hashlib.sha256("127.0.0.1".encode("utf-8")).hexdigest()
+        fp_hash = hashlib.sha256("test_device".encode("utf-8")).hexdigest()
+
+        jti = "commit-failure-jti"
+        expire = datetime.now(timezone.utc) + timedelta(minutes=2)
+        payload = {
+            "sub": VOTER_ID_STR,
+            "aud": "vote_system",
+            "purpose": "face_cast",
+            "jti": jti,
+            "nonce": "nonce-commit-failure",
+            "ip": ip_hash,
+            "fp": fp_hash,
+            "exp": expire,
+            "iat": datetime.now(timezone.utc)
+        }
+        token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+        from app.services.face_service import redis_biometric_token_cache
+        await redis_biometric_token_cache.register_token(jti, VOTER_ID_STR)
+
+        with patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True), \
+             patch.object(AsyncSession, "commit", new=AsyncMock(side_effect=RuntimeError("forced vote commit failure"))):
+            resp = await client.post(
+                "/api/v1/vote/cast",
+                json={
+                    "candidate_id": None,
+                    "verification_id": "ABCD1234",
+                    "anti_replay_token": "replay1",
+                    "face_session_token": token
+                },
+                headers={"x-device-fingerprint": "test_device"}
+            )
+
+        assert resp.status_code == 500
+
+        assert await redis_biometric_token_cache.validate(jti, VOTER_ID_STR) is True
+
+        voter_result = await db_session.execute(select(Voter).where(Voter.voter_id == VOTER_UUID))
+        voter = voter_result.scalar_one()
+        assert voter.has_voted is False
+
+        vote_result = await db_session.execute(select(Vote))
+        assert vote_result.scalars().all() == []
+
     # -- verify-face-passive success & token issuance --
     async def test_verify_face_passive_success(
         self, client: AsyncClient, seeded_voter: dict, db_session: AsyncSession
@@ -454,6 +509,7 @@ class TestBiometricVerify:
             data = resp.json()
             assert data["success"] is True
             assert "face_session_token" in data
+            assert "anti_replay_token" in data
             assert data["match_score"] == 92.5
 
     # -- verify-face-passive mismatch returns match_score in detail --
@@ -482,7 +538,8 @@ class TestBiometricVerify:
             data = resp.json()
             assert "detail" in data
             assert isinstance(data["detail"], dict)
-            assert "unable to verify" in data["detail"]["message"].lower()
+            assert "face match below threshold" in data["detail"]["message"].lower()
+            assert "48.2%" in data["detail"]["message"]
             assert data["detail"]["match_score"] == 48.2
 
 

@@ -1,13 +1,23 @@
 /**
- * Demo API layer — simulates network latency without calling a real backend.
+ * Production API layer.
  *
- * When the API is ready, replace each function body with the commented fetch pattern
- * and set DEMO_MODE to false in demo-config.ts.
+ * All functions call the LIVE backend when a token exists.
+ * Mock/demo data is ONLY used as an absolute last-resort fallback when
+ * the backend is completely unreachable AND DEMO_MODE is explicitly enabled.
+ *
+ * DEMO_MODE=false (production): never returns mock data.
+ * DEMO_MODE=true (demo only): falls back to mock on network error.
  */
 import { DEMO_MODE } from "./demo-config";
 import {
   getAuthToken,
   fetchCurrentElection,
+  fetchKpi as liveFetchKpi,
+  fetchNotifications as liveFetchNotifications,
+  fetchDeptTurnout as liveFetchDeptTurnout,
+  fetchAiAlerts as liveFetchAiAlerts,
+  fetchAuditLogs as liveFetchAuditLogs,
+  fetchPublicResults as liveFetchPublicResults,
   fetchHourlyVotes as liveFetchHourlyVotes,
   fetchMediaItems as liveFetchMediaItems,
   submitCampaignMedia as liveSubmitCampaignMedia,
@@ -15,8 +25,6 @@ import {
   uploadConcernAttachment as liveUploadConcernAttachment,
 } from "./api";
 import {
-  AI_ALERTS,
-  AUDIT_LOGS,
   CANDIDATES,
   CANDIDATE_USER,
   CONCERN_CATEGORIES,
@@ -24,7 +32,6 @@ import {
   ELECTION,
   HOURLY_VOTES,
   KPI,
-  MEDIA_ITEMS,
   NOTIFICATIONS,
   RESULTS,
   VOTER,
@@ -42,7 +49,6 @@ const CLIENT_HOST =
     : "127.0.0.1";
 const LIVE_API_HOST =
   CLIENT_HOST === "localhost" || CLIENT_HOST === "::1" ? "localhost" : CLIENT_HOST;
-// Use HTTPS in production (when host is not localhost), HTTP for local dev
 const LIVE_PROTOCOL =
   typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
 const LIVE_API_BASE = `${LIVE_PROTOCOL}://${LIVE_API_HOST}:8000/api/v1`;
@@ -51,8 +57,6 @@ const LIVE_PROFILE_RETRY_DELAY_MS = 150;
 function clone<T>(data: T): T {
   return structuredClone(data);
 }
-
-const demoMediaItems = clone(MEDIA_ITEMS);
 
 async function fetchLiveProfile<T>(path: string, token: string): Promise<T> {
   const request = () =>
@@ -70,12 +74,7 @@ async function fetchLiveProfile<T>(path: string, token: string): Promise<T> {
     if (!(error instanceof TypeError)) {
       throw error;
     }
-
-    if (DEMO_MODE) {
-      await delay(LIVE_PROFILE_RETRY_DELAY_MS);
-    } else {
-      await new Promise((r) => setTimeout(r, LIVE_PROFILE_RETRY_DELAY_MS));
-    }
+    await new Promise((r) => setTimeout(r, LIVE_PROFILE_RETRY_DELAY_MS));
     res = await request();
   }
 
@@ -86,14 +85,7 @@ async function fetchLiveProfile<T>(path: string, token: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-// --- Live API stubs (disabled for Vercel demo) ---
-// async function apiGet<T>(path: string): Promise<T> {
-//   const res = await fetch(`${LIVE_API_BASE}${path}`, {
-//     headers: { Accept: "application/json" },
-//   });
-//   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
-//   return res.json() as Promise<T>;
-// }
+// ── Election ──────────────────────────────────────────────────
 
 export async function fetchElection() {
   try {
@@ -111,36 +103,57 @@ export async function fetchElection() {
       registrationEnd: data.registration_end ? new Date(data.registration_end) : null,
     };
   } catch (e) {
-    console.warn("Failed to fetch current election, using mock:", e);
-    return clone(ELECTION);
+    console.warn("Failed to fetch current election from backend:", e);
+    if (DEMO_MODE) return clone(ELECTION);
+    throw e;
   }
 }
 
+// ── Candidates ────────────────────────────────────────────────
+
 export async function fetchCandidates(): Promise<Candidate[]> {
   const token = getAuthToken();
-  if (!DEMO_MODE && token) {
+  if (token) {
     try {
-      return await fetchLiveProfile<Candidate[]>('/candidates', token);
+      return await fetchLiveProfile<Candidate[]>("/candidates/", token);
     } catch (e) {
-      console.warn('Candidate list fetch failed, falling back to mock:', e);
+      console.warn("Candidate list fetch failed:", e);
+      if (!DEMO_MODE) throw e;
     }
   }
-
   await delay();
   return clone(CANDIDATES);
 }
 
+// ── KPI ───────────────────────────────────────────────────────
+// Live endpoint: GET /election/kpi — returns { registered, votesCast, turnout, alerts }
+
 export async function fetchKpi() {
-  // return apiGet<typeof KPI>("/election/kpi");
-  await delay(80);
-  return clone(KPI);
+  try {
+    return await liveFetchKpi();
+  } catch (e) {
+    console.warn("KPI fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    await delay(80);
+    return clone(KPI);
+  }
 }
 
+// ── Notifications ─────────────────────────────────────────────
+// Live endpoint: GET /election/notifications — returns real phase-derived notifications + notices
+
 export async function fetchNotifications() {
-  // return apiGet<typeof NOTIFICATIONS>("/notifications");
-  await delay(100);
-  return clone(NOTIFICATIONS);
+  try {
+    return await liveFetchNotifications();
+  } catch (e) {
+    console.warn("Notifications fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    await delay(100);
+    return clone(NOTIFICATIONS);
+  }
 }
+
+// ── Media Items ───────────────────────────────────────────────
 
 export async function fetchMediaItems(): Promise<MediaItem[]> {
   return liveFetchMediaItems();
@@ -166,6 +179,8 @@ export async function reviewCampaignMedia(
   return liveReviewCampaignMedia(id, status, rejectionReason);
 }
 
+// ── Voter Profile ─────────────────────────────────────────────
+
 export interface VoterProfile {
   name: string;
   email: string;
@@ -187,10 +202,11 @@ export async function fetchVoterProfile(): Promise<VoterProfile> {
   const token = getAuthToken();
   if (!token) {
     await delay(90);
+    if (!DEMO_MODE) throw new Error("No auth token available.");
     const mockVoter = clone(VOTER);
     return {
       ...mockVoter,
-      email: "aditya.rao@college.edu.in",
+      email: "voter@college.edu.in",
       vote_permission: true,
       face_enrolled: false,
       pending_face_enrolled: false,
@@ -198,43 +214,49 @@ export async function fetchVoterProfile(): Promise<VoterProfile> {
       photo_reupload_requested: false,
     } as VoterProfile;
   }
-
-  // When a token exists, ALWAYS fetch from the database — never fall back to mock data.
-  // Falling back to mock would show another student's name ("Aditya Rao") and hide real photo status.
+  // Always fetch from live DB — never fall back to mock for authenticated users.
   return await fetchLiveProfile<VoterProfile>("/auth/voter/me", token);
 }
+
+// ── Candidate Profile ─────────────────────────────────────────
 
 export async function fetchCandidateProfile() {
   const token = getAuthToken();
   if (!token) {
     await delay(90);
+    if (!DEMO_MODE) throw new Error("No auth token available.");
     return clone(CANDIDATE_USER);
   }
-
   try {
     return await fetchLiveProfile("/auth/candidate/me", token);
   } catch (e) {
-    console.error("Candidate profile fetch failed, falling back to mock:", e);
+    console.error("Candidate profile fetch failed:", e);
+    if (!DEMO_MODE) throw e;
     return clone(CANDIDATE_USER);
   }
 }
 
+// ── Concern Categories ────────────────────────────────────────
+
 export async function fetchConcernCategories() {
   const token = getAuthToken();
-  if (!DEMO_MODE && token) {
+  if (token) {
     try {
-      return await fetchLiveProfile('/concerns/categories', token);
+      return await fetchLiveProfile("/concerns/categories", token);
     } catch (e) {
-      console.warn('Concern categories fetch failed, falling back to mock:', e);
+      console.warn("Concern categories fetch failed:", e);
+      if (!DEMO_MODE) throw e;
     }
   }
   await delay(110);
   return clone(CONCERN_CATEGORIES);
 }
 
+// ── Voter Concerns ────────────────────────────────────────────
+
 export async function fetchVoterConcerns(): Promise<VoterConcern[]> {
   const token = getAuthToken();
-  if (!DEMO_MODE && token) {
+  if (token) {
     try {
       const result = await fetchLiveProfile<{
         concerns: Array<{
@@ -245,70 +267,109 @@ export async function fetchVoterConcerns(): Promise<VoterConcern[]> {
           submitted_at?: string | null;
           to_candidate_id?: string | null;
         }>;
-      }>('/concerns', token);
+      }>("/concerns", token);
 
       return result.concerns.map((c) => ({
         id: c.concern_id,
-        fromName: VOTER.name,
-        department: VOTER.department,
-        toCandidateId: c.to_candidate_id || '',
-        category: c.category || 'Other',
+        fromName: "You",
+        department: "",
+        toCandidateId: c.to_candidate_id || "",
+        category: c.category || "Other",
         message: c.content,
         attachment: c.attachment_url
-          ? { name: c.attachment_url.split('/').pop() ?? 'attachment', url: c.attachment_url, type: 'file/*' }
+          ? { name: c.attachment_url.split("/").pop() ?? "attachment", url: c.attachment_url, type: "file/*" }
           : undefined,
-        submittedAt: c.submitted_at ?? 'Just now',
+        submittedAt: c.submitted_at ?? "Just now",
       })) as VoterConcern[];
     } catch (e) {
-      console.error('Voter concerns fetch failed:', e);
-      if (!DEMO_MODE) {
-        throw e;
-      }
-      console.warn('Falling back to demo concerns because DEMO_MODE is enabled.');
+      console.error("Voter concerns fetch failed:", e);
+      if (!DEMO_MODE) throw e;
     }
   }
-  if (!DEMO_MODE) {
-    throw new Error('Unable to load voter concerns from live backend.');
-  }
+  if (!DEMO_MODE) throw new Error("Unable to load voter concerns: no auth token.");
   await delay(100);
   return clone(VOTER_CONCERNS);
 }
 
+// ── Hourly Votes ──────────────────────────────────────────────
+// Live endpoint: GET /election/stats/hourly
+
 export async function fetchHourlyVotes() {
-  const token = getAuthToken();
-  if (!DEMO_MODE && token) {
-    try {
-      return await liveFetchHourlyVotes();
-    } catch (e) {
-      console.warn("Hourly votes fetch failed, falling back to mock:", e);
-    }
+  try {
+    return await liveFetchHourlyVotes();
+  } catch (e) {
+    console.warn("Hourly votes fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    await delay(100);
+    return clone(HOURLY_VOTES);
   }
-  await delay(100);
-  return clone(HOURLY_VOTES);
 }
+
+// ── Department Turnout ────────────────────────────────────────
+// Live endpoint: GET /election/stats/departments — returns real dept breakdown from DB
 
 export async function fetchDeptTurnout() {
-  // return apiGet<typeof DEPT_TURNOUT>("/election/stats/departments");
-  await delay(100);
-  return clone(DEPT_TURNOUT);
+  try {
+    return await liveFetchDeptTurnout();
+  } catch (e) {
+    console.warn("Dept turnout fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    await delay(100);
+    return clone(DEPT_TURNOUT);
+  }
 }
+
+// ── AI Alerts ─────────────────────────────────────────────────
+// Live endpoint: GET /admin/ai-alerts — returns real security alerts from DB
 
 export async function fetchAiAlerts() {
-  // return apiGet<typeof AI_ALERTS>("/admin/ai-alerts");
-  await delay(100);
-  return clone(AI_ALERTS);
+  try {
+    return await liveFetchAiAlerts();
+  } catch (e) {
+    console.warn("AI alerts fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    return [];
+  }
 }
 
-export async function fetchAuditLogs() {
-  // return apiGet<typeof AUDIT_LOGS>("/admin/audit-logs");
-  await delay(130);
-  return clone(AUDIT_LOGS);
+// ── Audit Logs ────────────────────────────────────────────────
+// Live endpoint: GET /admin/audit-logs — returns real audit trail from DB
+
+export async function fetchAuditLogs(params?: {
+  skip?: number;
+  limit?: number;
+  event_type?: string;
+  actor?: string;
+  ip?: string;
+  date_from?: string;
+  date_to?: string;
+  q?: string;
+}) {
+  try {
+    return await liveFetchAuditLogs(params);
+  } catch (e) {
+    console.warn("Audit logs fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    await delay(130);
+    return { logs: [], total: 0, skip: 0, limit: 50 };
+  }
 }
+
+// ── Election Results ──────────────────────────────────────────
+// Live endpoint: GET /election/public-results
 
 export async function fetchResults() {
-  await delay(120);
-  return clone(RESULTS);
+  try {
+    return await liveFetchPublicResults();
+  } catch (e) {
+    console.warn("Results fetch failed, using fallback:", e);
+    if (!DEMO_MODE) throw e;
+    await delay(120);
+    return clone(RESULTS);
+  }
 }
+
+// ── Concern Submission ────────────────────────────────────────
 
 export async function submitConcern(_payload: {
   toCandidateId: string;
@@ -318,7 +379,7 @@ export async function submitConcern(_payload: {
   attachmentFile?: File;
 }): Promise<VoterConcern> {
   const token = getAuthToken();
-  if (!DEMO_MODE && token) {
+  if (token) {
     try {
       // Step 1: Upload attachment if present
       let attachmentUrl: string | null = null;
@@ -332,7 +393,7 @@ export async function submitConcern(_payload: {
         }
       }
 
-      // Step 2: Create concern with attachment URL
+      // Step 2: Create concern
       const res = await fetch(`${LIVE_API_BASE}/concerns/`, {
         method: "POST",
         headers: {
@@ -351,8 +412,8 @@ export async function submitConcern(_payload: {
       if (res.ok) {
         return {
           id: data.concern_id,
-          fromName: VOTER.name,
-          department: VOTER.department,
+          fromName: "You",
+          department: "",
           toCandidateId: _payload.toCandidateId,
           category: data.category,
           message: data.content,
@@ -366,23 +427,17 @@ export async function submitConcern(_payload: {
       throw new Error(data.detail ?? `HTTP ${res.status}`);
     } catch (e) {
       console.error("submitConcern failed:", e);
-      if (DEMO_MODE) {
-        console.warn("Falling back to demo concern because DEMO_MODE is enabled.");
-      } else {
-        throw e;
-      }
+      if (!DEMO_MODE) throw e;
     }
   }
 
-  if (!DEMO_MODE) {
-    throw new Error("Unable to submit concern to live backend.");
-  }
+  if (!DEMO_MODE) throw new Error("Unable to submit concern: no auth token.");
 
   await delay(280);
   return {
     id: `vc-${Date.now()}`,
-    fromName: VOTER.name,
-    department: VOTER.department,
+    fromName: "You",
+    department: "",
     toCandidateId: _payload.toCandidateId,
     category: _payload.category,
     message: `${_payload.subject}\n${_payload.message}`,
@@ -390,8 +445,9 @@ export async function submitConcern(_payload: {
   };
 }
 
+// ── AI Chat ───────────────────────────────────────────────────
+
 export async function sendAiMessage(text: string) {
-  // Call the real backend AI chat endpoint with a one-off session
   const token = getAuthToken();
   try {
     const res = await fetch(`${LIVE_API_BASE}/ai/chat`, {
@@ -404,13 +460,19 @@ export async function sendAiMessage(text: string) {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return { reply: data.reply, source: data.is_mock ? "(Demo mode)" : "AI Service" };
+    return { reply: data.reply, source: data.is_mock ? "(AI service unavailable — using election data)" : "AI Service" };
   } catch (e) {
-    console.warn("sendAiMessage fell back to mock:", e);
+    console.warn("AI chat request failed:", e);
+    if (!DEMO_MODE) {
+      return {
+        reply: "The AI assistant is temporarily unavailable. Please try again shortly or check the official notices for election information.",
+        source: "(Service unavailable)",
+      };
+    }
     await delay(400);
     return {
-      reply: `Based on the manifestos, Priya Sharma's plan most directly addresses "${text.slice(0, 48)}..." with specific commitments to upgrade campus Wi-Fi, expand placement training, and improve student welfare programs.`,
-      source: "(Demo fallback)",
+      reply: "The AI assistant is temporarily unavailable. Please check the official notices for election information.",
+      source: "(Unavailable)",
     };
   }
 }

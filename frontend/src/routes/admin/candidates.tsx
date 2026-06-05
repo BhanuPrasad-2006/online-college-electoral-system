@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ReconfirmPasswordModal } from "@/components/ReconfirmPasswordModal";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,6 +23,9 @@ function Page() {
   const [reason, setReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewCandidate, setPreviewCandidate] = useState<any | null>(null);
+  const [reconfirmOpen, setReconfirmOpen] = useState(false);
+  const [reconfirmCandidateId, setReconfirmCandidateId] = useState<string | null>(null);
+  const [reconfirmAction, setReconfirmAction] = useState<"approve" | "reject" | null>(null);
 
   if (isPending) return <PageLoader />;
 
@@ -148,7 +152,11 @@ function Page() {
                     <Button
                       size="sm"
                       className="bg-success text-white hover:bg-success/90"
-                      onClick={() => handleApprove(c.candidate_id, c.full_name)}
+                      onClick={() => {
+                        setReconfirmCandidateId(c.candidate_id);
+                        setReconfirmAction("approve");
+                        setReconfirmOpen(true);
+                      }}
                       disabled={!!actionLoading}
                     >
                       {actionLoading === c.candidate_id ? "..." : "Approve"}
@@ -156,7 +164,11 @@ function Page() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setReject(c.candidate_id)}
+                      onClick={() => {
+                        setReconfirmCandidateId(c.candidate_id);
+                        setReconfirmAction("reject");
+                        setReconfirmOpen(true);
+                      }}
                       disabled={!!actionLoading}
                     >
                       Reject
@@ -278,6 +290,36 @@ function Page() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Password Reconfirmation Modal */}
+      <ReconfirmPasswordModal
+        open={reconfirmOpen}
+        onOpenChange={(o) => {
+          setReconfirmOpen(o);
+          if (!o) {
+            setReconfirmCandidateId(null);
+            setReconfirmAction(null);
+          }
+        }}
+        title={reconfirmAction === "approve" ? "Approve Candidate" : "Reject Candidate"}
+        description={
+          reconfirmAction === "approve"
+            ? "Approving a candidate is a sensitive action. Please confirm your password to proceed."
+            : "Rejecting a candidate is a sensitive action. Please confirm your password to proceed."
+        }
+        actionLabel={reconfirmAction === "approve" ? "Confirm Approve" : "Confirm Reject"}
+        onVerified={async () => {
+          if (!reconfirmCandidateId || !reconfirmAction) return;
+          if (reconfirmAction === "approve") {
+            const name = candidates.find((c: any) => c.candidate_id === reconfirmCandidateId)?.full_name || "";
+            await handleApprove(reconfirmCandidateId, name);
+          } else {
+            setReject(reconfirmCandidateId);
+          }
+          setReconfirmCandidateId(null);
+          setReconfirmAction(null);
+        }}
+      />
     </div>
   );
 }
