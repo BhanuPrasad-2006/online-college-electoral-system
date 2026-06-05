@@ -20,3 +20,18 @@ services:
         sync: false
       - key: FAST2SMS_API_KEY
         sync: false
+
+  - type: web
+    name: oces-frontend
+    env: node
+    buildCommand: npm run build
+    startCommand: npm run start
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_URL
+        value: ${oces-backend}/api/v1
+      - key: VITE_API_ORIGIN
+        value: ${oces-backend}
+      - key: VITE_RECAPTCHA_SITE_KEY
+        value: 6LfMDQEtAAAAADFEVY8Eg1BsgnMtxhW5JScO2h6I
+
