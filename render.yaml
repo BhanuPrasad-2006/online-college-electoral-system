@@ -6,6 +6,8 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     rootDir: backend
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_POOLER_URL
@@ -42,6 +44,8 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     rootDir: ai_service
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
       - key: GEMINI_API_KEY
         sync: false
       - key: AI_SERVICE_API_KEY
@@ -62,5 +66,6 @@ services:
         value: ${oces-backend}
       - key: VITE_RECAPTCHA_SITE_KEY
         value: 6LfMDQEtAAAAADFEVY8Eg1BsgnMtxhW5JScO2h6I
+
 
 
