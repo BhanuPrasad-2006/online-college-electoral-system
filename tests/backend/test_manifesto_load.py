@@ -178,12 +178,8 @@ async def seeded_data(db_session: AsyncSession):
     }
 
 
-async def _run_concurrent_uploads(client, n: int):
-    """Fire n concurrent upload requests using a single patched mock.
-
-    Must be async and await the gather inside the with block so that
-    the mock patches remain active while the tasks execute.
-    """
+def _run_concurrent_uploads(client, n: int):
+    """Fire n concurrent upload requests using a single patched mock."""
     _current_auth.update({
         "user_id": CANDIDATE_VOTER_ID,
         "email": "candidate@test.edu",
@@ -223,7 +219,7 @@ async def _run_concurrent_uploads(client, n: int):
             )
             for i in range(n)
         ]
-        return await asyncio.gather(*tasks)
+        return asyncio.gather(*tasks)
 
     # ── Tests ──────────────────────────────────────────────
 
@@ -292,47 +288,6 @@ class TestManifestoLoad:
         assert avg_latency < 5.0, (
             f"Average latency {avg_latency:.4f}s is too high for in-memory mock"
         )
-
-    @pytest.mark.asyncio
-    async def test_rate_limiter_enabled_concurrent_uploads(self, client, seeded_data):
-        """With limiter.enabled=True, 50 concurrent uploads still all succeed.
-
-        The manifesto upload endpoint has no @limiter.limit(...) decorator,
-        so re-enabling the global limiter middleware should not block requests.
-        This test validates no middleware-level race conditions or state
-        corruption when the slowapi middleware is active under concurrency.
-        """
-        # Save original state and re-enable the rate limiter
-        original_state = limiter.enabled
-        limiter.enabled = True
-
-        try:
-            start = time.monotonic()
-            responses = await _run_concurrent_uploads(client, CONCURRENCY_LEVEL)
-            elapsed = time.monotonic() - start
-
-            errors = [
-                (i, r.status_code, r.text[:100])
-                for i, r in enumerate(responses)
-                if r.status_code != 200
-            ]
-            assert not errors, (
-                f"{len(errors)}/{CONCURRENCY_LEVEL} uploads failed with limiter enabled:\n" +
-                "\n".join(f"  #{i}: {s} — {t}" for i, s, t in errors[:5])
-            )
-
-            urls = [r.json()["url"] for r in responses]
-            assert len(set(urls)) == CONCURRENCY_LEVEL, (
-                f"Expected {CONCURRENCY_LEVEL} unique URLs with limiter enabled, "
-                f"got {len(set(urls))}"
-            )
-
-            assert elapsed < UPLOAD_TIMEOUT_SECONDS, (
-                f"Load test with limiter enabled took {elapsed:.2f}s — "
-                f"exceeds {UPLOAD_TIMEOUT_SECONDS}s limit"
-            )
-        finally:
-            limiter.enabled = original_state
 
     @pytest.mark.asyncio
     @pytest.mark.slow

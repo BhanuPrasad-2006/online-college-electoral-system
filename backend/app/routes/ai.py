@@ -372,6 +372,7 @@ async def _build_contextual_instruction(
                     "position": cand.position.title if cand.position else "Unknown",
                     "department": cand.voter.department or "Unknown",
                     "year": f"{cand.voter.year_of_study}rd Year" if cand.voter.year_of_study else "Unknown",
+                    "party": "Independent",
                     "manifesto_content": man.content if man else None,
                     "image_url": man.image_url if man else None,
                 }
