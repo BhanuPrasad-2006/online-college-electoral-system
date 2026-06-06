@@ -305,12 +305,15 @@ async def startup_validation():
 
 
     # Warmup ArcFace model
-    try:
-        from app.services.face_service import warmup_model
-        warmup_model()
-    except Exception as e:
-        logger.error(f"Model warmup failed: {e}")
-        raise SystemExit("Startup terminated: Face recognition model could not be loaded/warmed up.")
+    if settings.WARMUP_BIOMETRIC_MODEL:
+        try:
+            from app.services.face_service import warmup_model
+            warmup_model()
+        except Exception as e:
+            logger.error(f"Model warmup failed: {e}")
+            raise SystemExit("Startup terminated: Face recognition model could not be loaded/warmed up.")
+    else:
+        logger.info("Biometric model warmup skipped via configuration settings (WARMUP_BIOMETRIC_MODEL=False).")
 
     # Run automatic Facenet -> ArcFace migration for existing reference photos
     try:

@@ -36,6 +36,16 @@ services:
         value: ${oces-ai-service}
       - key: AI_SERVICE_API_KEY
         value: default-ai-service-key-change-in-prod
+      - key: CUDA_VISIBLE_DEVICES
+        value: "-1"
+      - key: TF_CPP_MIN_LOG_LEVEL
+        value: "3"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      - key: WARMUP_BIOMETRIC_MODEL
+        value: "false"
 
   - type: web
     name: oces-ai-service
@@ -52,6 +62,12 @@ services:
         value: default-ai-service-key-change-in-prod
       - key: BACKEND_URL
         value: ${oces-backend}
+      - key: CUDA_VISIBLE_DEVICES
+        value: "-1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
 
   - type: web
     name: oces-frontend

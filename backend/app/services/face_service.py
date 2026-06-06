@@ -4,6 +4,13 @@ Utilizes the ArcFace model for high-accuracy biometric verification.
 """
 
 import os
+
+# Optimizing TensorFlow/CUDA memory footprint BEFORE importing DeepFace/TensorFlow
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
 import cv2
 import numpy as np
 import json
@@ -41,24 +48,46 @@ class ReplayCache:
 
 replay_cache = ReplayCache()
 
-# Wrap deepface import to give a clear user-facing error if it's missing
 _DeepFace = None
 _deepface_import_error = None
-try:
-    from deepface import DeepFace as _DeepFace
-except ImportError as e:
-    _deepface_import_error = f"DeepFace library is not installed. Run: pip install deepface (Error: {e})"
-    logger.warning(_deepface_import_error)
-except Exception as e:
-    _deepface_import_error = f"DeepFace library failed to load: {e}"
-    logger.error(_deepface_import_error)
+
+def _load_deepface():
+    """Lazily load DeepFace and configure TensorFlow to prevent memory bloat."""
+    global _DeepFace, _deepface_import_error
+    if _DeepFace is not None:
+        return _DeepFace
+    if _deepface_import_error is not None:
+        raise RuntimeError(_deepface_import_error)
+        
+    logger.info("Initializing lazy load of DeepFace and configuring TensorFlow...")
+    try:
+        # Import TensorFlow programmatically and restrict CPU thread allocations
+        import tensorflow as tf
+        tf.config.threading.set_intra_op_parallelism_threads(1)
+        tf.config.threading.set_inter_op_parallelism_threads(1)
+        # Suppress tensorflow warnings and logs
+        tf.get_logger().setLevel('ERROR')
+    except Exception as e:
+        logger.warning(f"Failed to programmatically configure TensorFlow thread pool options: {e}")
+
+    try:
+        from deepface import DeepFace as df
+        _DeepFace = df
+        logger.info("DeepFace successfully loaded and configured.")
+        return _DeepFace
+    except ImportError as e:
+        _deepface_import_error = f"DeepFace library is not installed. Run: pip install deepface (Error: {e})"
+        logger.error(_deepface_import_error)
+        raise RuntimeError(_deepface_import_error)
+    except Exception as e:
+        _deepface_import_error = f"DeepFace library failed to load: {e}"
+        logger.error(_deepface_import_error)
+        raise RuntimeError(_deepface_import_error)
 
 
 def _ensure_deepface_available():
-    """Raise a clear service-unavailable error if deepface cannot be used."""
-    if _DeepFace is None:
-        msg = _deepface_import_error or "Face recognition module is not available on this server."
-        raise RuntimeError(msg)
+    """Ensure deepface is loaded and return the instance."""
+    return _load_deepface()
 
 
 def warmup_model():
@@ -66,13 +95,13 @@ def warmup_model():
     Warmup DeepFace's ArcFace model during startup with dummy data.
     Fails app startup if model initialization fails.
     """
-    _ensure_deepface_available()
+    df_instance = _ensure_deepface_available()
     logger.info(f"Initializing face recognition model warmup: {MODEL_NAME}...")
     try:
         # Pass a blank black image
         dummy_img = np.zeros((112, 112, 3), dtype=np.uint8)
         # DeepFace represent will load ArcFace weights and check setup
-        _DeepFace.represent(img_path=dummy_img, model_name=MODEL_NAME, enforce_detection=False)
+        df_instance.represent(img_path=dummy_img, model_name=MODEL_NAME, enforce_detection=False)
         logger.info(f"Biometric model {MODEL_NAME} successfully warmed up and loaded in memory.")
     except Exception as e:
         logger.critical(f"CRITICAL: Failed to warmup biometric model {MODEL_NAME}: {e}")
@@ -167,7 +196,7 @@ def extract_face_embedding(image_data: bytes) -> list[float]:
     Extracts face embedding from image bytes using ArcFace.
     Returns a list of floats (embedding vector).
     """
-    _ensure_deepface_available()
+    df_instance = _ensure_deepface_available()
 
     # Image Normalization
     img = normalize_image(image_data)
@@ -181,7 +210,7 @@ def extract_face_embedding(image_data: bytes) -> list[float]:
         raise ValueError(reason)
 
     try:
-        objs = _DeepFace.represent(img_path=img, model_name=MODEL_NAME, enforce_detection=True)
+        objs = df_instance.represent(img_path=img, model_name=MODEL_NAME, enforce_detection=True)
 
         if len(objs) == 0:
             raise ValueError("No face detected in the image.")

@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     # typically score 0.55–0.75. 0.68 was rejecting real matches.
     FACE_MATCH_COSINE_THRESHOLD: float = 0.45
     ENABLE_FACE_VERIFICATION: bool = True
+    WARMUP_BIOMETRIC_MODEL: bool = True
 
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
