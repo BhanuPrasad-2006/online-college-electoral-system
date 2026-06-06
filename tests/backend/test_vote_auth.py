@@ -322,7 +322,7 @@ class TestVoteAuth:
         """POST /verify-id with valid voter -> 200 + anti_replay_token (mocked)."""
         await _valid_voter()
         try:
-            with patch("app.routes.vote.AntiReplayService.generate_token") as mock_gen:
+            with patch("app.security.anti_replay_service.AntiReplayService.generate_token") as mock_gen:
                 mock_gen.return_value = "test-anti-replay-token-12345"
                 resp = await client.post(
                     "/api/v1/vote/verify-id",

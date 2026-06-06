@@ -20,4 +20,3 @@ deepface==0.0.93
 opencv-python-headless==4.9.0.80
 slowapi==0.1.9
 tf-keras
-PyJWT
