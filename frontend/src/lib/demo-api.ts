@@ -43,15 +43,14 @@ import {
 
 const delay = (ms = 140) =>
   DEMO_MODE ? new Promise<void>((r) => setTimeout(r, ms)) : Promise.resolve();
-const CLIENT_HOST =
+const PROD_LIVE_API_BASE = "https://oces-backend.onrender.com/api/v1";
+const LOCAL_LIVE_API_BASE = "http://127.0.0.1:8000/api/v1";
+const _host =
   typeof window !== "undefined" && window.location.hostname
     ? window.location.hostname
     : "127.0.0.1";
-const LIVE_API_HOST =
-  CLIENT_HOST === "localhost" || CLIENT_HOST === "::1" ? "localhost" : CLIENT_HOST;
-const LIVE_PROTOCOL =
-  typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
-const LIVE_API_BASE = `${LIVE_PROTOCOL}://${LIVE_API_HOST}:8000/api/v1`;
+const _isLocal = _host === "localhost" || _host === "127.0.0.1" || _host === "::1";
+const LIVE_API_BASE = _isLocal ? LOCAL_LIVE_API_BASE : PROD_LIVE_API_BASE;
 const LIVE_PROFILE_RETRY_DELAY_MS = 150;
 
 function clone<T>(data: T): T {
