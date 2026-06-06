@@ -46,6 +46,8 @@ services:
         value: "1"
       - key: WARMUP_BIOMETRIC_MODEL
         value: "false"
+      - key: TF_USE_LEGACY_KERAS
+        value: "1"
 
   - type: web
     name: oces-ai-service
