@@ -1,15 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 import { PageLoader } from "@/components/PageLoader";
 import { useCandidates, useVoterProfile, useCurrentPhase } from "@/hooks/use-election-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock, Smile, RefreshCw, Check, ScanFace } from "lucide-react";
+import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock, RefreshCw, Check, ScanFace } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { castVote, verifyVoterId, verifyFacePassive } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
@@ -28,13 +29,17 @@ const NOTA_ID = "nota";
 function VotePage() {
   const nav = useNavigate();
   const { logout } = useAuth();
-  const [verified, setVerified] = useState(false);
+  const [step, setStep] = useState<"verification_id" | "ballot" | "confirm_vote" | "face_verification" | "success">("verification_id");
+  const [txDetails, setTxDetails] = useState<{
+    voteId: string;
+    currentHash: string;
+    electionName: string;
+    timestamp: string;
+  } | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [attempts, setAttempts] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [review, setReview] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [antiReplayToken, setAntiReplayToken] = useState<string>("");
@@ -62,13 +67,7 @@ function VotePage() {
   // Track when the review screen (with face capture) first renders
   const reviewStartRef = useRef<number>(0);
 
-  // Record review start time for honeypot timing detection
-  useEffect(() => {
-    if (review) {
-      reviewStartRef.current = Date.now();
-    }
-  }, [review]);
-
+  const queryClient = useQueryClient();
   const webcamRef = useRef<Webcam>(null);
 
   const { data: candidates = [], isPending } = useCandidates();
@@ -83,8 +82,88 @@ function VotePage() {
     }
   }, [effectivePhase, nav]);
 
+  // ── Session Recovery & Receipt Restoration on Mount ──────────
+  useEffect(() => {
+    // 1. Check if there's a persistent success receipt (24h retention)
+    const receiptStr = localStorage.getItem("collegevote-receipt");
+    if (receiptStr) {
+      try {
+        const receipt = JSON.parse(receiptStr);
+        if (receipt.expiresAt && Date.now() < receipt.expiresAt) {
+          setTxDetails({
+            voteId: receipt.voteId,
+            currentHash: receipt.currentHash,
+            electionName: receipt.electionName,
+            timestamp: receipt.timestamp
+          });
+          setStep("success");
+          return;
+        } else {
+          localStorage.removeItem("collegevote-receipt");
+        }
+      } catch (e) {
+        console.error("Failed to parse receipt from localStorage", e);
+      }
+    }
+
+    // 2. Check 5-minute session recovery
+    const recoveryTsStr = sessionStorage.getItem("collegevote-recovery-timestamp");
+    if (recoveryTsStr) {
+      const ts = parseInt(recoveryTsStr, 10);
+      if (Date.now() - ts < 5 * 60 * 1000) {
+        const rSelected = sessionStorage.getItem("collegevote-recovery-selected");
+        const rVerificationCode = sessionStorage.getItem("collegevote-recovery-verificationCode");
+        const rAntiReplayToken = sessionStorage.getItem("collegevote-recovery-antiReplayToken");
+        const rFaceSessionToken = sessionStorage.getItem("collegevote-recovery-faceSessionToken");
+        const rStep = sessionStorage.getItem("collegevote-recovery-step");
+
+        if (rVerificationCode) setVerificationCode(rVerificationCode);
+        if (rAntiReplayToken) setAntiReplayToken(rAntiReplayToken);
+        if (rSelected) setSelected(rSelected === "" ? null : rSelected);
+        // DO NOT restore faceSessionToken from recovery — it may have expired
+        // in the biometric token cache (120s TTL) since it was issued.
+        // The user will need to do face verification again.
+        // faceSessionToken is intentionally NOT restored from recovery here.
+
+        if (rStep && ["ballot", "confirm_vote", "face_verification"].includes(rStep)) {
+          setStep(rStep as any);
+        }
+      } else {
+        clearRecoverySession();
+      }
+    }
+  }, []);
+
+  const clearRecoverySession = () => {
+    sessionStorage.removeItem("collegevote-recovery-timestamp");
+    sessionStorage.removeItem("collegevote-recovery-selected");
+    sessionStorage.removeItem("collegevote-recovery-verificationCode");
+    sessionStorage.removeItem("collegevote-recovery-antiReplayToken");
+    sessionStorage.removeItem("collegevote-recovery-faceSessionToken");
+    sessionStorage.removeItem("collegevote-recovery-step");
+  };
+
+  // Sync recovery state to sessionStorage whenever it changes, if we are past the verification step
+  useEffect(() => {
+    if (step !== "verification_id" && step !== "success") {
+      sessionStorage.setItem("collegevote-recovery-timestamp", Date.now().toString());
+      sessionStorage.setItem("collegevote-recovery-selected", selected || "");
+      sessionStorage.setItem("collegevote-recovery-verificationCode", verificationCode || "");
+      sessionStorage.setItem("collegevote-recovery-antiReplayToken", antiReplayToken || "");
+      sessionStorage.setItem("collegevote-recovery-faceSessionToken", faceSessionToken || "");
+      sessionStorage.setItem("collegevote-recovery-step", step);
+    }
+  }, [step, selected, verificationCode, antiReplayToken, faceSessionToken]);
+
+  const handleReturnToDashboard = () => {
+    localStorage.removeItem("collegevote-receipt");
+    clearRecoverySession();
+    nav({ to: "/voter/dashboard" });
+  };
+
   useEffect(() => {
     // JWT Session Timer
+    if (step === "success") return;
     const token = sessionStorage.getItem("collegevote-token");
     if (!token) return;
     const jwtToken = token;
@@ -118,9 +197,70 @@ function VotePage() {
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [logout, nav]);
+  }, [logout, nav, step]);
 
-  if ((isPending || isVoterPending) && !verified && !confirmed) return <PageLoader />;
+  if ((isPending || isVoterPending) && step === "verification_id") return <PageLoader />;
+
+  if (step === "success") {
+    if (!txDetails) {
+      return <PageLoader />;
+    }
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6 animate-in fade-in duration-300">
+        <div className="max-w-lg w-full bg-card rounded-2xl shadow-lg border border-border p-8 md:p-10 space-y-6 text-center">
+          
+          <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center animate-in zoom-in duration-500">
+            <CheckCircle2 className="h-12 w-12 text-emerald-500 animate-pulse" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground animate-in slide-in-from-top-2 duration-300">
+              ✓ Vote Successfully Recorded
+            </h1>
+            <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg py-2 max-w-sm mx-auto font-medium">
+              Your vote has been permanently recorded.
+            </p>
+          </div>
+
+          {/* Receipt Card */}
+          <div className="bg-muted/40 rounded-xl p-5 border border-border/70 text-left space-y-4 text-sm font-sans">
+            <div className="flex justify-between border-b border-border/50 pb-2">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Election Name</span>
+              <span className="font-semibold text-foreground">{txDetails.electionName}</span>
+            </div>
+            
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Transaction ID</span>
+              <span className="font-mono text-xs text-foreground bg-background rounded border border-border p-2 select-all break-all leading-relaxed">
+                {txDetails.voteId}
+              </span>
+            </div>
+
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Audit Hash</span>
+              <span className="font-mono text-[11px] text-foreground bg-background rounded border border-border p-2 select-all break-all leading-normal">
+                {txDetails.currentHash}
+              </span>
+            </div>
+
+            <div className="flex justify-between border-t border-border/50 pt-3 text-xs">
+              <span className="text-muted-foreground font-semibold uppercase tracking-wider">Timestamp</span>
+              <span className="font-mono text-foreground font-semibold">{new Date(txDetails.timestamp).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-6 font-semibold shadow-md transition-all text-base"
+              onClick={handleReturnToDashboard}
+            >
+              Return to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Block screen if voter doesn't exist or is not permitted to vote
   if (voter && !voter.vote_permission) {
@@ -169,7 +309,7 @@ function VotePage() {
         if (res.anti_replay_token) {
           setAntiReplayToken(res.anti_replay_token);
         }
-        setVerified(true);
+        setStep("ballot");
         toast.success("Verification successful!");
       }
     } catch (e: any) {
@@ -264,6 +404,51 @@ function VotePage() {
     });
   }, []);
 
+  // Wait until the video element advances to a new frame (avoids duplicate captures).
+  const waitForNewVideoFrame = useCallback((video: HTMLVideoElement, timeoutMs = 1500): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const startTime = video.currentTime;
+      const deadline = performance.now() + timeoutMs;
+
+      const done = (advanced: boolean) => resolve(advanced);
+
+      // Chrome, Edge, Brave — precise per-frame callback when available
+      const rvfc = (video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback;
+      if (typeof rvfc === "function") {
+        let settled = false;
+        const onFrame = () => {
+          if (settled) return;
+          if (video.currentTime !== startTime) {
+            settled = true;
+            done(true);
+            return;
+          }
+          if (performance.now() >= deadline) {
+            settled = true;
+            done(false);
+            return;
+          }
+          rvfc.call(video, onFrame);
+        };
+        rvfc.call(video, onFrame);
+        return;
+      }
+
+      const tick = () => {
+        if (video.currentTime !== startTime) {
+          done(true);
+          return;
+        }
+        if (performance.now() >= deadline) {
+          done(false);
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  }, []);
+
   // ── Capture one normalized frame from the webcam ──────────
   const captureFrame = useCallback((): string | null => {
     const video = webcamRef.current?.video;
@@ -274,7 +459,33 @@ function VotePage() {
     canvas.height = FRAME_H;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0, FRAME_W, FRAME_H);
+
+    const videoW = video.videoWidth;
+    const videoH = video.videoHeight;
+    const canvasRatio = FRAME_W / FRAME_H;
+    const videoRatio = videoW / videoH;
+
+    let sx = 0, sy = 0, sw = videoW, sh = videoH;
+    if (videoRatio > canvasRatio) {
+      // Video is wider than canvas ratio (e.g. landscape 4:3 vs portrait 3:4) -> crop sides
+      sw = videoH * canvasRatio;
+      sx = (videoW - sw) / 2;
+    } else {
+      // Video is taller than canvas ratio -> crop top/bottom
+      sh = videoW / canvasRatio;
+      sy = (videoH - sh) / 2;
+    }
+
+    console.debug("[face-capture]", {
+      videoW,
+      videoH,
+      sx,
+      sy,
+      sw,
+      sh,
+    });
+
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, FRAME_W, FRAME_H);
     const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
     // Immediately release canvas
     canvas.width = 0;
@@ -287,6 +498,97 @@ function VotePage() {
     new Promise<void>((r) =>
       setTimeout(r, JITTER_MIN_MS + Math.random() * (JITTER_MAX_MS - JITTER_MIN_MS))
     );
+
+  // Record ballot start time for honeypot timing detection
+  useEffect(() => {
+    if (step === "ballot" || step === "confirm_vote") {
+      reviewStartRef.current = Date.now();
+    }
+  }, [step]);
+
+  const handleCastVoteWithParams = useCallback(async (faceToken: string, replayToken: string) => {
+    if (!selected) {
+      toast.error("Please select a candidate or NOTA.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const elapsedMs = reviewStartRef.current > 0 ? Date.now() - reviewStartRef.current : 99999;
+      const res = await castVote({
+        candidateId: selected === NOTA_ID ? null : selected,
+        verificationId: verificationCode.trim(),
+        faceSessionToken: faceToken,
+        antiReplayToken: replayToken,
+        trapData: {
+          verification_field_confirm: hpField1,
+          hidden_field_name: hpField2,
+          phone_confirm: hpField3,
+          submit_time_ms: elapsedMs,
+        },
+      });
+
+      // Persist voted status
+      try {
+        localStorage.setItem("collegevote-has-voted", "true");
+      } catch (e) {
+        console.error(e);
+      }
+
+      // Save receipt in state and localStorage (expires in 24 hours)
+      const txData = {
+        voteId: res.vote_id,
+        currentHash: res.current_hash,
+        electionName: res.election_name || "Active Election",
+        timestamp: res.timestamp || new Date().toISOString(),
+      };
+      setTxDetails(txData);
+
+      const receipt = {
+        ...txData,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      };
+      localStorage.setItem("collegevote-receipt", JSON.stringify(receipt));
+
+      // Invalidate cached queries so dashboard shows fresh data immediately
+      queryClient.invalidateQueries({ queryKey: ["voter-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["election-phase"] });
+      queryClient.invalidateQueries({ queryKey: ["election"] });
+
+      setStep("success");
+      toast.success("Vote cast successfully!");
+      clearRecoverySession();
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.message || "Failed to cast vote. Please try again.";
+      toast.error(msg);
+
+      // Check if biometric token expired, consumed, or invalid
+      const isBiometricExpiry =
+        msg.toLowerCase().includes("expired") ||
+        msg.toLowerCase().includes("biometric verification token") ||
+        msg.toLowerCase().includes("biometric session token") ||
+        msg.toLowerCase().includes("consumed") ||
+        msg.toLowerCase().includes("invalid");
+      
+      if (isBiometricExpiry) {
+        toast.error("Face verification expired or invalid. Please verify again.");
+        // Clear stale token and restart face verification
+        setFaceSessionToken(null);
+        setPassive("idle");
+        setPassiveError("");
+        setCapturedCount(0);
+        // Clear recovery session so stale token isn't restored on reload
+        sessionStorage.removeItem("collegevote-recovery-faceSessionToken");
+        setStep("face_verification");
+      } else {
+        setPassive("failed");
+        setPassiveError(msg);
+        setStep("face_verification");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selected, verificationCode, hpField1, hpField2, hpField3, queryClient]);
 
   // ── Main passive capture + submit flow ─────────────────────
   const runPassiveCapture = useCallback(async () => {
@@ -348,6 +650,7 @@ function VotePage() {
         return;
       }
 
+      const advanced = await waitForNewVideoFrame(video);
       const frame = captureFrame();
       if (!frame) {
         setPassive("failed");
@@ -376,23 +679,11 @@ function VotePage() {
         setFaceSessionToken(verifyRes.face_session_token);
         if (verifyRes.match_score !== undefined) setMatchScore(verifyRes.match_score);
         setPassive("success");
-
-        const elapsedMs = reviewStartRef.current > 0 ? Date.now() - reviewStartRef.current : 99999;
-        await castVote({
-          candidateId: selected === NOTA_ID ? null : selected,
-          verificationId: verificationCode.trim(),
-          faceSessionToken: verifyRes.face_session_token,
-          antiReplayToken: activeToken,
-          trapData: {
-            verification_field_confirm: hpField1,
-            hidden_field_name: hpField2,
-            phone_confirm: hpField3,
-            submit_time_ms: elapsedMs,
-          },
-        });
-
-        setConfirmed(true);
-        toast.success("Vote cast successfully!");
+        toast.success("Face verified successfully!");
+        
+        setTimeout(() => {
+          handleCastVoteWithParams(verifyRes.face_session_token, activeToken);
+        }, 1500);
       } else {
         setPassive("failed");
         setPassiveError("Unable to verify live face. Please try again.");
@@ -420,15 +711,15 @@ function VotePage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [antiReplayToken, captureFrame, hpField1, hpField2, hpField3, logout, nav, selected, verificationCode]);
+  }, [antiReplayToken, captureFrame, waitForNewVideoFrame, logout, nav, verificationCode, handleCastVoteWithParams]);
 
-  // ── Auto-start capture immediately when review opens ─────
+  // ── Auto-start capture immediately when face_verification opens ─────
   useEffect(() => {
-    if (review && passiveStateRef.current === "idle") {
+    if (step === "face_verification" && passiveStateRef.current === "idle") {
       const t = setTimeout(() => runPassiveCapture(), 100);
       return () => clearTimeout(t);
     }
-  }, [review, runPassiveCapture]);
+  }, [step, runPassiveCapture]);
 
   function abortPassive() {
     captureAbortRef.current = true;
@@ -438,39 +729,7 @@ function VotePage() {
     setFaceDetected(false);
   }
 
-  if (confirmed) {
-    // Persist voted status so dashboard reflects it (localStorage survives tab close)
-    try {
-      localStorage.setItem("collegevote-has-voted", "true");
-    } catch {
-      /* ignore */
-    }
-
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md text-center bg-card rounded-2xl shadow-sm p-10">
-          <div className="mx-auto h-20 w-20 rounded-full bg-success/15 flex items-center justify-center animate-in zoom-in duration-500">
-            <CheckCircle2 className="h-12 w-12 text-success" />
-          </div>
-          <h1 className="text-2xl font-bold mt-5">Vote Cast Successfully!</h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            Your vote has been cast securely and anonymously.
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Your status on the dashboard will now show <strong>Voted ✓</strong>.
-          </p>
-          <Button
-            className="mt-6 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
-            onClick={() => nav({ to: "/voter/dashboard" })}
-          >
-            Return to Dashboard
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!verified) {
+  if (step === "verification_id") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="max-w-md w-full bg-card rounded-2xl shadow-sm p-8 text-center border border-border">
@@ -545,7 +804,7 @@ function VotePage() {
       </header>
 
       <main className="max-w-5xl mx-auto p-4 md:p-8">
-        {!review && (
+        {step === "ballot" && (
           <>
             <h2 className="text-xl md:text-2xl font-bold mb-1">Choose your President</h2>
             <p className="text-sm text-muted-foreground mb-6">
@@ -646,21 +905,85 @@ function VotePage() {
             </div>
 
             <div className="flex justify-between mt-8 gap-3">
-              <Button variant="outline" onClick={() => nav({ to: "/voter/dashboard" })}>
+              <Button variant="outline" onClick={() => nav({ to: "/voter/dashboard" })} className="rounded-xl font-semibold">
                 ← Cancel
               </Button>
               <Button
-                disabled={!selected}
-                className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
-                onClick={() => setReview(true)}
+                disabled={!selected || isSubmitting}
+                className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 rounded-xl font-semibold shadow-md transition-all px-6"
+                onClick={() => setStep("confirm_vote")}
               >
-                Review →
+                Review Vote →
               </Button>
             </div>
           </>
         )}
 
-        {review && (
+        {step === "confirm_vote" && (
+          <div className="max-w-md mx-auto bg-card rounded-2xl shadow-sm border border-border p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="mx-auto h-14 w-14 rounded-full bg-[#1F3A6E]/10 flex items-center justify-center mb-5">
+              <ShieldCheck className="h-7 w-7 text-[#1F3A6E]" />
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-2">Confirm Your Vote</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Please review your selection below before proceeding to the final identity verification.
+            </p>
+
+            <div className="bg-muted/50 rounded-xl p-5 border border-border/80 text-left mb-6 space-y-3">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Your Selected Ballot</span>
+              {selected === NOTA_ID ? (
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                    <Ban className="h-6 w-6 text-destructive" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-destructive">NOTA</h3>
+                    <p className="text-xs text-muted-foreground">None Of The Above</p>
+                  </div>
+                </div>
+              ) : (
+                selectedCandidate && (
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center text-2xl shrink-0">
+                      {selectedCandidate.symbol ?? "🎓"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-lg text-foreground truncate">{selectedCandidate.full_name || selectedCandidate.name}</h3>
+                      <p className="text-xs text-muted-foreground truncate">{selectedCandidate.party}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{selectedCandidate.semester} Sem · {selectedCandidate.department}</p>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 mb-6 text-left">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Once confirmed, you must complete the face liveness check. Upon successful verification, your vote will be cast immediately. <strong>This action cannot be undone.</strong>
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl py-6 font-semibold"
+                onClick={() => setStep("ballot")}
+              >
+                ← Back
+              </Button>
+              <Button
+                className="flex-1 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white rounded-xl py-6 font-semibold shadow-md"
+                onClick={() => setStep("face_verification")}
+              >
+                Confirm & Verify
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === "face_verification" && (
           <div className="bg-card rounded-2xl shadow-sm p-6 md:p-8 max-w-2xl mx-auto">
             {/* ── Honeypot fields (invisible to humans, traps bots) ── */}
             <div
@@ -702,41 +1025,15 @@ function VotePage() {
               <button type="button" tabIndex={-1} style={{ display: "none" }} />
             </div>
 
-            <h2 className="text-xl font-bold mb-2">Review Your Selection</h2>
-            <p className="text-sm text-muted-foreground mb-6">You are about to vote for:</p>
+            <h2 className="text-xl font-bold mb-2">Face Liveness Verification</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              To cast your vote, please complete a live face check to verify your identity against your student profile picture.
+            </p>
 
-            {selected === NOTA_ID ? (
-              <div className="p-4 bg-destructive/10 rounded-lg flex items-center gap-3 mb-6">
-                <Ban className="h-6 w-6 text-destructive" />
-                <div>
-                  <p className="font-semibold">NOTA</p>
-                  <p className="text-xs text-muted-foreground">None Of The Above</p>
-                </div>
-              </div>
-            ) : selectedCandidate ? (
-              <div className="p-4 bg-muted/40 rounded-lg space-y-3 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center text-2xl">
-                    {selectedCandidate.symbol ?? "🎓"}
-                  </div>
-                  <div>
-                    <p className="font-semibold">
-                      {selectedCandidate.full_name || selectedCandidate.name}{" "}
-                      <span className="text-xs text-muted-foreground">— President</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground italic">
-                      {selectedCandidate.party}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex gap-3 mb-6">
-              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-              <p className="text-sm text-destructive">
-                This action is permanent and cannot be reversed. By proceeding, your live face will
-                be matched against your enrolled student ID photo.
+            <div className="bg-[#6C63FF]/10 border border-[#6C63FF]/30 rounded-lg p-4 flex gap-3 mb-6">
+              <ShieldCheck className="h-5 w-5 text-[#6C63FF] shrink-0 mt-0.5" />
+              <p className="text-sm text-foreground/85">
+                By proceeding, your live camera feed will capture a few frames to verify liveness and authenticity.
               </p>
             </div>
 
@@ -949,7 +1246,7 @@ function VotePage() {
                       passiveError?.toLowerCase().includes("locked")
                     ) ? (
                       <div className="flex justify-center gap-2 pt-1">
-                        <Button variant="outline" size="sm" onClick={() => { abortPassive(); setReview(false); }}>
+                        <Button variant="outline" size="sm" onClick={() => { abortPassive(); setStep("confirm_vote"); }}>
                           ← Back
                         </Button>
                         <Button
@@ -969,7 +1266,7 @@ function VotePage() {
                   </>
                 )}
 
-                {/* IDLE fallback — camera loading before auto-start fires */}
+                {/* IDLE fallback */}
                 {passiveState === "idle" && (
                   <>
                     <div className="flex items-center justify-center gap-2">
@@ -983,7 +1280,7 @@ function VotePage() {
                 {/* Cancel button during active phases */}
                 {(passiveState === "detecting" || passiveState === "capturing") && (
                   <div className="pt-1">
-                    <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={() => { abortPassive(); setReview(false); }}>
+                    <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={() => { abortPassive(); setStep("confirm_vote"); }}>
                       Cancel
                     </Button>
                   </div>

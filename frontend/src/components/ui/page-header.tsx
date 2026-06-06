@@ -27,10 +27,18 @@ export function SectionCard({
   children,
   className,
   delay = 0,
+  title,
+  subtitle,
+  icon: Icon,
+  action,
 }: {
   children: React.ReactNode;
   className?: string;
   delay?: number;
+  title?: string;
+  subtitle?: string;
+  icon?: React.ElementType;
+  action?: React.ReactNode;
 }) {
   return (
     <section
@@ -41,6 +49,22 @@ export function SectionCard({
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
+      {(title || subtitle || Icon || action) && (
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2.5">
+            {Icon && (
+              <div className="h-8 w-8 rounded-lg bg-[#1F3A6E]/10 flex items-center justify-center shrink-0">
+                <Icon className="h-4 w-4 text-[#1F3A6E]" />
+              </div>
+            )}
+            <div>
+              {title && <p className="font-semibold text-sm">{title}</p>}
+              {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
+          {action && <div className="shrink-0">{action}</div>}
+        </div>
+      )}
       {children}
     </section>
   );

@@ -96,12 +96,17 @@ async def upload_manifesto_media(
 
 async def upload_voter_face(
     *,
+    department: str,
+    student_id: str,
     voter_id: str,
     filename: str,
     content_type: str,
     data: bytes,
+    pending: bool = False,
 ) -> UploadedStorageObject:
-    """Upload a voter face reference image to Supabase Storage."""
-    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
-    object_path = f"faces/{voter_id}/{uuid.uuid4().hex}.{extension}"
+    """Upload a voter face reference image to Supabase Storage (department/USN path)."""
+    from app.services.face_storage import build_object_path, _extension_from_filename
+
+    ext = _extension_from_filename(filename)
+    object_path = build_object_path(department, student_id, voter_id, ext, pending=pending)
     return await _do_upload(object_path=object_path, filename=filename, content_type=content_type, data=data)

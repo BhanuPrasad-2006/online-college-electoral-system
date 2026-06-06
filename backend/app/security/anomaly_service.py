@@ -23,7 +23,7 @@ class AnomalyService:
         time_limit = datetime.now(timezone.utc) - timedelta(minutes=15)
         # Query audit logs for VOTE_CAST in the last 15 minutes
         query = select(AuditLog.ip_address).where(
-            AuditLog.event_type == "VOTE_CAST",
+            AuditLog.event_type == "VOTE_CAST_SUCCESS",
             AuditLog.created_at >= time_limit
         )
         result = await db_session.execute(query)

@@ -61,15 +61,14 @@ async def mock_get_current_user():
         raise HTTPException(status_code=401, detail="Not authenticated")
     return _current_auth
 
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_current_user] = mock_get_current_user
-
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = mock_get_current_user
     # Create tables
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
@@ -78,6 +77,7 @@ async def setup_db():
     
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.drop_all)
+    app.dependency_overrides.clear()
 
 @pytest.mark.anyio
 async def test_admin_notices_rbac():

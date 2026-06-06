@@ -1,7 +1,7 @@
 // Election starts in the future so the floating island shows the pre-voting state.
 const now = Date.now();
 export const ELECTION = {
-  name: "Student Council Election 2025",
+  name: "Student Council Election 2026",
   votingStart: new Date(now + 1000 * 60 * 60 * 24 * 2 + 1000 * 60 * 60 * 14 + 1000 * 60 * 32),
   votingEnd: new Date(now + 1000 * 60 * 60 * 24 * 2 + 1000 * 60 * 60 * 22),
   registrationEnd: new Date(now + 1000 * 60 * 60 * 24),

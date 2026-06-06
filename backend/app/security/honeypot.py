@@ -22,7 +22,7 @@ class HoneypotService:
                 return True
         return False
 
-    def validate_timing(self, submit_time_ms: int, min_ms: int = 3000) -> bool:
+    def validate_timing(self, submit_time_ms: int, min_ms: int = 8000) -> bool:
         """Check if form was submitted too quickly (bot behavior).
 
         Returns True if bot activity is suspected.

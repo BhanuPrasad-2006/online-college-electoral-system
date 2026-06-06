@@ -1,35 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchElection,
-  fetchHourlyVotes,
-  fetchMediaItems,
-  fetchResults,
-  fetchVoterConcerns,
   fetchVoterProfile,
+  fetchCandidateProfile,
+  fetchVoterConcerns,
+  fetchCandidates as liveFetchCandidatesFromDemo,
+  fetchResults,
+  fetchConcernCategories as liveFetchConcernCategories,
 } from "@/lib/demo-api";
 
 import {
   fetchCandidates,
-  fetchCandidateProfile,
   fetchDeptTurnout,
   fetchKpi,
   fetchNotifications,
   fetchAiAlerts,
   fetchAuditLogs,
-  fetchConcernCategories,
   fetchCandidateConcernReport,
   fetchPublicResults,
   getAuthToken,
   getCurrentPhase,
+  fetchMediaItems,
+  fetchHourlyVotes,
 } from "@/lib/api";
 
-
-
-const demoQuery = {
-  retry: false,
-  refetchOnWindowFocus: false,
-  staleTime: 1000 * 60 * 30,
-};
 
 // Fast-polling: for metrics that change in real-time during voting (turnout, etc.)
 const fastQuery = {
@@ -60,11 +54,11 @@ const slowQuery = {
 
 const liveQuery = {
   retry: 2,
-  refetchInterval: 10000, // Real-time: refetch every 10 seconds
+  refetchInterval: 10_000,
 };
 
 export function useElection() {
-  return useQuery({ queryKey: ["election"], queryFn: fetchElection, ...slowQuery });
+  return useQuery<any, Error>({ queryKey: ["election"], queryFn: fetchElection, ...slowQuery });
 }
 
 export function useCurrentPhase() {
@@ -76,59 +70,82 @@ export function useCurrentPhase() {
 }
 
 export function useCandidates() {
-  return useQuery({ queryKey: ["candidates"], queryFn: fetchCandidates, ...demoQuery });
+  // Use live API directly — demo-api fetchCandidates also calls live endpoint in production
+  return useQuery({
+    queryKey: ["candidates"],
+    queryFn: fetchCandidates,
+    ...slowQuery,
+  });
 }
 
 export function useKpi() {
+  // Live: GET /election/kpi → { registered, votesCast, turnout, alerts }
   return useQuery({ queryKey: ["kpi"], queryFn: fetchKpi, ...fastQuery });
 }
 
 export function useNotifications() {
+  // Live: GET /election/notifications → phase-aware real notifications + notices
   return useQuery({ queryKey: ["notifications"], queryFn: fetchNotifications, ...normalQuery });
 }
 
 export function useMediaItems() {
-  return useQuery({ queryKey: ["media"], queryFn: fetchMediaItems, ...demoQuery });
+  return useQuery({ queryKey: ["media"], queryFn: fetchMediaItems, ...normalQuery });
 }
 
 export function useVoterProfile() {
-  // Include auth token in query key so different users get separate cache entries.
-  // This prevents showing Voter A's cached profile to Voter B after login.
   const token = typeof window !== "undefined" ? getAuthToken() : "no-token";
   return useQuery({
     queryKey: ["voter-profile", token],
     queryFn: fetchVoterProfile,
-    ...demoQuery,
-    staleTime: 0, // Always fetch fresh data from server on mount/invalidation
+    retry: 1,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
 }
 
 export function useCandidateProfile() {
-  return useQuery({
+  return useQuery<any, Error>({
     queryKey: ["candidate-profile"],
     queryFn: fetchCandidateProfile,
-    ...demoQuery,
+    ...slowQuery,
   });
 }
 
 export function useConcernCategories() {
-  return useQuery({ queryKey: ["concern-categories"], queryFn: fetchConcernCategories, ...liveQuery });
+  // Live: GET /concerns/categories
+  return useQuery({
+    queryKey: ["concern-categories"],
+    queryFn: fetchConcernCategories,  // from live api
+    ...liveQuery,
+  });
+}
+
+function fetchConcernCategories() {
+  return liveFetchConcernCategories();
 }
 
 export function useVoterConcerns() {
-  return useQuery({ queryKey: ["voter-concerns"], queryFn: fetchVoterConcerns, ...demoQuery });
+  return useQuery({ queryKey: ["voter-concerns"], queryFn: fetchVoterConcerns, ...normalQuery });
 }
 
 export function useHourlyVotes() {
-  return useQuery({ queryKey: ["hourly-votes"], queryFn: fetchHourlyVotes, ...demoQuery });
+  // Live: GET /election/stats/hourly
+  return useQuery({ queryKey: ["hourly-votes"], queryFn: fetchHourlyVotes, ...slowQuery });
 }
 
 export function useDeptTurnout() {
-  return useQuery({ queryKey: ["dept-turnout"], queryFn: fetchDeptTurnout, ...demoQuery });
+  // Live: GET /election/stats/departments — real dept turnout from DB
+  return useQuery({ queryKey: ["dept-turnout"], queryFn: fetchDeptTurnout, ...fastQuery });
 }
 
-export function useAiAlerts() {
-  return useQuery({ queryKey: ["ai-alerts"], queryFn: fetchAiAlerts, ...demoQuery });
+export function useAiAlerts(options?: { enabled?: boolean }) {
+  // Live: GET /admin/ai-alerts — real security alerts from DB
+  return useQuery({
+    queryKey: ["ai-alerts"],
+    queryFn: fetchAiAlerts,
+    ...normalQuery,
+    enabled: options?.enabled ?? true,
+  });
 }
 
 export function useAuditLogs(params?: {
@@ -141,14 +158,16 @@ export function useAuditLogs(params?: {
   date_to?: string;
   q?: string;
 }) {
+  // Live: GET /admin/audit-logs — real audit trail from DB
   return useQuery({
     queryKey: ["audit-logs", params],
     queryFn: () => fetchAuditLogs(params),
-    ...demoQuery,
+    ...normalQuery,
   });
 }
 
 export function usePublicResults() {
+  // Live: GET /election/public-results — gated by phase
   return useQuery({
     queryKey: ["public-results"],
     queryFn: fetchPublicResults,
@@ -157,14 +176,15 @@ export function usePublicResults() {
 }
 
 export function useResults() {
-  return useQuery({ queryKey: ["results"], queryFn: fetchResults, ...demoQuery });
+  // Live: GET /election/public-results
+  return useQuery({ queryKey: ["results"], queryFn: fetchPublicResults, ...slowQuery });
 }
 
 export function useCandidateConcernReport() {
+  // Live: GET /concerns/candidate-report
   return useQuery({
     queryKey: ["candidate-concern-report"],
     queryFn: fetchCandidateConcernReport,
-    ...demoQuery,
+    ...normalQuery,
   });
 }
-

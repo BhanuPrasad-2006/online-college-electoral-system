@@ -11,8 +11,8 @@ VALUES
 INSERT INTO elections (id, title, description, status, start_time, end_time, created_by)
 VALUES (
     gen_random_uuid(),
-    'Student Council Election 2025',
-    'Annual student council election for the academic year 2025-2026',
+    'Student Council Election 2026',
+    'Annual student council election for the academic year 2026-2027',
     'active',
     NOW(),
     NOW() + INTERVAL '24 hours',

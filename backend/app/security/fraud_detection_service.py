@@ -29,6 +29,15 @@ class FraudDetectionService:
         submit_time_ms = vote_data.get("submit_time_ms")
         trap_data = vote_data.get("trap_data") or {}
 
+        # Log honeypot field values for debugging
+        logger.info(
+            f"HONEYPOT_CHECK "
+            f"vfield_confirm={repr(trap_data.get('verification_field_confirm'))} "
+            f"hidden_field={repr(trap_data.get('hidden_field_name'))} "
+            f"phone_confirm={repr(trap_data.get('phone_confirm'))} "
+            f"submit_time_ms={vote_data.get('submit_time_ms')}"
+        )
+
         reasons = []
         is_suspicious = False
         confidence = 0.0
@@ -184,7 +193,7 @@ class FraudDetectionService:
             severity_icon = "🔴" if severity in (AlertSeverityEnum.HIGH, AlertSeverityEnum.CRITICAL) else "🟡"
             confidence_pct = f"{confidence * 100:.0f}%"
 
-            subject = f"{severity_icon} Bot/Honeypot Alert — College Election System"
+            subject = f"{severity_icon} Suspicious Activity Detected — College Election System"
 
             html_body = f"""
             <html>

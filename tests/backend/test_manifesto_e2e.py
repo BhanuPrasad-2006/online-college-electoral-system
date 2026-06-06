@@ -98,20 +98,21 @@ async def mock_get_current_user():
 async def mock_get_admin_user():
     return {"user_id": "admin-uuid", "email": "admin@test.edu", "role": "admin", "admin_role": "SUPER_ADMIN"}
 
-app.dependency_overrides[get_current_user] = mock_get_current_user
-app.dependency_overrides[get_admin_user] = mock_get_admin_user
-
 
 # --- Fixtures ---
 
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_db():
     """Create tables before each test, drop after."""
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_admin_user] = mock_get_admin_user
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.drop_all)
+    app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
@@ -241,7 +242,7 @@ class TestManifestoUploadFlow:
             mock_val_img.return_value.reason = "ok"
             response = await client.post(
                 "/api/v1/candidates/me/manifesto/upload",
-                files={"file": ("manifesto.png", b"fake-image-bytes", "image/png")},
+                files={"file": ("manifesto.png", b"\x89PNG\r\n\x1a\n" + b"x" * 120, "image/png")},
             )
 
         assert response.status_code == 200, f"Upload failed: {response.text}"
@@ -267,7 +268,7 @@ class TestManifestoUploadFlow:
 
     @pytest.mark.asyncio
     async def test_03_upload_rejects_oversized_file(self, client: AsyncClient, seeded_data: dict):
-        """Upload a file > 10MB -> 400."""
+        """Upload a file > 10MB -> 400 or 413."""
         _current_auth.update({
             "user_id": CANDIDATE_VOTER_ID,
             "email": "candidate@test.edu",
@@ -279,10 +280,12 @@ class TestManifestoUploadFlow:
             "/api/v1/candidates/me/manifesto/upload",
             files={"file": ("huge.pdf", oversized, "application/pdf")},
         )
-        assert response.status_code in (400, 413)
-        if response.status_code == 400:
-            detail = response.json()["detail"].lower()
-            assert "10mb" in detail or "exceeds" in detail
+        assert response.status_code in [400, 413]
+        if response.status_code == 413:
+            assert any(x in response.text.lower() for x in ["large", "exceeds", "10mb"])
+        else:
+            detail = response.json().get("detail", "").lower()
+            assert any(x in detail for x in ["10mb", "exceeds", "large"])
 
     @pytest.mark.asyncio
     async def test_04_save_manifesto_with_image_url(self, client: AsyncClient, seeded_data: dict):

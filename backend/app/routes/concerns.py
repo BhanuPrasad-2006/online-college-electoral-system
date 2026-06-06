@@ -91,20 +91,20 @@ async def upload_concern_file(
 
     # Read file data
     file_data = await file.read()
-    if len(file_data) > MAX_CONCERN_FILE_SIZE:
+
+    # Multi-layer file upload validation via centralized validator
+    from app.validators.file_upload_validator import validate_concern_upload
+    validation_result = validate_concern_upload(
+        data=file_data,
+        filename=file.filename or "",
+        content_type=file.content_type or "",
+        max_size_bytes=MAX_CONCERN_FILE_SIZE,
+    )
+    if not validation_result.passed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File exceeds maximum allowed size of 10MB.",
+            detail=validation_result.reason,
         )
-
-    # Check for malicious content in header bytes
-    suspicious_signatures = [b"<script", b"<?php", b"<% ", b"exec(", b"eval("]
-    for sig in suspicious_signatures:
-        if sig in file_data[:4096]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Security rejection: File contains disallowed content.",
-            )
 
     # Upload to Supabase (or local fallback)
     supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)

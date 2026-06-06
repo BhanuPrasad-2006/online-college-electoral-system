@@ -1,25 +1,39 @@
-"""Request body size limit middleware."""
+"""Request body size limit middleware — pure ASGI implementation."""
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Request, Response, status
+from starlette.types import ASGIApp, Scope, Receive, Send
+from starlette.responses import Response
 
-class RequestBodySizeLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_size_bytes: int = 10 * 1024 * 1024):  # 10MB default
-        super().__init__(app)
+
+class RequestBodySizeLimitMiddleware:
+    def __init__(self, app: ASGIApp, max_size_bytes: int = 10 * 1024 * 1024):  # 10MB default
+        self.app = app
         self.max_size_bytes = max_size_bytes
 
-    async def dispatch(self, request: Request, call_next):
-        content_length = request.headers.get("content-length")
-        if content_length:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Extract content-length header
+        headers = dict(scope.get("headers", []))
+        content_length_bytes = headers.get(b"content-length")
+
+        if content_length_bytes:
             try:
-                if int(content_length) > self.max_size_bytes:
-                    return Response(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                content_length = int(content_length_bytes.decode("latin-1"))
+                if content_length > self.max_size_bytes:
+                    response = Response(
+                        status_code=413,
                         content="Payload Too Large. Maximum allowed size is 10MB."
                     )
+                    await response(scope, receive, send)
+                    return
             except ValueError:
-                return Response(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                response = Response(
+                    status_code=400,
                     content="Invalid Content-Length header."
                 )
-        return await call_next(request)
+                await response(scope, receive, send)
+                return
+
+        await self.app(scope, receive, send)

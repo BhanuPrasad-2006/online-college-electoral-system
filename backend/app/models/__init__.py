@@ -5,6 +5,9 @@ from app.models.admin_user import AdminUser
 from app.models.election import Election
 from app.models.election_phase import ElectionPhase
 from app.models.position import Position
+from app.models.party import Party
+from app.models.party_member import PartyMember
+from app.models.party_invitation import PartyInvitation
 from app.models.candidate import Candidate
 from app.models.manifesto import Manifesto
 from app.models.vote import Vote
@@ -16,6 +19,7 @@ from app.models.ai_alert import AIAlert
 from app.models.audit_log import AuditLog
 from app.models.blacklisted_token import BlacklistedToken
 from app.models.anti_replay_token import AntiReplayToken
+from app.models.otp_attempt import OTPAttempt
 from app.models.campaign_media import CampaignMedia
 from app.models.announcement import Announcement
 from app.models.notice import Notice
@@ -29,6 +33,9 @@ __all__ = [
     "Election",
     "ElectionPhase",
     "Position",
+    "Party",
+    "PartyMember",
+    "PartyInvitation",
     "Candidate",
     "Manifesto",
     "Vote",
@@ -40,6 +47,7 @@ __all__ = [
     "AuditLog",
     "BlacklistedToken",
     "AntiReplayToken",
+    "OTPAttempt",
     "CampaignMedia",
     "Announcement",
     "Notice",
@@ -47,4 +55,3 @@ __all__ = [
     "AdminMeeting",
     "MeetingParticipant",
 ]
-

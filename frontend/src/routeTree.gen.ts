@@ -24,6 +24,7 @@ import { Route as VoterAiAssistantRouteImport } from './routes/voter/ai-assistan
 import { Route as CandidateStatusRouteImport } from './routes/candidate/status'
 import { Route as CandidateSettingsRouteImport } from './routes/candidate/settings'
 import { Route as CandidateRegisterRouteImport } from './routes/candidate/register'
+import { Route as CandidatePartyDashboardRouteImport } from './routes/candidate/party-dashboard'
 import { Route as CandidateOtpVerifyRouteImport } from './routes/candidate/otp-verify'
 import { Route as CandidateNotificationsRouteImport } from './routes/candidate/notifications'
 import { Route as CandidateMediaRouteImport } from './routes/candidate/media'
@@ -35,6 +36,7 @@ import { Route as CandidateAiReportRouteImport } from './routes/candidate/ai-rep
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminResultsRouteImport } from './routes/admin/results'
 import { Route as AdminPendingPhotosRouteImport } from './routes/admin/pending-photos'
+import { Route as AdminPartiesRouteImport } from './routes/admin/parties'
 import { Route as AdminOtpVerifyRouteImport } from './routes/admin/otp-verify'
 import { Route as AdminNoticesRouteImport } from './routes/admin/notices'
 import { Route as AdminMeetingsRouteImport } from './routes/admin/meetings'
@@ -125,6 +127,11 @@ const CandidateRegisterRoute = CandidateRegisterRouteImport.update({
   path: '/candidate/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CandidatePartyDashboardRoute = CandidatePartyDashboardRouteImport.update({
+  id: '/candidate/party-dashboard',
+  path: '/candidate/party-dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CandidateOtpVerifyRoute = CandidateOtpVerifyRouteImport.update({
   id: '/candidate/otp-verify',
   path: '/candidate/otp-verify',
@@ -178,6 +185,11 @@ const AdminResultsRoute = AdminResultsRouteImport.update({
 const AdminPendingPhotosRoute = AdminPendingPhotosRouteImport.update({
   id: '/admin/pending-photos',
   path: '/admin/pending-photos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPartiesRoute = AdminPartiesRouteImport.update({
+  id: '/admin/parties',
+  path: '/admin/parties',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminOtpVerifyRoute = AdminOtpVerifyRouteImport.update({
@@ -267,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/notices': typeof AdminNoticesRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
+  '/admin/parties': typeof AdminPartiesRoute
   '/admin/pending-photos': typeof AdminPendingPhotosRoute
   '/admin/results': typeof AdminResultsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -278,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/candidate/media': typeof CandidateMediaRoute
   '/candidate/notifications': typeof CandidateNotificationsRoute
   '/candidate/otp-verify': typeof CandidateOtpVerifyRoute
+  '/candidate/party-dashboard': typeof CandidatePartyDashboardRoute
   '/candidate/register': typeof CandidateRegisterRoute
   '/candidate/settings': typeof CandidateSettingsRoute
   '/candidate/status': typeof CandidateStatusRoute
@@ -309,6 +323,7 @@ export interface FileRoutesByTo {
   '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/notices': typeof AdminNoticesRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
+  '/admin/parties': typeof AdminPartiesRoute
   '/admin/pending-photos': typeof AdminPendingPhotosRoute
   '/admin/results': typeof AdminResultsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -320,6 +335,7 @@ export interface FileRoutesByTo {
   '/candidate/media': typeof CandidateMediaRoute
   '/candidate/notifications': typeof CandidateNotificationsRoute
   '/candidate/otp-verify': typeof CandidateOtpVerifyRoute
+  '/candidate/party-dashboard': typeof CandidatePartyDashboardRoute
   '/candidate/register': typeof CandidateRegisterRoute
   '/candidate/settings': typeof CandidateSettingsRoute
   '/candidate/status': typeof CandidateStatusRoute
@@ -352,6 +368,7 @@ export interface FileRoutesById {
   '/admin/meetings': typeof AdminMeetingsRoute
   '/admin/notices': typeof AdminNoticesRoute
   '/admin/otp-verify': typeof AdminOtpVerifyRoute
+  '/admin/parties': typeof AdminPartiesRoute
   '/admin/pending-photos': typeof AdminPendingPhotosRoute
   '/admin/results': typeof AdminResultsRoute
   '/admin/settings': typeof AdminSettingsRoute
@@ -363,6 +380,7 @@ export interface FileRoutesById {
   '/candidate/media': typeof CandidateMediaRoute
   '/candidate/notifications': typeof CandidateNotificationsRoute
   '/candidate/otp-verify': typeof CandidateOtpVerifyRoute
+  '/candidate/party-dashboard': typeof CandidatePartyDashboardRoute
   '/candidate/register': typeof CandidateRegisterRoute
   '/candidate/settings': typeof CandidateSettingsRoute
   '/candidate/status': typeof CandidateStatusRoute
@@ -396,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/meetings'
     | '/admin/notices'
     | '/admin/otp-verify'
+    | '/admin/parties'
     | '/admin/pending-photos'
     | '/admin/results'
     | '/admin/settings'
@@ -407,6 +426,7 @@ export interface FileRouteTypes {
     | '/candidate/media'
     | '/candidate/notifications'
     | '/candidate/otp-verify'
+    | '/candidate/party-dashboard'
     | '/candidate/register'
     | '/candidate/settings'
     | '/candidate/status'
@@ -438,6 +458,7 @@ export interface FileRouteTypes {
     | '/admin/meetings'
     | '/admin/notices'
     | '/admin/otp-verify'
+    | '/admin/parties'
     | '/admin/pending-photos'
     | '/admin/results'
     | '/admin/settings'
@@ -449,6 +470,7 @@ export interface FileRouteTypes {
     | '/candidate/media'
     | '/candidate/notifications'
     | '/candidate/otp-verify'
+    | '/candidate/party-dashboard'
     | '/candidate/register'
     | '/candidate/settings'
     | '/candidate/status'
@@ -480,6 +502,7 @@ export interface FileRouteTypes {
     | '/admin/meetings'
     | '/admin/notices'
     | '/admin/otp-verify'
+    | '/admin/parties'
     | '/admin/pending-photos'
     | '/admin/results'
     | '/admin/settings'
@@ -491,6 +514,7 @@ export interface FileRouteTypes {
     | '/candidate/media'
     | '/candidate/notifications'
     | '/candidate/otp-verify'
+    | '/candidate/party-dashboard'
     | '/candidate/register'
     | '/candidate/settings'
     | '/candidate/status'
@@ -523,6 +547,7 @@ export interface RootRouteChildren {
   AdminMeetingsRoute: typeof AdminMeetingsRoute
   AdminNoticesRoute: typeof AdminNoticesRoute
   AdminOtpVerifyRoute: typeof AdminOtpVerifyRoute
+  AdminPartiesRoute: typeof AdminPartiesRoute
   AdminPendingPhotosRoute: typeof AdminPendingPhotosRoute
   AdminResultsRoute: typeof AdminResultsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -534,6 +559,7 @@ export interface RootRouteChildren {
   CandidateMediaRoute: typeof CandidateMediaRoute
   CandidateNotificationsRoute: typeof CandidateNotificationsRoute
   CandidateOtpVerifyRoute: typeof CandidateOtpVerifyRoute
+  CandidatePartyDashboardRoute: typeof CandidatePartyDashboardRoute
   CandidateRegisterRoute: typeof CandidateRegisterRoute
   CandidateSettingsRoute: typeof CandidateSettingsRoute
   CandidateStatusRoute: typeof CandidateStatusRoute
@@ -657,6 +683,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CandidateRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/candidate/party-dashboard': {
+      id: '/candidate/party-dashboard'
+      path: '/candidate/party-dashboard'
+      fullPath: '/candidate/party-dashboard'
+      preLoaderRoute: typeof CandidatePartyDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/candidate/otp-verify': {
       id: '/candidate/otp-verify'
       path: '/candidate/otp-verify'
@@ -732,6 +765,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/pending-photos'
       fullPath: '/admin/pending-photos'
       preLoaderRoute: typeof AdminPendingPhotosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/parties': {
+      id: '/admin/parties'
+      path: '/admin/parties'
+      fullPath: '/admin/parties'
+      preLoaderRoute: typeof AdminPartiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/otp-verify': {
@@ -851,6 +891,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminMeetingsRoute: AdminMeetingsRoute,
   AdminNoticesRoute: AdminNoticesRoute,
   AdminOtpVerifyRoute: AdminOtpVerifyRoute,
+  AdminPartiesRoute: AdminPartiesRoute,
   AdminPendingPhotosRoute: AdminPendingPhotosRoute,
   AdminResultsRoute: AdminResultsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
@@ -862,6 +903,7 @@ const rootRouteChildren: RootRouteChildren = {
   CandidateMediaRoute: CandidateMediaRoute,
   CandidateNotificationsRoute: CandidateNotificationsRoute,
   CandidateOtpVerifyRoute: CandidateOtpVerifyRoute,
+  CandidatePartyDashboardRoute: CandidatePartyDashboardRoute,
   CandidateRegisterRoute: CandidateRegisterRoute,
   CandidateSettingsRoute: CandidateSettingsRoute,
   CandidateStatusRoute: CandidateStatusRoute,

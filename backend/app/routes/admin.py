@@ -15,10 +15,7 @@ from app.models.concern import Concern
 from app.enums.concern_enums import ConcernCategoryEnum
 from app.services.face_service import extract_face_embedding, serialize_embedding
 from app.services.ai_proxy_service import AIProxyService
-from app.services.supabase_storage import (
-    SupabaseStorageError,
-    upload_voter_face as supabase_upload_voter_face,
-)
+from app.services.face_storage import FaceStorageError, save_voter_face_image
 from app.utils.image_validator import validate_image
 from app.utils.logger import logger
 from app.core.config import settings
@@ -50,23 +47,18 @@ if settings.APP_ENV == "development":
         if not voter:
             raise HTTPException(status_code=404, detail="Voter not found.")
         try:
-            embedding = extract_face_embedding(image_data)
+            embedding = await extract_face_embedding(image_data)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except RuntimeError as e:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
-        # local save
-        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
-        safe_filename = f"student_{voter_id}{file_ext}"
-        file_path = os.path.join("uploads/faces", safe_filename)
-        os.makedirs("uploads/faces", exist_ok=True)
         try:
-            with open(file_path, "wb") as f:
-                f.write(image_data)
-            voter.reference_image_url = f"/{file_path.replace(os.sep, '/')}"
-        except Exception as e:
-            logger.error(f"Failed to save face image: {e}")
-            raise HTTPException(status_code=500, detail="Failed to save image file.")
+            saved = await save_voter_face_image(
+                voter, image_data, file.filename or "face.jpg", file.content_type or "image/jpeg"
+            )
+            voter.reference_image_url = saved.reference_url
+        except FaceStorageError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         voter.face_encoding = serialize_embedding(embedding)
         try:
             await db.commit()
@@ -122,47 +114,34 @@ async def upload_voter_face(
         raise HTTPException(status_code=404, detail="Voter not found.")
         
     # 5. Process with AI Service
-    try:
-        embedding = extract_face_embedding(image_data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(e),
-        )
-        
-    # 6. Upload to Supabase Storage (with local fallback)
-    supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)
-    if supabase_enabled:
         try:
-            uploaded = await supabase_upload_voter_face(
-                voter_id=voter_id,
-                filename=file.filename or "face.jpg",
-                content_type=file.content_type or "image/jpeg",
-                data=image_data,
-            )
-            voter.reference_image_url = uploaded.public_url
-        except SupabaseStorageError as exc:
-            logger.error(f"Supabase face upload failed: {exc}")
+            embedding = await extract_face_embedding(image_data)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except RuntimeError as e:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to upload face image to storage. Please try again.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(e),
             )
-    else:
-        # Local fallback for development
-        file_ext = os.path.splitext(file.filename)[1] or ".jpg"
-        safe_filename = f"student_{voter_id}{file_ext}"
-        file_path = os.path.join("uploads/faces", safe_filename)
-        os.makedirs("uploads/faces", exist_ok=True)
-        try:
-            with open(file_path, "wb") as f:
-                f.write(image_data)
-            voter.reference_image_url = f"/{file_path.replace(os.sep, '/')}"
-        except Exception as e:
-            logger.error(f"Failed to save face image: {e}")
-            raise HTTPException(status_code=500, detail="Failed to save image file.")
-    
+
+    # 6. Save image — faces/{department}/{usn}_{voter_hash}.jpg
+    try:
+        saved = await save_voter_face_image(
+            voter,
+            image_data,
+            file.filename or "face.jpg",
+            file.content_type or "image/jpeg",
+        )
+        voter.reference_image_url = saved.reference_url
+    except FaceStorageError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Face storage failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save face image. Please try again.",
+        )
+
     # 7. Save face encoding to DB
     voter.face_encoding = serialize_embedding(embedding)
     
@@ -176,7 +155,9 @@ async def upload_voter_face(
     return {
         "success": True,
         "message": "Face uploaded successfully",
-        "reference_image_url": voter.reference_image_url
+        "reference_image_url": voter.reference_image_url,
+        "department": voter.department,
+        "student_id": voter.student_id,
     }
 
 
@@ -280,14 +261,26 @@ async def get_audit_logs(
         data_query = data_query.where(AuditLog.ip_address.ilike(pattern))
     if date_from:
         try:
-            dt_from = datetime.fromisoformat(date_from)
+            from datetime import timezone
+            if len(date_from) == 10:
+                dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            else:
+                dt_from = datetime.fromisoformat(date_from)
+            if dt_from.tzinfo is None:
+                dt_from = dt_from.replace(tzinfo=timezone.utc)
             count_query = count_query.where(AuditLog.created_at >= dt_from)
             data_query = data_query.where(AuditLog.created_at >= dt_from)
         except ValueError:
             pass
     if date_to:
         try:
-            dt_to = datetime.fromisoformat(date_to)
+            from datetime import timezone
+            if len(date_to) == 10:
+                dt_to = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=999999)
+            else:
+                dt_to = datetime.fromisoformat(date_to)
+            if dt_to.tzinfo is None:
+                dt_to = dt_to.replace(tzinfo=timezone.utc)
             count_query = count_query.where(AuditLog.created_at <= dt_to)
             data_query = data_query.where(AuditLog.created_at <= dt_to)
         except ValueError:
@@ -1034,7 +1027,7 @@ class MeetingCreateSchema(BaseModel):
     title: str = Field(..., min_length=3, max_length=255)
     agenda: str = Field(..., min_length=5)
     meeting_time: datetime = Field(...)
-    participant_emails: List[str] = Field(..., min_items=1)
+    participant_emails: List[str] = Field(..., min_length=1)
 
 class AdminUserCreateSchema(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
@@ -1190,7 +1183,7 @@ async def create_notice(
             "notice_id": str(new_notice.notice_id),
             "title": new_notice.title,
             "priority": new_notice.priority,
-            "pdf_url": new_notice.pdf_url,
+            "pdf_url": f"/api/v1/admin/notices/{new_notice.notice_id}/pdf" if new_notice.pdf_url else None,
             "created_at": new_notice.created_at.isoformat()
         }
     }
@@ -1215,7 +1208,7 @@ async def list_notices(
             "title": n.title,
             "content": n.content,
             "priority": n.priority,
-            "pdf_url": n.pdf_url,
+            "pdf_url": f"/api/v1/admin/notices/{n.notice_id}/pdf" if n.pdf_url else None,
             "qr_code": n.qr_code,
             "created_at": n.created_at.isoformat() if n.created_at else None,
             "creator_name": n.creator.full_name if n.creator else "Electoral Commissioner"

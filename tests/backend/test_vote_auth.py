@@ -76,7 +76,7 @@ from app.models.position import Position
 from app.models.election_phase import ElectionPhase
 from app.enums.election_status import ElectionStatusEnum
 from app.security.password_service import hash_password
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_voter_user, get_voting_session
 from app.middleware.rate_limit import limiter
 
 app.dependency_overrides[get_db] = override_get_db
@@ -106,12 +106,16 @@ async def mock_get_current_user():
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_db():
     """Create tables before each test, drop after."""
+    app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_voter_user] = mock_get_current_user
+    app.dependency_overrides[get_voting_session] = mock_get_current_user
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.drop_all)
+    app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
@@ -193,6 +197,8 @@ async def _no_auth():
             detail="Token has expired",
         )
     app.dependency_overrides[get_current_user] = _raise_401
+    app.dependency_overrides[get_voter_user] = _raise_401
+    app.dependency_overrides[get_voting_session] = _raise_401
 
 
 async def _valid_voter():
@@ -208,10 +214,14 @@ async def _valid_voter():
         "role": "voter",
     })
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_voter_user] = mock_get_current_user
+    app.dependency_overrides[get_voting_session] = mock_get_current_user
 
 
 async def _restore_voter():
     app.dependency_overrides[get_current_user] = mock_get_current_user
+    app.dependency_overrides[get_voter_user] = mock_get_current_user
+    app.dependency_overrides[get_voting_session] = mock_get_current_user
 
 
 # =====================================================================

@@ -47,20 +47,55 @@ const LEVEL_STYLES: Record<string, { badge: string; icon: React.ReactNode; label
   },
 };
 
-function getEventCategory(event: string): string {
-  if (event.startsWith("LOGIN")) return "LOGIN";
-  if (event.startsWith("VOTE")) return "VOTE";
-  if (event.startsWith("OTP")) return "OTP";
-  if (event.startsWith("CANDIDATE")) return "CANDIDATE";
-  if (event.startsWith("ELECTION")) return "ELECTION";
-  if (event.startsWith("ADMIN")) return "ADMIN";
-  if (event.startsWith("RESULTS")) return "ELECTION";
-  if (event.includes("FAILED") || event.includes("ERROR")) return "SECURITY";
-  if (event.includes("ALERT") || event.includes("HONEYPOT")) return "SECURITY";
+function getEventCategory(event: string = "", desc: string = ""): string {
+  const ev = (event || "").toUpperCase();
+  const de = (desc || "").toUpperCase();
+
+  // AI
+  if (ev.includes("AI") || de.includes("/AI/") || de.includes("AI_SERVICE") || ev.includes("CLUSTERING")) {
+    return "AI";
+  }
+  // SECURITY
+  if (ev.includes("FAILED") || ev.includes("ERROR") || ev.includes("ALERT") || ev.includes("HONEYPOT") || ev.includes("SUSPICIOUS") || ev.includes("SECURITY")) {
+    return "SECURITY";
+  }
+  // OTP
+  if (ev.includes("OTP") || de.includes("/OTP") || de.includes("OTP")) {
+    return "OTP";
+  }
+  // LOGIN/AUTH
+  if (ev.includes("LOGIN") || ev.includes("LOGOUT") || de.includes("/AUTH/")) {
+    return "LOGIN";
+  }
+  // VOTE
+  if (ev.includes("VOTE") || de.includes("/VOTE/")) {
+    return "VOTE";
+  }
+  // CANDIDATE
+  if (ev.includes("CANDIDATE") || de.includes("/CANDIDATES/")) {
+    return "CANDIDATE";
+  }
+  // PARTY
+  if (ev.includes("PARTY") || ev.includes("PARTIES") || de.includes("/PARTIES/")) {
+    return "PARTY";
+  }
+  // RESULTS
+  if (ev.includes("RESULTS") || ev.includes("TALLY") || de.includes("/RESULTS") || de.includes("PUBLISH-RESULTS")) {
+    return "RESULTS";
+  }
+  // ELECTION
+  if (ev.includes("ELECTION") || de.includes("/ELECTION")) {
+    return "ELECTION";
+  }
+  // ADMIN
+  if (ev.includes("ADMIN") || de.includes("/ADMIN/")) {
+    return "ADMIN";
+  }
+
   return "OTHER";
 }
 
-const EVENT_CATEGORIES = ["ALL", "LOGIN", "VOTE", "OTP", "CANDIDATE", "ELECTION", "ADMIN", "SECURITY", "OTHER"];
+const EVENT_CATEGORIES = ["ALL", "LOGIN", "OTP", "VOTE", "ADMIN", "CANDIDATE", "PARTY", "ELECTION", "SECURITY", "RESULTS", "AI", "OTHER"];
 
 // ── Severity Dot ──────────────────────────────────────────────
 function SeverityDot({ level }: { level: string }) {
@@ -194,6 +229,7 @@ function downloadCsv(logs: AuditLogEntry[]) {
 // ── Main Page ─────────────────────────────────────────────────
 function Page() {
   const queryClient = useQueryClient();
+  const [searchVal, setSearchVal] = useState("");
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("ALL");
   const [page, setPage] = useState(0);
@@ -201,6 +237,7 @@ function Page() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [actorFilter, setActorFilter] = useState("");
   const PAGE_SIZE = 25;
 
   // Build query params (server-side: search, date range; no event_type — category is client-side)
@@ -211,6 +248,7 @@ function Page() {
   if (q) queryParams.q = q;
   if (dateFrom) queryParams.date_from = dateFrom;
   if (dateTo) queryParams.date_to = dateTo;
+  if (actorFilter) queryParams.actor = actorFilter;
 
   const { data, isPending, isFetching } = useQuery({
     queryKey: ["audit-logs", queryParams, autoRefresh],
@@ -225,12 +263,13 @@ function Page() {
   // Client-side filter by event category
   const logs = allLogs.filter((l) => {
     if (category === "ALL") return true;
-    return getEventCategory(l.event) === category;
+    return getEventCategory(l.event, l.desc ?? "") === category;
   });
 
-  const handleSearch = useCallback(() => {
+  const handleSearchCommit = () => {
+    setQ(searchVal);
     setPage(0);
-  }, []);
+  };
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
@@ -325,15 +364,23 @@ function Page() {
 
       {/* ── Filters ─────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="Search descriptions..."
-            className="pl-9"
-          />
+        <div className="flex gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchVal}
+              onChange={(e) => setSearchVal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearchCommit()}
+              placeholder="Search descriptions..."
+              className="pl-9"
+            />
+          </div>
+          <Button
+            onClick={handleSearchCommit}
+            className="bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
+          >
+            Search
+          </Button>
         </div>
         <Input
           type="date"
@@ -354,6 +401,16 @@ function Page() {
           }}
           className="w-full sm:w-40 text-xs"
           title="To date"
+        />
+        <Input
+          value={actorFilter}
+          onChange={(e) => {
+            setActorFilter(e.target.value);
+            setPage(0);
+          }}
+          placeholder="Filter by Actor email..."
+          className="w-full sm:w-48 text-xs"
+          title="Actor / User"
         />
       </div>
 

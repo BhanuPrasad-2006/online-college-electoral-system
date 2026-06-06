@@ -684,6 +684,10 @@ async def get_candidate_me(
         "manifesto_image_url": manifesto.image_url if manifesto else None,
         "manifesto_status": map_manifesto_status_to_frontend(_manifesto_status_raw(manifesto)),
         "manifesto_admin_remarks": manifesto.admin_remarks if manifesto else None,
+        # Party architecture fields
+        "candidate_type": getattr(candidate, "candidate_type", "INDEPENDENT") or "INDEPENDENT",
+        "party_id": str(candidate.party_id) if getattr(candidate, "party_id", None) else None,
+        "party_role": getattr(candidate, "party_role", None),
     }
 
 
@@ -849,20 +853,31 @@ async def upload_manifesto_file(
 
     # Read file data
     file_data = await file.read()
-    if len(file_data) > MAX_MANIFESTO_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File exceeds maximum allowed size of 10MB.",
+
+    # Multi-layer file upload validation via centralized validator
+    from app.validators.file_upload_validator import validate_image_upload, validate_document_upload
+
+    is_pdf = file.content_type == "application/pdf"
+    if is_pdf:
+        validation_result = validate_document_upload(
+            data=file_data,
+            filename=file.filename or "",
+            content_type=file.content_type or "",
+            max_size_bytes=MAX_MANIFESTO_FILE_SIZE,
+        )
+    else:
+        validation_result = validate_image_upload(
+            data=file_data,
+            filename=file.filename or "",
+            content_type=file.content_type or "",
+            max_size_bytes=MAX_MANIFESTO_FILE_SIZE,
         )
 
-    # Check for malicious content
-    suspicious_signatures = [b"<script", b"<?php", b"<% ", b"exec(", b"eval("]
-    for sig in suspicious_signatures:
-        if sig in file_data[:4096]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Security rejection: File contains disallowed content.",
-            )
+    if not validation_result.passed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=validation_result.reason,
+        )
 
     # Validate image content (block AI-generated or malicious images)
     if file.content_type and file.content_type.startswith("image/"):

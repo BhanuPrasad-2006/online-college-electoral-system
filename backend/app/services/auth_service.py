@@ -32,6 +32,7 @@ from app.enums.otp_type import OTPTypeEnum
 from app.enums.roles import UserRoleEnum
 
 from app.core.config import settings
+import app.security.jwt_service as jwt_svc
 
 from app.exceptions.auth_exceptions import (
     InvalidCredentialsError,
@@ -44,6 +45,7 @@ from app.exceptions.auth_exceptions import (
 )
 
 from app.utils.logger import logger
+from app.security.otp_abuse_service import OTPAbuseService
 
 
 # =========================================================
@@ -59,23 +61,16 @@ def _mask_mobile(mobile: str) -> str:
     return f"{'*' * 6}{mobile[-4:]}"
 
 
+from app.security.jwt_service import NORMAL_TOKEN_EXPIRE_DAYS
+
+
 async def _get_token_expiry_minutes(db: AsyncSession) -> int:
         """
-        Get token expiration minutes: 15 minutes during active voting
-        (enough time to browse candidates, read manifestos, and do face auth),
-        180 minutes (3 hours) otherwise.
+        Get token expiration minutes for normal platform sessions.
+        Returns 7-day expiry (10080 minutes) for all normal logins.
+        Voting-specific tokens are issued separately via the voting-token endpoint.
         """
-        try:
-            result = await db.execute(
-                select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN)
-            )
-            voting_open_election = result.scalars().first()
-            if voting_open_election:
-                return 15
-            return 180
-        except Exception as e:
-            logger.error(f"Error checking voting_open election status: {e}")
-            return 180
+        return jwt_svc.NORMAL_TOKEN_EXPIRE_DAYS * 24 * 60
 
 
 # =========================================================
@@ -117,11 +112,23 @@ async def voter_login_step1(
     if not voter.is_verified:
         raise AccountNotVerifiedError()
 
+    # ── OTP abuse prevention: check send cooldown ────────────
+    allowed, msg = await OTPAbuseService.check_resend_cooldown(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
     otp_record, email_otp = await create_and_store_otp(
         db=db,
         recipient=voter.college_email,
         otp_type=OTPTypeEnum.EMAIL,
         expires_in_minutes=3,
+    )
+
+    # Record OTP send attempt
+    await OTPAbuseService.record_attempt(
+        db, recipient=voter.college_email, attempt_type="send", success=True
     )
 
     # Fire SMTP email sending in the background to ensure instant login response
@@ -204,6 +211,13 @@ async def voter_login_step2(
                 f"Try again in {remaining // 60}m {remaining % 60}s."
             )
 
+    # ── OTP abuse prevention: check verify attempt limits ─────
+    allowed, limit_msg, locked = await OTPAbuseService.check_verify_attempts(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(limit_msg)
+
     ok, msg = await verify_otp(
         db=db,
         recipient=voter.college_email,
@@ -212,6 +226,10 @@ async def voter_login_step2(
     )
 
     if not ok:
+        # Record failed verify attempt
+        await OTPAbuseService.record_attempt(
+            db, recipient=voter.college_email, attempt_type="verify", success=False
+        )
         voter.failed_attempts = (voter.failed_attempts or 0) + 1
         if voter.failed_attempts >= 3:
             voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -221,6 +239,11 @@ async def voter_login_step2(
             )
         await db.commit()
         raise OTPError(msg)
+
+    # Record successful verify attempt — clears failure tracking
+    await OTPAbuseService.record_attempt(
+        db, recipient=voter.college_email, attempt_type="verify", success=True
+    )
 
     # Reset lockout on success
     voter.failed_attempts = 0
@@ -331,6 +354,13 @@ async def candidate_login_step1(
         if stored_mobile != entered_mobile:
             raise MobileEmailMismatchError("Mobile number does not match registered candidate mobile.")
 
+        # ── OTP abuse prevention: check send cooldown ────────
+        allowed, msg = await OTPAbuseService.check_resend_cooldown(
+            db, recipient=voter.college_email
+        )
+        if not allowed:
+            raise OTPError(msg)
+
         # Generate and store OTPs
         email_otp_record, email_otp = await create_and_store_otp(
             db=db,
@@ -344,6 +374,14 @@ async def candidate_login_step1(
             recipient=candidate.mobile_number,
             otp_type=OTPTypeEnum.SMS,
             expires_in_minutes=5,
+        )
+
+        # Record OTP send attempts
+        await OTPAbuseService.record_attempt(
+            db, recipient=voter.college_email, attempt_type="send", success=True
+        )
+        await OTPAbuseService.record_attempt(
+            db, recipient=candidate.mobile_number, attempt_type="send", success=True
         )
 
         # Send OTPs
@@ -401,6 +439,13 @@ async def candidate_login_step1(
 
         full_mobile = f"+91 {entered_mobile}"
 
+        # ── OTP abuse prevention: check send cooldown ────────
+        allowed, msg = await OTPAbuseService.check_resend_cooldown(
+            db, recipient=voter.college_email
+        )
+        if not allowed:
+            raise OTPError(msg)
+
         # Generate and store OTPs
         email_otp_record, email_otp = await create_and_store_otp(
             db=db,
@@ -414,6 +459,14 @@ async def candidate_login_step1(
             recipient=full_mobile,
             otp_type=OTPTypeEnum.SMS,
             expires_in_minutes=5,
+        )
+
+        # Record OTP send attempts
+        await OTPAbuseService.record_attempt(
+            db, recipient=voter.college_email, attempt_type="send", success=True
+        )
+        await OTPAbuseService.record_attempt(
+            db, recipient=full_mobile, attempt_type="send", success=True
         )
 
         # Send OTPs
@@ -504,6 +557,13 @@ async def candidate_login_step2(
                 f"Try again in {remaining // 60}m {remaining % 60}s."
             )
 
+    # ── OTP abuse prevention: check verify attempt limits ─────
+    allowed, limit_msg, locked = await OTPAbuseService.check_verify_attempts(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(limit_msg)
+
     # 1. Verify Email OTP
     email_ok, email_msg = await verify_otp(
         db=db,
@@ -521,6 +581,10 @@ async def candidate_login_step2(
     )
 
     if not email_ok or not sms_ok:
+        # ── OTP abuse prevention: record failed verify attempt ──
+        await OTPAbuseService.record_attempt(
+            db, recipient=voter.college_email, attempt_type="verify", success=False
+        )
         voter.failed_attempts = (voter.failed_attempts or 0) + 1
         if voter.failed_attempts >= 3:
             voter.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -533,6 +597,11 @@ async def candidate_login_step2(
             raise OTPError(email_msg)
         else:
             raise OTPError(sms_msg)
+
+    # ── OTP abuse prevention: record successful verify attempt ──
+    await OTPAbuseService.record_attempt(
+        db, recipient=voter.college_email, attempt_type="verify", success=True
+    )
 
     # Reset lockout on success
     voter.failed_attempts = 0
@@ -665,6 +734,13 @@ async def admin_login_step1(
     if not verify_password(password, admin.password_hash):
         raise InvalidCredentialsError("Invalid email or password")
 
+    # ── OTP abuse prevention: check send cooldown ────────────
+    allowed, msg = await OTPAbuseService.check_resend_cooldown(
+        db, recipient=admin.email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
     # 2. Create and store OTPs
     email_otp_record, email_otp = await create_and_store_otp(
         db=db,
@@ -678,6 +754,14 @@ async def admin_login_step1(
         recipient=mobile_number,
         otp_type=OTPTypeEnum.SMS,
         expires_in_minutes=3,
+    )
+
+    # Record OTP send attempts
+    await OTPAbuseService.record_attempt(
+        db, recipient=admin.email, attempt_type="send", success=True
+    )
+    await OTPAbuseService.record_attempt(
+        db, recipient=mobile_number, attempt_type="send", success=True
     )
 
     # 3. Trigger OTP email and SMS in the background
@@ -761,6 +845,13 @@ async def admin_login_step2(
                 f"Try again in {remaining // 60}m {remaining % 60}s."
             )
 
+    # ── OTP abuse prevention: check verify attempt limits ─────
+    allowed, limit_msg, locked = await OTPAbuseService.check_verify_attempts(
+        db, recipient=admin.email
+    )
+    if not allowed:
+        raise OTPError(limit_msg)
+
     # Verify both OTPs
     email_ok, email_msg = await verify_otp(
         db=db,
@@ -770,6 +861,10 @@ async def admin_login_step2(
     )
 
     if not email_ok:
+        # ── OTP abuse prevention: record failed verify attempt ──
+        await OTPAbuseService.record_attempt(
+            db, recipient=admin.email, attempt_type="verify", success=False
+        )
         admin.failed_attempts = (admin.failed_attempts or 0) + 1
         if admin.failed_attempts >= 3:
             admin.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -788,6 +883,10 @@ async def admin_login_step2(
     )
 
     if not sms_ok:
+        # ── OTP abuse prevention: record failed verify attempt ──
+        await OTPAbuseService.record_attempt(
+            db, recipient=mobile, attempt_type="verify", success=False
+        )
         admin.failed_attempts = (admin.failed_attempts or 0) + 1
         if admin.failed_attempts >= 3:
             admin.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -797,6 +896,14 @@ async def admin_login_step2(
             )
         await db.commit()
         raise OTPError(sms_msg)
+
+    # ── OTP abuse prevention: record successful verify attempt ──
+    await OTPAbuseService.record_attempt(
+        db, recipient=admin.email, attempt_type="verify", success=True
+    )
+    await OTPAbuseService.record_attempt(
+        db, recipient=mobile, attempt_type="verify", success=True
+    )
 
     # Success: reset failed attempts and lockout
     admin.failed_attempts = 0
@@ -872,6 +979,18 @@ async def request_password_change_otp(
     if not verify_password(current_password, voter.password_hash):
         raise InvalidCredentialsError("Current password is incorrect")
 
+    # ── OTP abuse prevention: check send cooldown ────────────
+    allowed, msg = await OTPAbuseService.check_resend_cooldown(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
+    # Record OTP send attempt
+    await OTPAbuseService.record_attempt(
+        db, recipient=voter.college_email, attempt_type="send", success=True
+    )
+
     # 3. Create and store OTP
     email_otp_record, email_otp = await create_and_store_otp(
         db=db,
@@ -938,6 +1057,13 @@ async def confirm_password_change(
     email = payload.get("email")
     new_password_hash = payload.get("new_password_hash")
 
+    # ── OTP abuse prevention: check verify attempt limits ─────
+    allowed, limit_msg, _ = await OTPAbuseService.check_verify_attempts(
+        db, recipient=email
+    )
+    if not allowed:
+        raise OTPError(limit_msg)
+
     # Verify the OTP
     email_ok, email_msg = await verify_otp(
         db=db,
@@ -947,7 +1073,16 @@ async def confirm_password_change(
     )
 
     if not email_ok:
+        # ── OTP abuse prevention: record failed verify attempt ──
+        await OTPAbuseService.record_attempt(
+            db, recipient=email, attempt_type="verify", success=False
+        )
         raise OTPError(email_msg)
+
+    # ── OTP abuse prevention: clear failure tracking on success ─
+    await OTPAbuseService.record_attempt(
+        db, recipient=email, attempt_type="verify", success=True
+    )
 
     # Fetch and update voter password
     user_uuid = uuid.UUID(voter_id)
@@ -993,6 +1128,18 @@ async def request_forgot_password_otp(
 
     if not voter:
         raise InvalidCredentialsError("Voter with this email does not exist")
+
+    # ── OTP abuse prevention: check send cooldown ────────────
+    allowed, msg = await OTPAbuseService.check_resend_cooldown(
+        db, recipient=email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
+    # Record OTP send attempt
+    await OTPAbuseService.record_attempt(
+        db, recipient=email, attempt_type="send", success=True
+    )
 
     # 2. Create and store OTP
     email_otp_record, email_otp = await create_and_store_otp(
@@ -1050,6 +1197,13 @@ async def confirm_forgot_password(
 
     email = payload.get("sub")
 
+    # ── OTP abuse prevention: check verify attempt limits ─────
+    allowed, limit_msg, _ = await OTPAbuseService.check_verify_attempts(
+        db, recipient=email
+    )
+    if not allowed:
+        raise OTPError(limit_msg)
+
     # Verify the OTP
     email_ok, email_msg = await verify_otp(
         db=db,
@@ -1059,7 +1213,16 @@ async def confirm_forgot_password(
     )
 
     if not email_ok:
+        # ── OTP abuse prevention: record failed verify attempt ──
+        await OTPAbuseService.record_attempt(
+            db, recipient=email, attempt_type="verify", success=False
+        )
         raise OTPError(email_msg)
+
+    # ── OTP abuse prevention: clear failure tracking on success ─
+    await OTPAbuseService.record_attempt(
+        db, recipient=email, attempt_type="verify", success=True
+    )
 
     # Fetch and update voter password
     query = select(Voter).where(Voter.college_email == email)
@@ -1119,6 +1282,18 @@ async def resend_voter_otp(
                 f"Account locked due to multiple failed OTP attempts. "
                 f"Try again in {remaining // 60}m {remaining % 60}s."
             )
+
+    # ── OTP abuse prevention: check resend cooldown ──────────
+    allowed, msg = await OTPAbuseService.check_resend_cooldown(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
+    # Record OTP resend attempt
+    await OTPAbuseService.record_attempt(
+        db, recipient=voter.college_email, attempt_type="send", success=True
+    )
 
     # Generate new OTP
     otp_record, email_otp = await create_and_store_otp(
@@ -1191,6 +1366,18 @@ async def resend_candidate_otp(
 
     if not candidate:
         raise InvalidCredentialsError("Candidate profile not found")
+
+    # ── OTP abuse prevention: check resend cooldown ──────────
+    allowed, msg = await OTPAbuseService.check_resend_cooldown(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
+    # Record OTP resend attempt
+    await OTPAbuseService.record_attempt(
+        db, recipient=voter.college_email, attempt_type="send", success=True
+    )
 
     # Generate new OTPs
     email_otp_record, email_otp = await create_and_store_otp(
@@ -1276,6 +1463,13 @@ async def resend_candidate_email_otp(
     if not voter:
         raise InvalidCredentialsError("Voter profile not found")
 
+    # ── OTP abuse prevention: check resend cooldown ──────────
+    allowed, msg, _ = await OTPAbuseService.check_send_cooldown(
+        db, recipient=voter.college_email
+    )
+    if not allowed:
+        raise OTPError(msg)
+
     # Generate new Email OTP
     email_otp_record, email_otp = await create_and_store_otp(
         db=db,
@@ -1353,6 +1547,13 @@ async def resend_candidate_sms_otp(
 
     if not candidate:
         raise InvalidCredentialsError("Candidate profile not found")
+
+    # ── OTP abuse prevention: check resend cooldown ──────────
+    allowed, msg, _ = await OTPAbuseService.check_send_cooldown(
+        db, recipient=candidate.mobile_number
+    )
+    if not allowed:
+        raise OTPError(msg)
 
     # Generate new SMS OTP
     sms_otp_record, sms_otp = await create_and_store_otp(

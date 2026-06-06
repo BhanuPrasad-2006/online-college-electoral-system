@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { toast } from "sonner";
 import { fetchCurrentElection, fetchElectionResults, publishResults } from "@/lib/api";
+import { ReconfirmPasswordModal } from "@/components/ReconfirmPasswordModal";
 
 function Page() {
   const [results, setResults] = useState<any[]>([]);
@@ -13,6 +14,7 @@ function Page() {
   const [confirm, setConfirm] = useState(false);
   const [hash, setHash] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reconfirmOpen, setReconfirmOpen] = useState(false);
 
   if (!published && !confirm) {
     return (
@@ -54,23 +56,7 @@ function Page() {
             <Button
               className="bg-destructive text-white hover:bg-destructive/90"
               disabled={loading}
-              onClick={async () => {
-                setLoading(true);
-                try {
-                  const election = await fetchCurrentElection();
-                  await publishResults(election.election_id);
-                  const data = await fetchElectionResults(election.election_id);
-                  setResults(data.results ?? []);
-                  setHash(data.integrity_hash ?? "");
-                  setPublished(true);
-                  setConfirm(false);
-                  toast.success("Results published");
-                } catch (e: any) {
-                  toast.error(e?.message || "Failed to publish results");
-                } finally {
-                  setLoading(false);
-                }
-              }}
+              onClick={() => setReconfirmOpen(true)}
             >
               {loading ? "Publishing..." : "Confirm Publish"}
             </Button>
@@ -124,6 +110,31 @@ function Page() {
           Copy
         </Button>
       </div>
+      {/* Password Reconfirmation Modal */}
+      <ReconfirmPasswordModal
+        open={reconfirmOpen}
+        onOpenChange={setReconfirmOpen}
+        title="Publish Results"
+        description="Publishing results is a sensitive action. Please confirm your password to proceed."
+        actionLabel="Confirm Publish"
+        onVerified={async () => {
+          setLoading(true);
+          try {
+            const election = await fetchCurrentElection();
+            await publishResults(election.election_id);
+            const data = await fetchElectionResults(election.election_id);
+            setResults(data.results ?? []);
+            setHash(data.integrity_hash ?? "");
+            setPublished(true);
+            setConfirm(false);
+            toast.success("Results published");
+          } catch (e: any) {
+            toast.error(e?.message || "Failed to publish results");
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }

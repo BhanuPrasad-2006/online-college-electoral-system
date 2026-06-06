@@ -4,6 +4,7 @@ import {
   usePublicResults,
   useCurrentPhase,
   useDeptTurnout,
+  useKpi,
 } from "@/hooks/use-election-data";
 import {
   Trophy,
@@ -35,6 +36,7 @@ function ResultsPage() {
   const { data: publicResults, isPending: loadingResults } = usePublicResults();
   const { data: phaseData } = useCurrentPhase();
   const { data: deptTurnout = [] } = useDeptTurnout();
+  const { data: kpi } = useKpi();
   const [searchQuery, setSearchQuery] = useState("");
 
   const phase = phaseData?.phase;
@@ -52,16 +54,16 @@ function ResultsPage() {
 
   if (loadingResults && isResultsAnnounced) return <PageLoader />;
 
+  // Derive turnout from live KPI data — never hardcoded
+  const votedCount = kpi?.votesCast ?? 0;
+  const registeredCount = kpi?.registered ?? 0;
+  const remainingCount = Math.max(0, registeredCount - votedCount);
   const turnoutData = [
-    { name: "Voted", value: 43 },
-    { name: "Remaining", value: 57 },
+    { name: "Voted", value: votedCount },
+    { name: "Remaining", value: remainingCount },
   ];
   const COLORS = ["#6C63FF", "#E5E7EB"];
-  const votedPercent = Math.round(
-    (turnoutData[0].value /
-      turnoutData.reduce((s, i) => s + i.value, 0)) *
-      100,
-  );
+  const votedPercent = kpi?.turnout ? Math.round(kpi.turnout) : 0;
 
   const filteredDepts = deptTurnout.filter((d) =>
     (d.department || "").toLowerCase().includes(searchQuery.toLowerCase()),
