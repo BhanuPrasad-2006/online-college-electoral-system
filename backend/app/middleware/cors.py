@@ -38,7 +38,7 @@ def get_cors_headers_from_origin(origin: str | None) -> Dict[str, str]:
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token, x-csrf-token, X-Device-Fingerprint",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token, x-csrf-token, X-Client-Signature",
         }
     return {}
 

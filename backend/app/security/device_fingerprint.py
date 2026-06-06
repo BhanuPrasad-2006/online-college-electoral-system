@@ -14,7 +14,7 @@ from fastapi import HTTPException, Request, status
 from app.core.config import settings
 
 
-FINGERPRINT_HEADER = "X-Device-Fingerprint"
+FINGERPRINT_HEADER = "X-Client-Signature"
 
 
 def generate_fingerprint(request: Request) -> str:

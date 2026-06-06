@@ -255,7 +255,7 @@ class TestVotingHappyPath:
             resp = await voter_client.post(
                 "/api/v1/vote/verify-face-passive",
                 json={"frames": ["data:image/jpeg;base64,dGVzdA=="] * 5, "anti_replay_token": rt1},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 200, f"Step 2 failed: {resp.text}"
             assert resp.json()["success"] is True
@@ -273,7 +273,7 @@ class TestVotingHappyPath:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fst, "anti_replay_token": rt2},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 200, f"Step 3 failed: {resp.text}"
             assert resp.json()["has_voted"] is True
@@ -302,7 +302,7 @@ class TestVotingHappyPath:
             resp = await voter_client.post(
                 "/api/v1/vote/verify-face-passive",
                 json={"frames": ["data:image/jpeg;base64,dGVzdA=="] * 5, "anti_replay_token": rt},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 200
             fst = resp.json()["face_session_token"]
@@ -318,7 +318,7 @@ class TestVotingHappyPath:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fst, "anti_replay_token": rt2},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 200
 
@@ -344,7 +344,7 @@ class TestVotingHappyPath:
             resp = await voter_client.post(
                 "/api/v1/vote/verify-face-passive",
                 json={"frames": ["data:image/jpeg;base64,dGVzdA=="] * 5, "anti_replay_token": rt1},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             fst1 = resp.json()["face_session_token"]
             rt2 = resp.json()["anti_replay_token"]
@@ -359,7 +359,7 @@ class TestVotingHappyPath:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fst1, "anti_replay_token": rt2},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 200
             assert resp.json()["has_voted"] is True
@@ -389,7 +389,7 @@ class TestVotingEdgeCases:
         resp = await voter_client.post(
             "/api/v1/vote/cast",
             json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": expired_token, "anti_replay_token": "any"},
-            headers={"x-device-fingerprint": "test_device"},
+            headers={"X-Client-Signature": "test_device"},
         )
         assert resp.status_code == 401
         assert "expired" in resp.json()["detail"].lower()
@@ -422,7 +422,7 @@ class TestVotingEdgeCases:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fake_token, "anti_replay_token": "tok"},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
         assert resp.status_code == 403
         assert "permission" in resp.json()["detail"].lower()
@@ -442,7 +442,7 @@ class TestVotingEdgeCases:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fake_token, "anti_replay_token": "tok"},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
         assert resp.status_code in (400, 403)
 
@@ -469,7 +469,7 @@ class TestCastVoteNullChecks:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fake_token, "anti_replay_token": "tok"},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
         assert resp.status_code == 404
         assert "voter" in resp.json()["detail"].lower()
@@ -488,7 +488,7 @@ class TestCastVoteNullChecks:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json={"candidate_id": None, "verification_id": VERIFICATION_CODE, "face_session_token": fake_token, "anti_replay_token": "tok"},
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
         assert resp.status_code == 404
         assert "election" in resp.json()["detail"].lower()
@@ -624,7 +624,7 @@ async def _setup_concurrent_session(client: AsyncClient):
         resp = await client.post(
             "/api/v1/vote/verify-face-passive",
             json={"frames": ["data:image/jpeg;base64,dGVzdA=="] * 5, "anti_replay_token": vid_rt},
-            headers={"x-device-fingerprint": "test_device"},
+            headers={"X-Client-Signature": "test_device"},
         )
         assert resp.status_code == 200, f"face-verify failed: {resp.text}"
         fst = resp.json()["face_session_token"]
@@ -696,9 +696,9 @@ class TestConcurrentVote:
 
             results = await asyncio.gather(
                 voter_client.post("/api/v1/vote/cast", json=payload1,
-                                 headers={"x-device-fingerprint": "test_device"}),
+                                 headers={"X-Client-Signature": "test_device"}),
                 voter_client.post("/api/v1/vote/cast", json=payload2,
-                                 headers={"x-device-fingerprint": "test_device"}),
+                                 headers={"X-Client-Signature": "test_device"}),
                 return_exceptions=True,
             )
 
@@ -737,7 +737,7 @@ class TestConcurrentVote:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json=_cast_payload(fst=fst1, anti_replay_token=rt1),
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 200, f"First vote failed: {resp.text}"
             assert resp.json()["has_voted"] is True
@@ -754,7 +754,7 @@ class TestConcurrentVote:
             resp = await voter_client.post(
                 "/api/v1/vote/cast",
                 json=_cast_payload(fst=fst2, anti_replay_token="rt-toctou"),
-                headers={"x-device-fingerprint": "test_device"},
+                headers={"X-Client-Signature": "test_device"},
             )
             assert resp.status_code == 400, (
                 f"Expected 400 for second vote, got {resp.status_code}: {resp.text}"

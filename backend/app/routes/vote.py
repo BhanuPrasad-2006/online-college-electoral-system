@@ -44,6 +44,7 @@ from app.services.face_storage import FaceStorageError, save_voter_face_image
 from app.utils.logger import logger
 from app.utils.helpers import extract_client_ip
 from app.core.config import settings
+from app.security.device_fingerprint import FINGERPRINT_HEADER
 from pydantic import BaseModel
 from typing import Optional, List
 from app.middleware.rate_limit import limiter
@@ -559,7 +560,7 @@ async def verify_face_passive(
         voter.lockout_until = None
         await redis_face_lockout.clear_lockout(str(voter.voter_id))
 
-        device_fingerprint = request.headers.get("x-device-fingerprint") or "unknown_device"
+        device_fingerprint = request.headers.get(FINGERPRINT_HEADER) or "unknown_device"
         ip_hash = hashlib.sha256(ip_addr.encode("utf-8")).hexdigest()
         fp_hash = hashlib.sha256(device_fingerprint.encode("utf-8")).hexdigest()
 
@@ -820,7 +821,7 @@ async def verify_face(
     await redis_face_lockout.clear_lockout(str(voter.voter_id))
 
     ip_addr = extract_client_ip(request)
-    device_fingerprint = request.headers.get("x-device-fingerprint") or "unknown_device"
+    device_fingerprint = request.headers.get(FINGERPRINT_HEADER) or "unknown_device"
 
     ip_hash = hashlib.sha256(ip_addr.encode("utf-8")).hexdigest()
     fp_hash = hashlib.sha256(device_fingerprint.encode("utf-8")).hexdigest()
@@ -1023,7 +1024,7 @@ async def cast_vote(
                 await log_cast_failed("Biometric token voter ID mismatch.")
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Biometric token voter ID mismatch.")
                 
-            device_fingerprint = request.headers.get("x-device-fingerprint") or "unknown_device"
+            device_fingerprint = request.headers.get(FINGERPRINT_HEADER) or "unknown_device"
             
             expected_ip_hash = hashlib.sha256(ip_addr.encode("utf-8")).hexdigest()
             expected_fp_hash = hashlib.sha256(device_fingerprint.encode("utf-8")).hexdigest()

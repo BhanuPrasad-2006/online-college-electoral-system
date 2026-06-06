@@ -32,7 +32,7 @@ def run_test():
 
     with open("test_face_real.jpg", "rb") as f:
         files = {"file": ("face.jpg", f, "image/jpeg")}
-        headers = {"Authorization": f"Bearer {VOTER_JWT}", "X-CSRF-Token": CSRF, "X-Device-Fingerprint": FP}
+        headers = {"Authorization": f"Bearer {VOTER_JWT}", "X-CSRF-Token": CSRF, "X-Client-Signature": FP}
         resp = requests.post(f"{BASE}/api/v1/vote/upload-photo", files=files, headers=headers)
 
     if resp.status_code == 200:

@@ -202,7 +202,7 @@ async function post<T>(path: string, body: object): Promise<T> {
   }
   const fp = sessionStorage.getItem("collegevote-fingerprint");
   if (fp) {
-    headers["X-Device-Fingerprint"] = fp;
+    headers["X-Client-Signature"] = fp;
   }
   let res: Response;
   try {
@@ -237,7 +237,7 @@ async function get<T>(path: string): Promise<T> {
   }
   const fp_get = sessionStorage.getItem("collegevote-fingerprint");
   if (fp_get) {
-    headers["X-Device-Fingerprint"] = fp_get;
+    headers["X-Client-Signature"] = fp_get;
   }
   let res: Response;
   try {
@@ -275,7 +275,7 @@ async function put<T>(path: string, body: object): Promise<T> {
   }
   const fp = sessionStorage.getItem("collegevote-fingerprint");
   if (fp) {
-    headers["X-Device-Fingerprint"] = fp;
+    headers["X-Client-Signature"] = fp;
   }
   let res: Response;
   try {
@@ -457,7 +457,7 @@ export async function uploadVoterOwnPhoto(file: File): Promise<{
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
 
   let res: Response;
   try {
@@ -495,7 +495,7 @@ export async function verifyVoterId(verificationId: string) {
   headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetch(`${API_BASE_URL}/vote/verify-id`, {
     method: "POST",
     headers,
@@ -516,7 +516,7 @@ export async function verifyFace(params: {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetch(`${API_BASE_URL}/vote/verify-face`, {
     method: "POST",
     headers,
@@ -545,7 +545,7 @@ export async function verifyFacePassive(params: {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetch(`${API_BASE_URL}/vote/verify-face-passive`, {
     method: "POST",
     headers,
@@ -597,7 +597,7 @@ export async function castVote(params: {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetch(`${API_BASE_URL}/vote/cast`, {
     method: "POST",
     headers,
@@ -1096,7 +1096,7 @@ export async function deleteAnnouncement(announcementId: string) {
   }
   const fp = sessionStorage.getItem("collegevote-fingerprint");
   if (fp) {
-    headers["X-Device-Fingerprint"] = fp;
+    headers["X-Client-Signature"] = fp;
   }
   let res: Response;
   try {
@@ -1146,7 +1146,7 @@ export async function submitCampaignMedia(formData: FormData) {
   }
   const fpMedia = sessionStorage.getItem("collegevote-fingerprint");
   if (fpMedia) {
-    headers["X-Device-Fingerprint"] = fpMedia;
+    headers["X-Client-Signature"] = fpMedia;
   }
   const res = await fetch(`${API_BASE_URL}/media`, {
     method: "POST",
@@ -1179,7 +1179,7 @@ export async function reviewCampaignMedia(
   }
   const fpReview = sessionStorage.getItem("collegevote-fingerprint");
   if (fpReview) {
-    headers["X-Device-Fingerprint"] = fpReview;
+    headers["X-Client-Signature"] = fpReview;
   }
   const res = await fetch(`${API_BASE_URL}/media/${mediaId}/status`, {
     method: "PUT",
@@ -1206,7 +1206,7 @@ async function del<T>(path: string): Promise<T> {
   }
   const fp = sessionStorage.getItem("collegevote-fingerprint");
   if (fp) {
-    headers["X-Device-Fingerprint"] = fp;
+    headers["X-Client-Signature"] = fp;
   }
   let res: Response;
   try {
@@ -1262,7 +1262,7 @@ export async function requestVotingToken() {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetch(`${API_BASE_URL}/auth/voting-token`, { method: "POST", headers });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? data.detail ?? "Failed to request voting token");
@@ -1277,7 +1277,7 @@ export async function reconfirmPassword(currentPassword: string) {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetch(`${API_BASE_URL}/auth/reconfirm-password`, {
     method: "POST",
     headers,
@@ -1352,7 +1352,7 @@ export async function cancelPartyInvitation(invitationId: string) {
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
   const fp = sessionStorage.getItem("collegevote-fingerprint");
-  if (fp) headers["X-Device-Fingerprint"] = fp;
+  if (fp) headers["X-Client-Signature"] = fp;
   const res = await fetchWithRetry(`${API_BASE_URL}/parties/me/invite/${invitationId}`, {
     method: "DELETE",
     headers,

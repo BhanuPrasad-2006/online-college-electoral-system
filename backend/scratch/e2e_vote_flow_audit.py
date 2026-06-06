@@ -203,7 +203,7 @@ async def main():
                 "/api/v1/vote/verify-face-passive",
                 headers={
                     "Authorization": f"Bearer {token}",
-                    "X-Device-Fingerprint": DEVICE_FP,
+                    "X-Client-Signature": DEVICE_FP,
                 },
                 json={"frames": frames, "anti_replay_token": anti},
             )
@@ -235,7 +235,7 @@ async def main():
                 "/api/v1/vote/cast",
                 headers={
                     "Authorization": f"Bearer {token}",
-                    "X-Device-Fingerprint": DEVICE_FP,
+                    "X-Client-Signature": DEVICE_FP,
                 },
                 json={
                     "candidate_id": str(candidate.candidate_id),

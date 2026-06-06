@@ -258,7 +258,7 @@ class TestBiometricVerify:
             resp = await client.post(
                 "/api/v1/vote/verify-face",
                 json={"live_face_image": "data:image/jpeg;base64,dGVzdA==", "anti_replay_token": "token1"},
-                headers={"x-device-fingerprint": "test_device"}
+                headers={"X-Client-Signature": "test_device"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -359,7 +359,7 @@ class TestBiometricVerify:
                 "anti_replay_token": "replay1",
                 "face_session_token": token
             },
-            headers={"x-device-fingerprint": "different_device"}
+            headers={"X-Client-Signature": "different_device"}
         )
         assert resp.status_code == 403
         assert "security validation failed" in resp.json()["detail"].lower()
@@ -407,7 +407,7 @@ class TestBiometricVerify:
                     "anti_replay_token": "replay1",
                     "face_session_token": token
                 },
-                headers={"x-device-fingerprint": "test_device"}
+                headers={"X-Client-Signature": "test_device"}
             )
             assert resp.status_code == 200
             assert resp.json()["has_voted"] is True
@@ -427,7 +427,7 @@ class TestBiometricVerify:
                     "anti_replay_token": "replay2",
                     "face_session_token": token
                 },
-                headers={"x-device-fingerprint": "test_device"}
+                headers={"X-Client-Signature": "test_device"}
             )
             assert resp.status_code == 401
             assert "already been consumed" in resp.json()["detail"].lower()
@@ -469,7 +469,7 @@ class TestBiometricVerify:
                     "anti_replay_token": "replay1",
                     "face_session_token": token
                 },
-                headers={"x-device-fingerprint": "test_device"}
+                headers={"X-Client-Signature": "test_device"}
             )
 
         assert resp.status_code == 500
@@ -503,7 +503,7 @@ class TestBiometricVerify:
                     "frames": ["data:image/jpeg;base64,dGVzdA=="] * 5,
                     "anti_replay_token": "token1"
                 },
-                headers={"x-device-fingerprint": "test_device"}
+                headers={"X-Client-Signature": "test_device"}
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -532,7 +532,7 @@ class TestBiometricVerify:
                     "frames": ["data:image/jpeg;base64,dGVzdA=="] * 5,
                     "anti_replay_token": "token1"
                 },
-                headers={"x-device-fingerprint": "test_device"}
+                headers={"X-Client-Signature": "test_device"}
             )
             assert resp.status_code == 400
             data = resp.json()

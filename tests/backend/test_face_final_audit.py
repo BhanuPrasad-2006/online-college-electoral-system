@@ -319,7 +319,7 @@ async def test_success_issues_face_session_token(voter_client):
         "/api/v1/vote/verify-face-passive",
         headers={
             "Authorization": f"Bearer {token}",
-            "X-Device-Fingerprint": "audit-fp",
+            "X-Client-Signature": "audit-fp",
         },
         json={"frames": frames, "anti_replay_token": anti},
     )
