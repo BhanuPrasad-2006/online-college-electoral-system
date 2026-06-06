@@ -205,23 +205,26 @@ async def notify_voting_started(election_title: str):
         logger.error(f"Error in notify_voting_started: {e}", exc_info=True)
 
 
-async def notify_results_published(election_title: str):
-    """Notify all voters and contestants (candidates) via email that results are published."""
+async def notify_results_published(election_title: str, election_id: str | None = None):
+    """
+    Notify all voters via email that results are published,
+    and auto-email each candidate a personalised PDF report.
+    """
     try:
         from app.db.session import SessionLocal
         async with SessionLocal() as db:
-            # Fetch all voters
+            # ── 1. Notify all voters ─────────────────────────────────
             result = await db.execute(select(Voter))
             voters = result.scalars().all()
-            
+
             results_url = "http://localhost:8080/voter/dashboard"
-            
+
             logger.info(f"Broadcasting results published notifications to {len(voters)} voters...")
-            
+
             for voter in voters:
                 if not voter.college_email:
                     continue
-                    
+
                 email_body = f"""
                 <html>
                 <body style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px;">
@@ -249,7 +252,7 @@ async def notify_results_published(election_title: str):
                 </body>
                 </html>
                 """
-                
+
                 asyncio.create_task(
                     send_election_email(
                         to_email=voter.college_email,
@@ -258,6 +261,130 @@ async def notify_results_published(election_title: str):
                         html_body=email_body
                     )
                 )
+
+            # ── 2. Auto-email personalised PDF report to each candidate ──
+            if election_id:
+                try:
+                    election_uuid = uuid.UUID(election_id)
+                except ValueError:
+                    election_uuid = None
+
+                if election_uuid:
+                    try:
+                        cand_res = await db.execute(
+                            select(Candidate)
+                            .options(joinedload(Candidate.voter), joinedload(Candidate.position))
+                            .where(Candidate.election_id == election_uuid)
+                        )
+                        candidates = cand_res.scalars().unique().all()
+
+                        from app.services.result_service import ResultService
+                        from app.services.pdf_service import PDFService
+                        from app.services.email_service import send_election_email_with_attachment
+                        from app.models.manifesto import Manifesto
+
+                        logger.info(f"Generating & emailing PDF reports to {len(candidates)} candidates...")
+
+                        for candidate in candidates:
+                            if not candidate.voter or not candidate.voter.college_email:
+                                continue
+
+                            voter_obj = candidate.voter
+                            candidate_id_str = str(candidate.candidate_id)
+
+                            # Get result data
+                            result_service = ResultService(db)
+                            result_data = await result_service.get_candidate_result(election_id, candidate_id_str)
+                            if not result_data:
+                                logger.warning(f"No result data for candidate {candidate_id_str}, skipping PDF email")
+                                continue
+
+                            # Fetch manifesto for AI summary
+                            man_query = select(Manifesto).where(Manifesto.candidate_id == candidate.candidate_id)
+                            man_res = await db.execute(man_query)
+                            manifesto = man_res.scalars().first()
+
+                            ai_summary = ""
+                            manifesto_text = ""
+                            if manifesto:
+                                manifesto_text = manifesto.content or ""
+                                if manifesto.ai_analysis:
+                                    import json
+                                    try:
+                                        analysis = json.loads(manifesto.ai_analysis)
+                                        ai_summary = analysis.get("summary", "")
+                                    except Exception:
+                                        pass
+
+                            # Generate PDF in memory
+                            pdf_buffer = PDFService.generate_candidate_report(
+                                candidate_name=voter_obj.full_name or "Unknown",
+                                department=voter_obj.department or "Unknown",
+                                position_title=candidate.position.title if candidate.position else "Unknown",
+                                election_title=election_title,
+                                vote_count=result_data["vote_count"],
+                                total_position_votes=result_data["total_position_votes"],
+                                vote_percentage=result_data["vote_percentage"],
+                                rank=result_data["rank"],
+                                winner_status=result_data["winner_status"],
+                                ai_summary=ai_summary,
+                                manifesto_text=manifesto_text
+                            )
+
+                            pdf_bytes = pdf_buffer.getvalue()
+                            filename = f"Election_Report_{voter_obj.full_name.replace(' ', '_')}.pdf"
+
+                            # Candidate-specific email body
+                            cand_email_body = f"""
+                            <html>
+                            <body style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px;">
+                                <div style="background: #6c63ff; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+                                    <h2 style="color: white; margin: 0;">🗳️ Your Election Report</h2>
+                                </div>
+                                <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
+                                    <p style="color: #374151; font-size: 16px;">Hi <strong>{voter_obj.full_name}</strong>,</p>
+                                    <p style="color: #374151; font-size: 15px; line-height: 1.5;">
+                                        The results for <strong>{election_title}</strong> are officially out!
+                                    </p>
+                                    <p style="color: #374151; font-size: 15px; line-height: 1.5;">
+                                        Please find attached your <strong>detailed personalised election report (PDF)</strong>
+                                        containing your vote count, position rank, vote percentage, and AI analysis summary.
+                                    </p>
+                                    <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                                        <p style="margin: 0; font-size: 14px;">
+                                            <strong>Position:</strong> {candidate.position.title if candidate.position else 'N/A'}<br/>
+                                            <strong>Status:</strong> {result_data['winner_status']}<br/>
+                                            <strong>Votes Received:</strong> {result_data['vote_count']}<br/>
+                                            <strong>Rank:</strong> #{result_data['rank']}<br/>
+                                            <strong>Vote %:</strong> {result_data['vote_percentage']}%
+                                        </p>
+                                    </div>
+                                    <p style="color: #374151; font-size: 14px; line-height: 1.5;">
+                                        You can also download the report anytime from your candidate dashboard on the portal.
+                                    </p>
+                                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                                    <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+                                        This is an automated notification from the College Electoral System.
+                                    </p>
+                                </div>
+                            </body>
+                            </html>
+                            """
+
+                            asyncio.create_task(
+                                send_election_email_with_attachment(
+                                    to_email=voter_obj.college_email,
+                                    recipient_name=voter_obj.full_name,
+                                    subject=f"Your Election Report - {election_title}",
+                                    html_body=cand_email_body,
+                                    attachment_bytes=pdf_bytes,
+                                    attachment_filename=filename
+                                )
+                            )
+
+                            logger.info(f"PDF report emailed to candidate {voter_obj.college_email}")
+                    except Exception as e:
+                        logger.error(f"Error emailing candidate PDF reports: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Error in notify_results_published: {e}", exc_info=True)
 
@@ -745,8 +872,8 @@ async def publish_results(
     await db.refresh(election)
     _reset_election_cache()
 
-    # Notify voters in background
-    asyncio.create_task(notify_results_published(election.title))
+    # Notify voters in background and auto-email candidate PDF reports
+    asyncio.create_task(notify_results_published(election.title, str(election_uuid)))
 
     return {
         "message": "Results successfully published",

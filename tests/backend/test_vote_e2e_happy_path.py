@@ -205,10 +205,22 @@ def _face_passive_mocks():
         patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True),
         patch("app.security.anti_replay_service.AntiReplayService.generate_token", return_value="rt-face"),
         patch("app.routes.vote.normalize_image", return_value=MagicMock()),
-        patch("app.routes.vote.check_image_quality", return_value=(True, None)),
+        patch("app.services.face_service.assess_frame_quality", return_value={
+            "blur": 85.0,
+            "brightness": 120.0,
+            "contrast": 50.0,
+            "face_size": 20.0,
+            "centeredness": 90.0,
+            "confidence": 95.0,
+            "classification": "EXCELLENT",
+            "has_face": True,
+            "box": [0, 0, 10, 10],
+            "face_count": 1
+        }),
+        patch("app.services.face_service.enhance_frame", side_effect=lambda img, q: img),
+        patch("cv2.imencode", return_value=(True, MagicMock(tobytes=lambda: b"fake_bytes"))),
         patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512),
         patch("app.routes.vote.check_passive_liveness", return_value=(True, "passed")),
-        patch("app.routes.vote.compute_majority_match", return_value=(True, 5, 5, 92.5)),
         patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False),
     ]
 

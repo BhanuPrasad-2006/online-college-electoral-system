@@ -37,7 +37,7 @@ _MIN_EMBEDDING_DRIFT = 0.00001
 
 # Maximum embedding drift — if too high, the face moved too much (cover swap).
 # RAISED: Some natural head wobble on mobile is larger than 0.30.
-_MAX_EMBEDDING_DRIFT = 0.50
+_MAX_EMBEDDING_DRIFT = 0.60
 
 # Minimum brightness std-deviation across frames (live scenes have micro-flicker).
 # LOWERED: Mobile/webcam cameras auto-adjust exposure — very stable brightness is normal.
@@ -217,7 +217,9 @@ def _check_embedding_drift(embeddings: list) -> tuple[bool, Optional[str]]:
             return False, "Could not compute embedding distances"
 
         mean_drift = float(np.mean(distances))
-        logger.debug(f"Passive liveness embedding drift: {mean_drift:.6f}")
+        min_drift = float(np.min(distances))
+        max_drift = float(np.max(distances))
+        logger.info(f"Passive liveness embedding drift stats: min_drift={min_drift:.6f}, avg_drift={mean_drift:.6f}, max_drift={max_drift:.6f}")
 
         del distances
         gc.collect()

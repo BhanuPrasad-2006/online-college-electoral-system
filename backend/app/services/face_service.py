@@ -571,3 +571,195 @@ class BehavioralBiometrics:
     def analyze_interactions():
         """Stub interface for mouse/keyboard behavioral biometrics"""
         pass
+
+
+def assess_frame_quality(img: np.ndarray) -> dict:
+    """
+    Assess quality of a captured frame:
+    - Blur score (Laplacian variance)
+    - Brightness score (mean pixel value)
+    - Contrast score (standard deviation of pixel values)
+    - Face size % (face area relative to image area)
+    - Face centeredness (distance from center of face bounding box to center of image)
+    - Face confidence (scaled weight or default confidence indicator)
+    
+    Returns a dictionary of metrics including classification: EXCELLENT, GOOD, ACCEPTABLE, POOR.
+    """
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    except Exception as e:
+        logger.error(f"Failed to convert frame to grayscale: {e}")
+        return {
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "face_size": 0.0,
+            "centeredness": 0.0,
+            "confidence": 0.0,
+            "classification": "POOR",
+            "has_face": False,
+            "box": None
+        }
+
+    # 1. Blur score
+    blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    # 2. Brightness score
+    brightness_score = float(np.mean(gray))
+
+    # 3. Contrast score
+    contrast_score = float(np.std(gray))
+
+    # 4. Face Detection & sizing/positioning
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    
+    # Try detectMultiScale3 to get confidence score
+    faces = []
+    confidence = 0.0
+    try:
+        faces_detected, _, levelWeights = face_cascade.detectMultiScale3(
+            gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60), outputRejectLevels=True
+        )
+        if len(faces_detected) > 0:
+            faces = faces_detected
+            confidence = float(levelWeights[0][0]) * 10.0  # scale to a nice range
+            confidence = min(100.0, max(10.0, confidence))
+    except Exception:
+        # Fallback to standard detect
+        faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(60, 60))
+        confidence = 95.0 if len(faces) > 0 else 0.0
+
+    has_face = len(faces) > 0
+    face_size_pct = 0.0
+    centeredness = 0.0
+    box = None
+
+    if has_face:
+        # If multiple faces are detected, use the largest one
+        largest_face = max(faces, key=lambda f: f[2] * f[3])
+        x, y, w, h = largest_face
+        box = [int(x), int(y), int(w), int(h)]
+        
+        # Face size %
+        face_area = w * h
+        img_area = img.shape[0] * img.shape[1]
+        face_size_pct = (face_area / img_area) * 100.0
+
+        # Centeredness
+        img_center_x = img.shape[1] / 2
+        img_center_y = img.shape[0] / 2
+        face_center_x = x + w / 2
+        face_center_y = y + h / 2
+        
+        dist = np.sqrt((face_center_x - img_center_x)**2 + (face_center_y - img_center_y)**2)
+        max_dist = np.sqrt(img_center_x**2 + img_center_y**2)
+        centeredness = float(max(0.0, (1.0 - dist / max_dist) * 100.0))
+
+    # Classification
+    # Excellent
+    if (has_face and 
+        blur_score >= 80.0 and 
+        100.0 <= brightness_score <= 180.0 and 
+        contrast_score >= 45.0 and 
+        face_size_pct >= 15.0 and 
+        centeredness >= 85.0):
+        classification = "EXCELLENT"
+    # Good
+    elif (has_face and 
+          blur_score >= 40.0 and 
+          70.0 <= brightness_score <= 200.0 and 
+          contrast_score >= 35.0 and 
+          face_size_pct >= 10.0 and 
+          centeredness >= 70.0):
+        classification = "GOOD"
+    # Acceptable
+    elif (has_face and 
+          blur_score >= 12.0 and 
+          40.0 <= brightness_score <= 220.0 and 
+          contrast_score >= 20.0 and 
+          face_size_pct >= 5.0 and 
+          centeredness >= 45.0):
+        classification = "ACCEPTABLE"
+    # Poor
+    else:
+        classification = "POOR"
+
+    return {
+        "blur": round(blur_score, 2),
+        "brightness": round(brightness_score, 2),
+        "contrast": round(contrast_score, 2),
+        "face_size": round(face_size_pct, 2),
+        "centeredness": round(centeredness, 2),
+        "confidence": round(confidence, 2),
+        "classification": classification,
+        "has_face": has_face,
+        "box": box,
+        "face_count": len(faces) if has_face else 0
+    }
+
+
+def enhance_frame(img: np.ndarray, quality: str) -> np.ndarray:
+    """
+    Enhance a frame classified as ACCEPTABLE or POOR:
+    - CLAHE (histogram equalization in luminance space)
+    - Brightness normalization
+    - Contrast normalization
+    - Noise reduction (bilateral filter)
+    - Gamma correction
+    Does NOT alter facial geometries or identity features.
+    """
+    # If already EXCELLENT or GOOD, return unmodified
+    if quality in ("EXCELLENT", "GOOD"):
+        return img.copy()
+
+    enhanced = img.copy()
+
+    # 1. CLAHE contrast equalization on luminance channel
+    try:
+        ycrcb = cv2.cvtColor(enhanced, cv2.COLOR_BGR2YCrCb)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        ycrcb[:, :, 0] = clahe.apply(ycrcb[:, :, 0])
+        enhanced = cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2BGR)
+    except Exception as e:
+        logger.warning(f"Failed to apply CLAHE enhancement: {e}")
+
+    # 2. Brightness & Contrast normalization
+    try:
+        gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
+        mean_val = np.mean(gray)
+        target_mean = 125.0
+        factor = target_mean / max(mean_val, 1.0)
+        # Limit brightness adjustment to avoid blowouts
+        factor = max(0.6, min(1.6, factor))
+        table = np.array([min(255, int(i * factor)) for i in range(256)]).astype("uint8")
+        enhanced = cv2.LUT(enhanced, table)
+    except Exception as e:
+        logger.warning(f"Failed to normalize brightness/contrast: {e}")
+
+    # 3. Gamma Correction (non-linear brightness adjustment for shadow detail)
+    try:
+        gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
+        mean_val = np.mean(gray)
+        if mean_val < 90.0:
+            gamma = 0.75
+        elif mean_val > 180.0:
+            gamma = 1.25
+        else:
+            gamma = 1.0
+            
+        if gamma != 1.0:
+            inv_gamma = 1.0 / gamma
+            table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+            enhanced = cv2.LUT(enhanced, table)
+    except Exception as e:
+        logger.warning(f"Failed to apply gamma correction: {e}")
+
+    # 4. Noise reduction via bilateral filter (preserves edges/facial structures)
+    try:
+        enhanced = cv2.bilateralFilter(enhanced, d=5, sigmaColor=40, sigmaSpace=40)
+    except Exception as e:
+        logger.warning(f"Failed to apply bilateral noise reduction: {e}")
+
+    return enhanced

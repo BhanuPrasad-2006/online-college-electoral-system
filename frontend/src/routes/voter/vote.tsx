@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, AlertTriangle, X, ShieldCheck, Ban, Lock, Clock, RefreshCw, Check, ScanFace } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { castVote, verifyVoterId, verifyFacePassive } from "@/lib/api";
+import { castVote, verifyVoterId, verifyFacePassive, requestVotingToken, saveVotingToken } from "@/lib/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,7 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
 // ── Passive capture constants ───────────────────────────────────
-const TOTAL_FRAMES   = 5;
+const TOTAL_FRAMES   = 10;
 const FRAME_W        = 480;
 const FRAME_H        = 640;
 const JPEG_QUALITY   = 0.82;   // mobile-optimised, low bandwidth
@@ -168,6 +168,26 @@ function VotePage() {
     if (!token) return;
     const jwtToken = token;
 
+    function formatTimeFriendly(diffSec: number): string {
+      if (diffSec <= 30) {
+        return "less than 30s left";
+      }
+      if (diffSec <= 60) {
+        return "less than 1 min left";
+      }
+      const minutes = Math.floor(diffSec / 60);
+      if (minutes === 1) {
+        return "only 1 min left";
+      }
+      if (minutes <= 5) {
+        return `only ${minutes} mins left`;
+      }
+      if (minutes <= 10) {
+        return `${minutes} mins left`;
+      }
+      return `${minutes} mins`;
+    }
+
     function updateTimer() {
       try {
         const base64Url = jwtToken.split(".")[1];
@@ -185,9 +205,7 @@ function VotePage() {
           nav({ to: "/" });
           toast.error("Session expired. Please login again.");
         } else {
-          const minutes = Math.floor(diff / 60);
-          const seconds = diff % 60;
-          setTimeLeft(`${minutes}m ${seconds}s`);
+          setTimeLeft(formatTimeFriendly(diff));
         }
       } catch (e) {
         console.error("Failed to decode token for timer", e);
@@ -199,97 +217,7 @@ function VotePage() {
     return () => clearInterval(interval);
   }, [logout, nav, step]);
 
-  if ((isPending || isVoterPending) && step === "verification_id") return <PageLoader />;
 
-  if (step === "success") {
-    if (!txDetails) {
-      return <PageLoader />;
-    }
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6 animate-in fade-in duration-300">
-        <div className="max-w-lg w-full bg-card rounded-2xl shadow-lg border border-border p-8 md:p-10 space-y-6 text-center">
-          
-          <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center animate-in zoom-in duration-500">
-            <CheckCircle2 className="h-12 w-12 text-emerald-500 animate-pulse" />
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground animate-in slide-in-from-top-2 duration-300">
-              ✓ Vote Successfully Recorded
-            </h1>
-            <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg py-2 max-w-sm mx-auto font-medium">
-              Your vote has been permanently recorded.
-            </p>
-          </div>
-
-          {/* Receipt Card */}
-          <div className="bg-muted/40 rounded-xl p-5 border border-border/70 text-left space-y-4 text-sm font-sans">
-            <div className="flex justify-between border-b border-border/50 pb-2">
-              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Election Name</span>
-              <span className="font-semibold text-foreground">{txDetails.electionName}</span>
-            </div>
-            
-            <div className="flex flex-col space-y-1">
-              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Transaction ID</span>
-              <span className="font-mono text-xs text-foreground bg-background rounded border border-border p-2 select-all break-all leading-relaxed">
-                {txDetails.voteId}
-              </span>
-            </div>
-
-            <div className="flex flex-col space-y-1">
-              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Audit Hash</span>
-              <span className="font-mono text-[11px] text-foreground bg-background rounded border border-border p-2 select-all break-all leading-normal">
-                {txDetails.currentHash}
-              </span>
-            </div>
-
-            <div className="flex justify-between border-t border-border/50 pt-3 text-xs">
-              <span className="text-muted-foreground font-semibold uppercase tracking-wider">Timestamp</span>
-              <span className="font-mono text-foreground font-semibold">{new Date(txDetails.timestamp).toLocaleString()}</span>
-            </div>
-          </div>
-
-          <div className="pt-2">
-            <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-6 font-semibold shadow-md transition-all text-base"
-              onClick={handleReturnToDashboard}
-            >
-              Return to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Block screen if voter doesn't exist or is not permitted to vote
-  if (voter && !voter.vote_permission) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="max-w-md text-center bg-card rounded-2xl shadow-sm border border-border p-10 space-y-5">
-          <div className="mx-auto h-20 w-20 rounded-full bg-warning/15 flex items-center justify-center animate-in zoom-in duration-500">
-            <Lock className="h-10 w-10 text-warning" />
-          </div>
-          <h1 className="text-2xl font-bold mt-5 text-foreground">Access Denied</h1>
-          <p className="text-sm text-muted-foreground">
-            The election coordinator has not authorized your student profile to vote yet.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Please wait for admin approval on the dashboard or contact the election coordinator.
-          </p>
-          {/* Session timer only shown during voting — hidden on blocked screen */}
-          <div className="pt-4">
-            <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-3 font-semibold"
-              onClick={() => nav({ to: "/voter/dashboard" })}
-            >
-              Return to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const presidents = candidates.filter(
     (c) => c.position === "President" && (c.status || "").toLowerCase() === "approved",
@@ -308,6 +236,16 @@ function VotePage() {
       if (res.success) {
         if (res.anti_replay_token) {
           setAntiReplayToken(res.anti_replay_token);
+        }
+        // Fetch and save voting token
+        try {
+          const votingTokenRes = await requestVotingToken();
+          saveVotingToken(votingTokenRes.voting_token);
+        } catch (tokenErr: any) {
+          console.error("Failed to request voting token:", tokenErr);
+          toast.error(tokenErr.message || "Failed to establish voting session. Please try again.");
+          setIsVerifying(false);
+          return;
         }
         setStep("ballot");
         toast.success("Verification successful!");
@@ -600,7 +538,7 @@ function VotePage() {
     setWebcamError(null);
 
     let activeToken = antiReplayToken;
-    // Refresh anti-replay token dynamically so retries/subsequent runs always have a fresh valid token
+    // Refresh anti-replay token AND voting token so retries always have fresh valid tokens
     try {
       const res = await verifyVoterId(verificationCode.trim());
       if (res.success && res.anti_replay_token) {
@@ -609,6 +547,17 @@ function VotePage() {
       }
     } catch (e) {
       console.error("Anti-replay token refresh failed:", e);
+    }
+
+    // Always refresh the voting token before face capture to prevent expiry errors
+    try {
+      const vtRes = await requestVotingToken();
+      saveVotingToken(vtRes.voting_token);
+    } catch (vtErr: any) {
+      console.error("Voting token refresh failed:", vtErr);
+      setPassive("failed");
+      setPassiveError(vtErr.message || "Failed to establish voting session. Please try again.");
+      return;
     }
 
     const isCameraActive = !!(webcamRef.current?.video && webcamRef.current.video.readyState >= 2);
@@ -704,9 +653,8 @@ function VotePage() {
         setPassive("failed");
         setTimeout(() => { logout(); nav({ to: "/" }); }, 3000);
       } else {
-        // Generic message for all other failures (req #8)
         setPassive("failed");
-        setPassiveError("Unable to verify live face. Please try again.");
+        setPassiveError(msg || "Unable to verify live face. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
@@ -720,6 +668,113 @@ function VotePage() {
       return () => clearTimeout(t);
     }
   }, [step, runPassiveCapture]);
+
+  if ((isPending || isVoterPending) && step === "verification_id") return <PageLoader />;
+
+  if (step === "success") {
+    if (!txDetails) {
+      return <PageLoader />;
+    }
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6 animate-in fade-in duration-300">
+        <div className="max-w-lg w-full bg-card rounded-2xl shadow-lg border border-border p-8 md:p-10 space-y-6 text-center">
+          
+          <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center animate-in zoom-in duration-500">
+            <CheckCircle2 className="h-12 w-12 text-emerald-500 animate-pulse" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground animate-in slide-in-from-top-2 duration-300">
+              ✓ Vote Successfully Recorded
+            </h1>
+            <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg py-2 max-w-sm mx-auto font-medium">
+              Your vote has been permanently recorded.
+            </p>
+          </div>
+
+          {/* Receipt Card */}
+          <div className="bg-muted/40 rounded-xl p-5 border border-border/70 text-left space-y-4 text-sm font-sans">
+            <div className="flex justify-between border-b border-border/50 pb-2">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Election Name</span>
+              <span className="font-semibold text-foreground">{txDetails.electionName}</span>
+            </div>
+            
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Transaction ID</span>
+              <span className="font-mono text-xs text-foreground bg-background rounded border border-border p-2 select-all break-all leading-relaxed">
+                {txDetails.voteId}
+              </span>
+            </div>
+
+            <div className="flex flex-col space-y-1">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Audit Hash</span>
+              <span className="font-mono text-[11px] text-foreground bg-background rounded border border-border p-2 select-all break-all leading-normal">
+                {txDetails.currentHash}
+              </span>
+            </div>
+
+            <div className="flex justify-between border-t border-border/50 pt-3 text-xs">
+              <span className="text-muted-foreground font-semibold uppercase tracking-wider">Timestamp</span>
+              <span className="font-mono text-foreground font-semibold">
+                {new Date(
+                  txDetails.timestamp.endsWith("Z") || txDetails.timestamp.includes("+")
+                    ? txDetails.timestamp
+                    : txDetails.timestamp + "Z"
+                ).toLocaleString("en-IN", {
+                  timeZone: "Asia/Kolkata",
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+                })} IST
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-6 font-semibold shadow-md transition-all text-base"
+              onClick={handleReturnToDashboard}
+            >
+              Return to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Block screen if voter doesn't exist or is not permitted to vote
+  if (voter && !voter.vote_permission) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md text-center bg-card rounded-2xl shadow-sm border border-border p-10 space-y-5">
+          <div className="mx-auto h-20 w-20 rounded-full bg-warning/15 flex items-center justify-center animate-in zoom-in duration-500">
+            <Lock className="h-10 w-10 text-warning" />
+          </div>
+          <h1 className="text-2xl font-bold mt-5 text-foreground">Access Denied</h1>
+          <p className="text-sm text-muted-foreground">
+            The election coordinator has not authorized your student profile to vote yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Please wait for admin approval on the dashboard or contact the election coordinator.
+          </p>
+          {/* Session timer only shown during voting — hidden on blocked screen */}
+          <div className="pt-4">
+            <Button
+              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-3 font-semibold"
+              onClick={() => nav({ to: "/voter/dashboard" })}
+            >
+              Return to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function abortPassive() {
     captureAbortRef.current = true;

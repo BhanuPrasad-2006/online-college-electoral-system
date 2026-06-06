@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     FACE_LOCKOUT_MINUTES: int = 15
     FACE_DAILY_LIMIT: int = 50       # Max face verification attempts per voter per day
     FACE_SERVICE_RATE_LIMIT: int = 10 # Max calls to extract_face_embedding per identifier per minute
-    FACE_ENFORCE_SIDE_ANGLE: bool = True
+    FACE_ENFORCE_SIDE_ANGLE: bool = False
 
     # Suspicious activity detection
     SUSPICIOUS_ACTIVITY_ENABLED: bool = True

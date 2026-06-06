@@ -1,0 +1,21 @@
+{
+  "audit": "final_face_verification",
+  "timestamp": "2026-06-06T19:05:34.707863+00:00",
+  "voter_email": "1ds24cy015@dsce.edu.in",
+  "checks": {
+    "waitForNewVideoFrame_per_frame": true,
+    "backend_messages": [
+      "lockout",
+      "liveness",
+      "insufficient_frames",
+      "quality_strings"
+    ],
+    "canvas_output": "480x640",
+    "resolutions_tested": [
+      "480p",
+      "720p",
+      "1080p"
+    ],
+    "browser_note": "Passive liveness is server-side; Chrome/Edge/Brave use same canvas pipeline."
+  }
+}

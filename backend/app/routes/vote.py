@@ -21,6 +21,8 @@ from app.services.face_service import (
     redis_daily_counter,
     redis_face_lockout,
     redis_biometric_token_cache,
+    assess_frame_quality,
+    enhance_frame,
 )
 from app.utils.image_validator import validate_image
 from app.services.passive_liveness_service import (
@@ -238,7 +240,12 @@ async def verify_face_passive(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # Fetch active election first to get election_id for logging
-    election_query = select(Election).order_by(Election.created_at.desc())
+    # Must filter by VOTING_OPEN so we always pick the election that is actually open for voting.
+    election_query = (
+        select(Election)
+        .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
+        .order_by(Election.created_at.desc())
+    )
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
     election_id_str = str(election.election_id) if election else "None"
@@ -311,10 +318,10 @@ async def verify_face_passive(
 
     # ── Frame count validation ─────────────────────────────────
     num_frames = len(body.frames)
-    if num_frames < MIN_FRAMES or num_frames > MAX_FRAMES:
+    if num_frames < 3 or num_frames > 10:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Expected {MIN_FRAMES}–{MAX_FRAMES} frames, got {num_frames}."
+            detail=f"Expected 3–10 frames, got {num_frames}."
         )
 
     # ── Check enrolled template exists ────────────────────────
@@ -339,12 +346,20 @@ async def verify_face_passive(
         await db.commit()
 
     # ── Per-frame processing ───────────────────────────────────
-    from app.services.face_service import replay_cache
+    from app.services.face_service import (
+        replay_cache,
+        assess_frame_quality,
+        enhance_frame,
+    )
+    import cv2
+    import numpy as np
+
     frames_bgr = []
     embeddings = []
     decode_errors = 0
-    quality_rejected = 0
-    embed_errors = 0
+    replay_detected = False
+    multiple_faces_detected = False
+    evaluated_frames = []
 
     try:
         for idx, frame_b64 in enumerate(body.frames):
@@ -368,95 +383,242 @@ async def verify_face_passive(
             # Per-frame replay protection
             if replay_cache.is_replay_and_add(image_data):
                 logger.warning(f"Passive verify: replay detected on frame {idx} for voter {voter.college_email}")
-                audit_entry = AuditLog(
-                    event_type="PASSIVE_BIOMETRIC_REPLAY_DETECTED",
-                    actor_id=voter.voter_id,
-                    description=f"Passive liveness replay detected on frame {idx}",
-                    ip_address=ip_addr,
-                    created_at=datetime.now(timezone.utc)
-                )
-                db.add(audit_entry)
-                await db.commit()
-                await log_passive_failed(f"Replay detected on frame {idx}")
-                new_count, lockout_minutes =                await increment_face_attempts_with_lock(
-                    db, voter_id
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={
-                        "message": "Replay attack detected. Please try again.",
-                        "match_score": 0.0
-                    }
-                )
+                replay_detected = True
+                break
 
-            # Normalize + quality check
+            # Normalize image to opencv bgr
             try:
                 img_bgr = normalize_image(image_data)
-                passed_q, q_reason = check_image_quality(img_bgr)
-                if not passed_q:
-                    quality_rejected += 1
-                    logger.info(f"PASSIVE_QUALITY_REJECT voter={voter.college_email} frame={idx}/{num_frames} reason={q_reason}")
-                    del img_bgr, image_data
-                    _gc.collect()
-                    continue
             except ValueError as ve:
                 logger.info(f"Passive verify: frame {idx} normalization error — {ve}")
-                del image_data
-                _gc.collect()
+                decode_errors += 1
                 continue
 
-            # Extract ArcFace embedding
-            try:
-                emb = await extract_face_embedding(image_data, rate_limit_key=str(voter.voter_id))
-                frames_bgr.append(img_bgr)
-                embeddings.append(emb)
-            except ValueError as ve:
-                embed_errors += 1
-                logger.info(f"PASSIVE_EMBED_ERROR voter={voter.college_email} frame={idx}/{num_frames} error={ve}")
-                del img_bgr, image_data
-                _gc.collect()
-                continue
-            finally:
-                del image_data
-                _gc.collect()
+            # Quality Assessment
+            q = assess_frame_quality(img_bgr)
+            
+            # Check for multiple faces
+            if q["has_face"] and q.get("face_count", 1) > 1:
+                multiple_faces_detected = True
+                logger.warning(f"Passive verify: multiple faces ({q['face_count']}) detected on frame {idx} for voter {voter.college_email}")
+                break
 
-        # After processing all frames — check we have enough valid ones
-        if len(frames_bgr) < MIN_FRAMES:
-            logger.warning(f"PASSIVE_INSUFFICIENT_FRAMES voter={voter.college_email} usable={len(frames_bgr)}/{num_frames} decode_errs={decode_errors} quality_rejected={quality_rejected} embed_errs={embed_errors}")
-            new_count, lockout_minutes = await increment_face_attempts_with_lock(
-                db, voter_id
-            )
+            # Add index and reference of normalized frame
+            q["idx"] = idx
+            q["img_bgr"] = img_bgr
+            q["image_data"] = image_data
+            evaluated_frames.append(q)
+
+        # Replay validation check
+        if replay_detected:
             audit_entry = AuditLog(
-                event_type="PASSIVE_BIOMETRIC_LOW_QUALITY",
+                event_type="PASSIVE_BIOMETRIC_REPLAY_DETECTED",
                 actor_id=voter.voter_id,
-                description=f"Passive liveness rejected: only {len(frames_bgr)} usable frames from {num_frames} submitted (decode_errors={decode_errors}, quality_rejected={quality_rejected}, embed_errors={embed_errors})",
+                description="Passive liveness replay detected",
                 ip_address=ip_addr,
                 created_at=datetime.now(timezone.utc)
             )
             db.add(audit_entry)
-            if lockout_minutes:
-                audit_lockout = AuditLog(
-                    event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
-                    actor_id=voter.voter_id,
-                    description=f"Voter locked out for {lockout_minutes} minutes due to {new_count} consecutive passive biometric failures.",
-                    ip_address=ip_addr,
-                    created_at=datetime.now(timezone.utc)
-                )
-                db.add(audit_lockout)
-            await log_passive_failed(f"Insufficient usable frames: only {len(frames_bgr)}/{num_frames} valid")
             await db.commit()
+            await log_passive_failed("Replay detected")
+            await increment_face_attempts_with_lock(db, voter_id)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "message": "Could not capture enough valid face images. Ensure your face is clearly visible and well-lit.",
+                    "message": "Replay attack detected. Please try again.",
                     "match_score": 0.0
                 }
             )
 
-        # ── Passive liveness checks ──────────────────────────
-        liveness_passed, internal_reason = check_passive_liveness(frames_bgr, embeddings)
+        # Multiple faces check
+        if multiple_faces_detected:
+            audit_entry = AuditLog(
+                event_type="PASSIVE_BIOMETRIC_MULTIPLE_FACES",
+                actor_id=voter.voter_id,
+                description="Multiple faces detected in frame sequence",
+                ip_address=ip_addr,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit_entry)
+            await db.commit()
+            await log_passive_failed("Multiple faces detected")
+            await increment_face_attempts_with_lock(db, voter_id)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Multiple faces detected. Ensure only one person is in the frame.",
+                    "match_score": 0.0
+                }
+            )
+
+        # Face disappearance check (face missing in 3 or more frames out of 10, or >= 30% of frames)
+        total_processed = len(evaluated_frames)
+        missing_faces = sum(1 for f in evaluated_frames if not f["has_face"])
+        if total_processed > 0 and (missing_faces / total_processed) >= 0.3:
+            audit_entry = AuditLog(
+                event_type="PASSIVE_BIOMETRIC_FACE_DISAPPEARED",
+                actor_id=voter.voter_id,
+                description=f"Face disappeared during frame sequence capture (missing in {missing_faces}/{total_processed} frames)",
+                ip_address=ip_addr,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit_entry)
+            await db.commit()
+            await log_passive_failed("Face disappeared")
+            await increment_face_attempts_with_lock(db, voter_id)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Face disappeared from camera view. Please hold still during capture.",
+                    "match_score": 0.0
+                }
+            )
+
+        # Filter out frames with no faces
+        frames_with_faces = [f for f in evaluated_frames if f["has_face"]]
+        if not frames_with_faces:
+            audit_entry = AuditLog(
+                event_type="PASSIVE_BIOMETRIC_NO_FACE",
+                actor_id=voter.voter_id,
+                description="No face detected in any of the submitted frames",
+                ip_address=ip_addr,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit_entry)
+            await db.commit()
+            await log_passive_failed("No face detected")
+            await increment_face_attempts_with_lock(db, voter_id)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Face not detected. Ensure you are directly in front of the camera.",
+                    "match_score": 0.0
+                }
+            )
+
+        # Calculate quality scores
+        for f in frames_with_faces:
+            brightness_dev = abs(f["brightness"] - 125.0)
+            brightness_points = max(0.0, 100.0 - brightness_dev)
+            blur_points = min(100.0, f["blur"])
+            contrast_points = min(100.0, f["contrast"] * 1.5)
+            centered_points = f["centeredness"]
+            size_points = min(100.0, f["face_size"] * 4.0)
+            f["quality_score"] = brightness_points + blur_points + contrast_points + centered_points + size_points
+
+        # Sort descending by quality score
+        frames_with_faces.sort(key=lambda x: x["quality_score"], reverse=True)
+
+        # Discard POOR frames
+        valid_frames = [f for f in frames_with_faces if f["classification"] != "POOR"]
+
+        # Failure analysis if we have less than 3 valid frames
+        if len(valid_frames) < 3:
+            avg_brightness = np.mean([f["brightness"] for f in frames_with_faces])
+            avg_blur = np.mean([f["blur"] for f in frames_with_faces])
+            avg_centeredness = np.mean([f["centeredness"] for f in frames_with_faces])
+            avg_size = np.mean([f["face_size"] for f in frames_with_faces])
+
+            if avg_brightness < 40.0:
+                guidance = "Improve lighting. Your face is too dark."
+            elif avg_brightness > 220.0:
+                guidance = "Improve lighting. Your face is overexposed."
+            elif avg_blur < 12.0:
+                guidance = "Hold steady. Your camera capture is too blurry."
+            elif avg_centeredness < 45.0:
+                guidance = "Center your face in the camera frame."
+            elif avg_size < 5.0:
+                guidance = "Move closer to the camera."
+            else:
+                guidance = "Unable to verify live face. Ensure good lighting and try again."
+
+            logger.warning(f"PASSIVE_INSUFFICIENT_QUALITY voter={voter.college_email} valid={len(valid_frames)} faces={len(frames_with_faces)} guidance={guidance}")
+            new_count, lockout_minutes = await increment_face_attempts_with_lock(db, voter_id)
+            audit_entry = AuditLog(
+                event_type="PASSIVE_BIOMETRIC_LOW_QUALITY",
+                actor_id=voter.voter_id,
+                description=f"Passive liveness rejected due to low quality: {guidance}",
+                ip_address=ip_addr,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(audit_entry)
+            await log_passive_failed(f"Insufficient valid frames: {guidance}")
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": guidance,
+                    "match_score": 0.0
+                }
+            )
+
+        # Select Top 3 highest-quality frames
+        top_frames = valid_frames[:3]
+
+        # For these top 3 frames, apply enhancement if their classification is ACCEPTABLE
+        final_frames_bgr = []
+        final_embeddings = []
+        frame_metrics_list = []
+        stored_emb = deserialize_embedding(voter.face_encoding)
+
+        for f in top_frames:
+            img = f["img_bgr"]
+            if f["classification"] == "ACCEPTABLE":
+                img = enhance_frame(img, "ACCEPTABLE")
+                
+            final_frames_bgr.append(img)
+            
+            # Re-encode enhanced img back to bytes for ArcFace embedding extraction
+            success_encode, encoded_buf = cv2.imencode(".jpg", img)
+            if not success_encode:
+                logger.error("Failed to re-encode enhanced frame to JPEG")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to process enhanced frame."
+                )
+            
+            try:
+                emb = await extract_face_embedding(encoded_buf.tobytes(), rate_limit_key=None)
+                final_embeddings.append(emb)
+            except Exception as ve:
+                logger.error(f"Failed to extract face embedding from enhanced frame: {ve}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "Unable to verify live face. Captured face is not clear.",
+                        "match_score": 0.0
+                    }
+                )
+
+            # Compare with enrolled photo to get similarity score
+            emb_arr = np.asarray(emb, dtype=np.float32)
+            stored_arr = np.asarray(stored_emb, dtype=np.float32)
+            norm_a = np.linalg.norm(emb_arr)
+            norm_b = np.linalg.norm(stored_arr)
+            similarity = 0.0
+            if norm_a > 0 and norm_b > 0:
+                similarity = float(np.dot(emb_arr, stored_arr) / (norm_a * norm_b))
+                
+            frame_metrics_list.append({
+                "blur": f["blur"],
+                "brightness": f["brightness"],
+                "contrast": f["contrast"],
+                "face_size": f["face_size"],
+                "similarity": round(similarity * 100, 1)
+            })
+
+            # Log debug metrics for every selected frame (blur, brightness, contrast, face_size, similarity)
+            logger.info(
+                f"DEBUG_FRAME_METRICS voter={voter.college_email} "
+                f"idx={f['idx']} blur={f['blur']} brightness={f['brightness']} "
+                f"contrast={f['contrast']} face_size={f['face_size']} "
+                f"similarity={similarity * 100:.1f}%"
+            )
+
+        # ── Passive liveness checks on the selected frames ──────────
+        liveness_passed, internal_reason = check_passive_liveness(final_frames_bgr, final_embeddings)
         if not liveness_passed:
-            logger.warning(f"PASSIVE_LIVENESS_FAILURE voter={voter.college_email} frames={len(frames_bgr)} embeddings={len(embeddings)} reason={internal_reason}")
+            logger.warning(f"PASSIVE_LIVENESS_FAILURE voter={voter.college_email} reason={internal_reason}")
             new_count, lockout_minutes = await increment_face_attempts_with_lock(
                 db, voter_id
             )
@@ -468,61 +630,41 @@ async def verify_face_passive(
                 created_at=datetime.now(timezone.utc)
             )
             db.add(audit_entry)
-            if lockout_minutes:
-                audit_lockout = AuditLog(
-                    event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
-                    actor_id=voter.voter_id,
-                    description=f"Voter locked out for {lockout_minutes} minutes due to {new_count} consecutive passive biometric failures.",
-                    ip_address=ip_addr,
-                    created_at=datetime.now(timezone.utc)
-                )
-                db.add(audit_lockout)
             await log_passive_failed(f"Liveness check failed: {internal_reason}")
             await db.commit()
-
-            # Compute match score anyway to return it in detail
-            avg_score_pct = 0.0
-            try:
-                _, _, _, avg_score_pct = compute_majority_match(
-                    embeddings, stored_emb, compare_face_embeddings, required_fraction=0.6
-                )
-            except Exception:
-                pass
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "message": "Unable to verify live face. Your face was not detected as a live person. Please ensure good lighting and try again.",
-                    "match_score": avg_score_pct
+                    "match_score": 0.0
                 }
             )
 
-        # ── Multi-face rejection (logged separately) ──────────
-        # (Handled inside check_image_quality per-frame above — multi-face frames are discarded)
+        # ── Multi-frame matching calculation ──────────────────
+        similarities = [m["similarity"] for m in frame_metrics_list]
+        best_score = float(max(similarities))
+        sorted_similarities = sorted(similarities, reverse=True)
+        average_top2 = float(np.mean(sorted_similarities[:2])) if len(sorted_similarities) >= 2 else best_score
 
-        # ── Majority-vote ArcFace matching ────────────────────
-        match_passed, matched_count, total_count, avg_score_pct = compute_majority_match(
-            embeddings, stored_emb, compare_face_embeddings, required_fraction=0.6
-        )
+        cosine_threshold_pct = settings.FACE_MATCH_COSINE_THRESHOLD * 100.0
+        match_passed = (average_top2 >= cosine_threshold_pct) or (best_score >= (cosine_threshold_pct + 5.0))
 
         logger.info(
             f"FACE_MATCH_DEBUG "
             f"voter={voter.college_email} "
             f"match_passed={match_passed} "
-            f"matched={matched_count}/{total_count} "
-            f"avg_score_pct={avg_score_pct}% "
-            f"cosine_threshold={settings.FACE_MATCH_COSINE_THRESHOLD} "
-            f"required_fraction=0.6 "
-            f"threshold_pct={settings.FACE_MATCH_COSINE_THRESHOLD * 100:.1f}% "
-            f"frames_valid={len(frames_bgr)} "
-            f"embeddings_valid={len(embeddings)}"
+            f"similarities={similarities} "
+            f"best_score={best_score:.1f}% "
+            f"average_top2={average_top2:.1f}% "
+            f"threshold_pct={cosine_threshold_pct:.1f}%"
         )
 
         if not match_passed:
             logger.warning(
                 f"FACE_MATCH_FAILURE voter={voter.college_email} "
-                f"{matched_count}/{total_count} frames matched (avg score: {avg_score_pct}%, "
-                f"threshold_cosine={settings.FACE_MATCH_COSINE_THRESHOLD}, required_fraction=0.6)"
+                f"best_score={best_score:.1f}%, average_top2={average_top2:.1f}% "
+                f"(threshold: {cosine_threshold_pct:.1f}%)"
             )
             new_count, lockout_minutes = await increment_face_attempts_with_lock(
                 db, voter_id
@@ -530,27 +672,18 @@ async def verify_face_passive(
             audit_entry = AuditLog(
                 event_type="PASSIVE_BIOMETRIC_VERIFY_FAILURE",
                 actor_id=voter.voter_id,
-                description=f"Passive face verification failed: {matched_count}/{total_count} frames matched enrolled template (avg score: {avg_score_pct}%)",
+                description=f"Passive face verification failed: best_score={best_score:.1f}%, average_top2={average_top2:.1f}%",
                 ip_address=ip_addr,
                 created_at=datetime.now(timezone.utc)
             )
             db.add(audit_entry)
-            if lockout_minutes:
-                audit_lockout = AuditLog(
-                    event_type="BIOMETRIC_LOCKOUT_TRIGGERED",
-                    actor_id=voter.voter_id,
-                    description=f"Voter locked out for {lockout_minutes} minutes due to {new_count} consecutive passive biometric failures.",
-                    ip_address=ip_addr,
-                    created_at=datetime.now(timezone.utc)
-                )
-                db.add(audit_lockout)
-            await log_passive_failed(f"Face comparison mismatch (avg score: {avg_score_pct}%)")
+            await log_passive_failed(f"Face comparison mismatch (best_score: {best_score:.1f}%, average_top2: {average_top2:.1f}%)")
             await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
-                    "message": f"Face match below threshold ({avg_score_pct}%). Captured face does not match enrolled photo.",
-                    "match_score": avg_score_pct
+                    "message": f"Face match below threshold ({average_top2:.1f}%). Captured face does not match enrolled photo.",
+                    "match_score": average_top2
                 }
             )
 
@@ -581,35 +714,36 @@ async def verify_face_passive(
         face_session_token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
         await redis_biometric_token_cache.register_token(jti, str(voter.voter_id))
 
-        logger.info(f"PASSIVE_BIOMETRIC_SUCCESS voter={voter.college_email} matched={matched_count}/{total_count} avg_score={avg_score_pct}% frames_valid={len(frames_bgr)} embeddings_valid={len(embeddings)}")
+        logger.info(f"PASSIVE_BIOMETRIC_SUCCESS voter={voter.college_email} best_score={best_score:.1f}% average_top2={average_top2:.1f}%")
 
         audit_success = AuditLog(
             event_type="PASSIVE_BIOMETRIC_VERIFY_SUCCESS",
             actor_id=voter.voter_id,
-            description=f"Passive face verification successful: {matched_count}/{total_count} frames matched enrolled template (avg score: {avg_score_pct}%)",
+            description=f"Passive face verification successful: best_score={best_score:.1f}%, average_top2={average_top2:.1f}%",
             ip_address=ip_addr,
             created_at=datetime.now(timezone.utc)
         )
         db.add(audit_success)
 
-        # Log FACE_VERIFICATION_SUCCESS
         success_audit = AuditLog(
             event_type="FACE_VERIFICATION_SUCCESS",
             actor_id=voter.voter_id,
-            description=f"User Agent: {user_agent} | Election ID: {election_id_str} | Passive face verification successful (match score: {avg_score_pct}%)",
+            description=f"User Agent: {user_agent} | Election ID: {election_id_str} | Passive face verification successful (average top 2 score: {average_top2:.1f}%)",
             ip_address=ip_addr,
             created_at=datetime.now(timezone.utc)
         )
         db.add(success_audit)
+        await db.commit()
 
         return {
             "success": True,
             "face_session_token": face_session_token,
             "expires_in_seconds": 900,
             "anti_replay_token": body.anti_replay_token,
-            "match_score": avg_score_pct,
-            "frames_matched": matched_count,
-            "frames_total": total_count,
+            "match_score": average_top2,
+            "best_score": best_score,
+            "average_top2": average_top2,
+            "frame_scores": similarities,
         }
     finally:
         # Safe memory cleanup — release all frame and embedding references
@@ -634,7 +768,12 @@ async def verify_face(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
     # Fetch active election first to get election_id for logging
-    election_query = select(Election).order_by(Election.created_at.desc())
+    # Must filter by VOTING_OPEN so we always pick the election that is actually open for voting.
+    election_query = (
+        select(Election)
+        .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
+        .order_by(Election.created_at.desc())
+    )
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
     election_id_str = str(election.election_id) if election else "None"
@@ -909,15 +1048,30 @@ async def cast_vote(
             detail="Voter profile not found."
         )
 
-    # Fetch the active election
-    election_query = select(Election).order_by(Election.created_at.desc())
+    # Fetch the active election — filter by VOTING_OPEN status so we always
+    # pick the election that is actually open for voting (not just the latest created).
+    election_query = (
+        select(Election)
+        .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
+        .order_by(Election.created_at.desc())
+    )
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
 
     if not election:
+        # Check if any election exists at all (might be in a different status)
+        any_elec_res = await db.execute(
+            select(Election).order_by(Election.created_at.desc())
+        )
+        any_election = any_elec_res.scalars().first()
+        if not any_election:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No active election found. Please contact the election admin."
+            )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active election found. Please contact the election admin."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Voting is not currently open."
         )
 
     # Extract client metadata for audit logging
@@ -1353,46 +1507,71 @@ async def cast_vote(
             voter_email = voter.college_email
             voter_full_name = voter.full_name
             election_title = election.title
-            voted_at_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            vote_id_str = str(new_vote.vote_id)
+            audit_hash_str = current_hash
+
+            # Compute IST timestamp (UTC+5:30)
+            now_utc = datetime.now(timezone.utc)
+            ist_offset = timedelta(hours=5, minutes=30)
+            now_ist = now_utc + ist_offset
+            voted_at_ist = now_ist.strftime("%d/%m/%Y, %H:%M:%S") + " IST"
+
+            logger.info(f"[EMAIL] Sending vote confirmation to {voter_email} for election '{election_title}'")
+
             email_body = f"""
             <html>
-            <body style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px;">
-                <div style="background: #10b981; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
-                    <h2 style="color: white; margin: 0;">🗳️ Vote Registered Successfully</h2>
+            <body style="font-family: Arial, sans-serif; max-width: 540px; margin: auto; padding: 24px;">
+                <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 24px; border-radius: 10px 10px 0 0; text-align: center;">
+                    <h2 style="color: white; margin: 0; font-size: 20px;">🗳️ Vote Registered Successfully</h2>
+                    <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0 0; font-size: 13px;">{election_title}</p>
                 </div>
-                <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px;">
-                    <p style="color: #374151; font-size: 16px;">Hi <strong>{voter_full_name}</strong>,</p>
-                    <p style="color: #374151; font-size: 15px; line-height: 1.5;">
-                        Your vote in <strong>{election_title}</strong> has been successfully cast and registered.
+                <div style="background: #f8fafc; padding: 28px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px;">
+                    <p style="color: #374151; font-size: 16px; margin-top: 0;">Hi <strong>{voter_full_name}</strong>,</p>
+                    <p style="color: #374151; font-size: 15px; line-height: 1.5; margin-bottom: 20px;">
+                        Your vote has been <strong>successfully cast and permanently recorded</strong> in the blockchain ledger.
                     </p>
-                    <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 12px; margin: 20px 0; border-radius: 0 4px 4px 0;">
-                        <p style="color: #065f46; margin: 0; font-size: 14px; font-weight: bold;">
-                            Status: Vote Registered ✓
+
+                    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                        <p style="color: #065f46; margin: 0 0 10px 0; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">
+                            ✅ Vote Receipt
                         </p>
-                        <p style="color: #047857; margin: 4px 0 0 0; font-size: 12px;">
-                            Cast on: {voted_at_str} UTC
-                        </p>
+                        <table style="width: 100%; font-size: 12px; color: #374151; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 4px 0; color: #6b7280; white-space: nowrap; padding-right: 12px;">Transaction ID</td>
+                                <td style="padding: 4px 0; font-family: monospace; font-size: 11px; word-break: break-all;">{vote_id_str}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; color: #6b7280; white-space: nowrap; padding-right: 12px;">Audit Hash</td>
+                                <td style="padding: 4px 0; font-family: monospace; font-size: 10px; word-break: break-all;">{audit_hash_str}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; color: #6b7280; white-space: nowrap; padding-right: 12px;">Timestamp</td>
+                                <td style="padding: 4px 0; font-family: monospace;">{voted_at_ist}</td>
+                            </tr>
+                        </table>
                     </div>
-                    <p style="color: #6b7280; font-size: 13px; line-height: 1.4;">
-                        🔒 To protect your privacy, there is no link in the database between your student identity and the candidate you voted for. Your vote is anonymous.
+
+                    <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin-bottom: 8px;">
+                        🔒 <strong>Your vote is anonymous.</strong> There is no link in the database between your identity and the candidate you voted for.
                     </p>
                     <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-                    <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-                        Thank you for participating in the electoral process.
+                    <p style="color: #9ca3af; font-size: 12px; text-align: center; margin: 0;">
+                        Thank you for participating in the <strong>{election_title}</strong>.
                     </p>
                 </div>
             </body>
             </html>
             """
-            
+
             # Await synchronously instead of asyncio.create_task to avoid
             # MissingGreenlet from ORM object access on the shared session.
             await send_election_email(
                 to_email=voter_email,
                 recipient_name=voter_full_name,
-                subject=f"Vote Successfully Registered - {election_title}",
+                subject=f"✅ Vote Registered - {election_title}",
                 html_body=email_body
             )
+            logger.info(f"[EMAIL] Vote confirmation email sent successfully to {voter_email}")
         except Exception as e:
             logger.error(f"Failed to send vote confirmation email: {e}")
 

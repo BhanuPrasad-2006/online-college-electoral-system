@@ -120,9 +120,9 @@ async def seeded_voter(db_session: AsyncSession):
     )
     db_session.add(position)
 
-    # Encode a dummy face embedding: [0.1, 0.2, 0.3...] serialized to binary
+    # Encode a dummy face embedding: unit vector along axis 0
     from app.services.face_service import serialize_embedding
-    dummy_emb = serialize_embedding([0.1] * 512)
+    dummy_emb = serialize_embedding([1.0] + [0.0] * 511)
 
     voter = Voter(
         voter_id=VOTER_UUID,
@@ -250,7 +250,7 @@ class TestBiometricVerify:
     ):
         await _valid_voter()
         
-        with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+        with patch("app.routes.vote.extract_face_embedding", return_value=[1.0] + [0.0] * 511), \
              patch("app.routes.vote.compare_face_embeddings", return_value=True), \
              patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True), \
              patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False):
@@ -489,14 +489,28 @@ class TestBiometricVerify:
     ):
         await _valid_voter()
         
+        success_emb = [0.925, 0.3799671] + [0.0] * 510
         with patch("app.routes.vote.normalize_image", return_value=MagicMock()), \
-             patch("app.routes.vote.check_image_quality", return_value=(True, None)), \
-             patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.services.face_service.assess_frame_quality") as mock_assess, \
+             patch("app.services.face_service.enhance_frame", side_effect=lambda img, q: img), \
+             patch("cv2.imencode", return_value=(True, MagicMock(tobytes=lambda: b"fake_bytes"))), \
+             patch("app.routes.vote.extract_face_embedding", return_value=success_emb), \
              patch("app.routes.vote.check_passive_liveness", return_value=(True, "passed")), \
-             patch("app.routes.vote.compute_majority_match", return_value=(True, 5, 5, 92.5)), \
              patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False), \
              patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True):
             
+            mock_assess.return_value = {
+                "blur": 85.0,
+                "brightness": 120.0,
+                "contrast": 50.0,
+                "face_size": 20.0,
+                "centeredness": 90.0,
+                "confidence": 95.0,
+                "classification": "EXCELLENT",
+                "has_face": True,
+                "box": [10, 10, 100, 100],
+                "face_count": 1
+            }
             resp = await client.post(
                 "/api/v1/vote/verify-face-passive",
                 json={
@@ -518,14 +532,28 @@ class TestBiometricVerify:
     ):
         await _valid_voter()
         
+        mismatch_emb = [0.40, 0.9165151] + [0.0] * 510
         with patch("app.routes.vote.normalize_image", return_value=MagicMock()), \
-             patch("app.routes.vote.check_image_quality", return_value=(True, None)), \
-             patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
+             patch("app.services.face_service.assess_frame_quality") as mock_assess, \
+             patch("app.services.face_service.enhance_frame", side_effect=lambda img, q: img), \
+             patch("cv2.imencode", return_value=(True, MagicMock(tobytes=lambda: b"fake_bytes"))), \
+             patch("app.routes.vote.extract_face_embedding", return_value=mismatch_emb), \
              patch("app.routes.vote.check_passive_liveness", return_value=(True, "passed")), \
-             patch("app.routes.vote.compute_majority_match", return_value=(False, 2, 5, 48.2)), \
              patch("app.services.face_service.replay_cache.is_replay_and_add", return_value=False), \
              patch("app.security.anti_replay_service.AntiReplayService.validate_and_consume", return_value=True):
             
+            mock_assess.return_value = {
+                "blur": 85.0,
+                "brightness": 120.0,
+                "contrast": 50.0,
+                "face_size": 20.0,
+                "centeredness": 90.0,
+                "confidence": 95.0,
+                "classification": "EXCELLENT",
+                "has_face": True,
+                "box": [10, 10, 100, 100],
+                "face_count": 1
+            }
             resp = await client.post(
                 "/api/v1/vote/verify-face-passive",
                 json={
@@ -539,8 +567,8 @@ class TestBiometricVerify:
             assert "detail" in data
             assert isinstance(data["detail"], dict)
             assert "face match below threshold" in data["detail"]["message"].lower()
-            assert "48.2%" in data["detail"]["message"]
-            assert data["detail"]["match_score"] == 48.2
+            assert "40.0%" in data["detail"]["message"]
+            assert data["detail"]["match_score"] == 40.0
 
 
 @pytest.mark.asyncio
@@ -559,9 +587,11 @@ class TestPhotoUpload:
 
         with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
              patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("app.routes.vote.save_voter_face_image") as mock_save, \
              patch("os.makedirs"), \
              patch("builtins.open", mock_open()):
             mock_validate.return_value = MagicMock(passed=True)
+            mock_save.return_value = MagicMock(reference_url="/uploads/faces/TEST/pending_test.jpg")
 
             resp = await client.post(
                 "/api/v1/vote/upload-photo",
@@ -590,9 +620,11 @@ class TestPhotoUpload:
 
         with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
              patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("app.routes.vote.save_voter_face_image") as mock_save, \
              patch("os.makedirs"), \
              patch("builtins.open", mock_open()):
             mock_validate.return_value = MagicMock(passed=True)
+            mock_save.return_value = MagicMock(reference_url="/uploads/faces/TEST/pending_test.jpg")
 
             resp = await client.post(
                 "/api/v1/vote/upload-photo",
@@ -660,9 +692,11 @@ class TestPhotoUpload:
 
         with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
              patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("app.routes.vote.save_voter_face_image") as mock_save, \
              patch("os.makedirs"), \
              patch("builtins.open", mock_open()):
             mock_validate.return_value = MagicMock(passed=True)
+            mock_save.return_value = MagicMock(reference_url="/uploads/faces/TEST/pending_test.jpg")
 
             resp = await client.post(
                 "/api/v1/vote/upload-photo",
@@ -710,9 +744,11 @@ class TestPhotoUpload:
 
         with patch("app.routes.vote.extract_face_embedding", return_value=[0.1] * 512), \
              patch("app.routes.vote.validate_image") as mock_validate, \
+             patch("app.routes.vote.save_voter_face_image") as mock_save, \
              patch("os.makedirs"), \
              patch("builtins.open", mock_open()):
             mock_validate.return_value = MagicMock(passed=True)
+            mock_save.return_value = MagicMock(reference_url="/uploads/faces/TEST/pending_test.jpg")
 
             resp = await client.post(
                 "/api/v1/vote/upload-photo",

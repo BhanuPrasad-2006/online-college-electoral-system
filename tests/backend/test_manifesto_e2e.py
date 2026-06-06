@@ -448,6 +448,16 @@ class TestManifestoUploadFlow:
             json={"status": "approved"},
         )
 
+        # Update election to VOTING_OPEN so voters can see candidates
+        _current_auth.update({
+            "user_id": "admin-uuid",
+            "email": "admin@test.edu",
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN",
+        })
+        elec_resp = await client.post(f"/api/v1/election/{ELECTION_ID}/open-voting", json={})
+        assert elec_resp.status_code == 200, f"open-voting failed: {elec_resp.text}"
+
         # Voter fetches candidate list
         _current_auth.update({
             "user_id": CANDIDATE_VOTER_ID,
@@ -457,7 +467,7 @@ class TestManifestoUploadFlow:
         response = await client.get("/api/v1/candidates/")
         assert response.status_code == 200
         items = response.json()
-        assert len(items) >= 1
+        assert len(items) >= 1, f"Expected at least 1 candidate, got {len(items)}: {items}"
 
         candidate_data = items[0]
         assert candidate_data["manifesto_image_url"] == (

@@ -151,6 +151,7 @@ async def test_backend_message_lockout(voter_client):
         v = await db.get(Voter, voter.voter_id)
         v.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=15)
         v.failed_face_attempts = 5
+        v.has_voted = False
         await db.commit()
         await redis_face_lockout.set_lockout(str(v.voter_id), 15)
 
@@ -175,6 +176,9 @@ async def test_backend_message_lockout(voter_client):
 async def test_backend_message_insufficient_frames(voter_client):
     client, voter, token = voter_client
     async with SessionLocal() as db:
+        v = await db.get(Voter, voter.voter_id)
+        v.has_voted = False
+        await db.commit()
         anti = await AntiReplayService.generate_token(str(voter.voter_id), db)
     r = await client.post(
         "/api/v1/vote/verify-face-passive",
@@ -213,6 +217,9 @@ async def test_backend_message_liveness_failed(voter_client):
 async def test_backend_message_face_mismatch(voter_client):
     client, voter, token = voter_client
     async with SessionLocal() as db:
+        v = await db.get(Voter, voter.voter_id)
+        v.has_voted = False
+        await db.commit()
         anti = await AntiReplayService.generate_token(str(voter.voter_id), db)
     # Random noise image — face may fail quality; use tiny valid noise frames
     frames = []
@@ -239,7 +246,9 @@ def test_backend_quality_messages_no_face_and_multiple_faces():
     assert "No face detected" in face_py
     assert "Multiple faces detected" in face_py
     vote_py = Path(BACKEND_ROOT / "app/routes/vote.py").read_text(encoding="utf-8")
-    assert "Could not capture enough valid face images" in vote_py
+    assert "Improve lighting" in vote_py
+    assert "Center your face" in vote_py
+    assert "Move closer" in vote_py
 
 
 # ── 6: Frontend surfaces backend messages ───────────────────────
@@ -292,6 +301,7 @@ async def test_success_issues_face_session_token(voter_client):
         v = await db.get(Voter, voter.voter_id)
         v.lockout_until = None
         v.failed_face_attempts = 0
+        v.has_voted = False
         await db.commit()
         anti = await AntiReplayService.generate_token(str(voter.voter_id), db)
         ref = await load_reference_image_bytes(voter.reference_image_url or "")

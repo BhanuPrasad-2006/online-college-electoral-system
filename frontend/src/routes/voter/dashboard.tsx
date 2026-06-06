@@ -128,6 +128,13 @@ function VoterDash() {
     return () => clearInterval(interval);
   }, [logout, nav]);
 
+  // Clear local storage cache if the server confirms they haven't voted
+  useEffect(() => {
+    if (voter && !voter.voted && typeof localStorage !== "undefined") {
+      localStorage.removeItem("collegevote-has-voted");
+    }
+  }, [voter]);
+
   if (isPending || !voter) return <PageLoader />;
 
   // Show only approved candidates
@@ -137,13 +144,8 @@ function VoterDash() {
   const matched = [...approvedCandidates].sort((a, b) => (b.match || 75) - (a.match || 75));
   const firstName = voter.name.split(" ")[0];
 
-  // Check voted status: use API data (live from server) OR localStorage fallback
-  // localStorage is set immediately after a successful vote on the /voter/vote page
-  const hasVoted = Boolean(
-    voter.voted ||
-    (typeof localStorage !== "undefined" &&
-      localStorage.getItem("collegevote-has-voted") === "true")
-  );
+  // Check voted status: rely on the server profile as the single source of truth
+  const hasVoted = Boolean(voter.voted);
   const votePermission = voter.vote_permission;
   // Phase data loading guard: don't show "Voting Closed" when election/phase hasn't loaded yet
   const isPhaseLoading = !phaseData;
@@ -161,13 +163,7 @@ function VoterDash() {
         <PageHeader
           title={`Welcome back, ${firstName}`}
           subtitle="Here's what's happening with the election."
-        />                        {timeLeft && isVoteOpen && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border/60 rounded-2xl shadow-sm text-sm">
-            <Clock className="h-4 w-4 text-[#6C63FF]" />
-            <span className="text-muted-foreground">Session Ends:</span>
-            <span className="font-mono font-semibold text-destructive">{timeLeft}</span>
-          </div>
-        )}
+        />                        {/* Session timer is intentionally hidden from voters — shows meaningless long-lived JWT expiry */}
       </div>
 
       {/* ── Real-time Election Phase Banner ── */}
