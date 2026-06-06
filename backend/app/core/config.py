@@ -119,6 +119,9 @@ class Settings(BaseSettings):
     SQLALCHEMY_ECHO: bool = False
 
     ALLOWED_ORIGINS: list[str] = [
+        # ── Production ─────────────────────────────────────────────
+        "https://online-college-electoral-system.vercel.app",
+        # ── Local development ──────────────────────────────────────
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:5173",

@@ -1,25 +1,37 @@
+// ── API URL Resolution ────────────────────────────────────────────────────────
+// Priority:
+//  1. VITE_API_URL env var  (set in Vercel Dashboard → Settings → Env Variables)
+//  2. Local dev:  http://127.0.0.1:8000/api/v1
+//  3. Production fallback: the hardcoded Render backend URL
+// We deliberately do NOT compute the base from window.location.hostname because
+// that would incorrectly construct https://vercel-hostname:8000/api/v1.
+const PROD_BACKEND_URL  = "https://oces-backend.onrender.com/api/v1";
+const PROD_BACKEND_ORIGIN = "https://oces-backend.onrender.com";
+const LOCAL_API_BASE    = "http://127.0.0.1:8000/api/v1";
+const LOCAL_API_ORIGIN  = "http://127.0.0.1:8000";
+
 const CLIENT_HOST =
   typeof window !== "undefined" && window.location.hostname
     ? window.location.hostname
     : "127.0.0.1";
-const API_HOST = CLIENT_HOST === "localhost" || CLIENT_HOST === "::1" ? "localhost" : CLIENT_HOST;
-// Use HTTPS in production (when host is not localhost), HTTP for local dev
-const PROTOCOL =
-  typeof window !== "undefined" && window.location.protocol === "https:" ? "https" : "http";
-const DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1";
-const DEFAULT_API_ORIGIN = "http://127.0.0.1:8000";
+const isLocal = CLIENT_HOST === "localhost" || CLIENT_HOST === "127.0.0.1" || CLIENT_HOST === "::1";
 
-const computedBase = `${PROTOCOL}://${API_HOST}:8000/api/v1`;
-const computedOrigin = `${PROTOCOL}://${API_HOST}:8000`;
 const envApiBase = typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_URL;
 const envApiOrigin = typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_ORIGIN;
 
-export const API_BASE_URL = typeof envApiBase === "string" && envApiBase.trim()
-  ? envApiBase.trim()
-  : computedBase || DEFAULT_API_BASE;
-export const API_ORIGIN = typeof envApiOrigin === "string" && envApiOrigin.trim()
-  ? envApiOrigin.trim()
-  : computedOrigin || DEFAULT_API_ORIGIN;
+export const API_BASE_URL =
+  typeof envApiBase === "string" && envApiBase.trim()
+    ? envApiBase.trim()
+    : isLocal
+    ? LOCAL_API_BASE
+    : PROD_BACKEND_URL;
+
+export const API_ORIGIN =
+  typeof envApiOrigin === "string" && envApiOrigin.trim()
+    ? envApiOrigin.trim()
+    : isLocal
+    ? LOCAL_API_ORIGIN
+    : PROD_BACKEND_ORIGIN;
 const RETRY_DELAY_MS = 150;
 const REQUEST_TIMEOUT_MS = 60_000;
 
