@@ -63,62 +63,85 @@ export function SSRRecaptcha({ onChange, onExpired, recaptchaRef }: SSRRecaptcha
 
     const win = window as any;
     setLoadError(false);
+    let isCurrent = true;
+    let hasRendered = false;
 
     function renderWidget() {
+      if (!isCurrent || hasRendered) return;
       if (!win.grecaptcha?.render || !containerRef.current) return;
+      if (!document.body.contains(containerRef.current)) return;
       try {
         widgetIdRef.current = win.grecaptcha.render(containerRef.current, {
           sitekey: siteKey,
-          callback: (token: string) => changeRef.current(token),
+          callback: (token: string) => {
+            if (isCurrent) changeRef.current(token);
+          },
           "expired-callback": () => {
-            changeRef.current(null);
-            expiredRef.current?.();
+            if (isCurrent) {
+              changeRef.current(null);
+              expiredRef.current?.();
+            }
           },
         });
+        hasRendered = true;
       } catch (err) {
         console.error("[SSRRecaptcha] render error:", err);
       }
     }
 
     if (win.grecaptcha?.render) {
-      // API already loaded from a previous mount or another component
       renderWidget();
       return;
     }
 
+    // Set up global callback queue
+    if (!win.onRecaptchaLoadQueue) {
+      win.onRecaptchaLoadQueue = [];
+      win.onRecaptchaLoad = () => {
+        if (win.onRecaptchaLoadQueue) {
+          win.onRecaptchaLoadQueue.forEach((cb: () => void) => cb());
+          delete win.onRecaptchaLoadQueue;
+        }
+      };
+    }
+
+    // Add this component's renderer to the queue
+    win.onRecaptchaLoadQueue.push(() => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      renderWidget();
+    });
+
     // Start a timeout to detect load failures
     timeoutRef.current = setTimeout(() => {
-      if (!scriptLoaded(win)) {
+      if (isCurrent && !scriptLoaded(win)) {
         console.warn("[SSRRecaptcha] reCAPTCHA script load timed out.");
         setLoadError(true);
       }
     }, LOAD_TIMEOUT_MS);
 
-    win.onRecaptchaLoad = () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      renderWidget();
-    };
-
-    const script = document.createElement("script");
-    script.src = "https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit";
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => {
-      console.error("[SSRRecaptcha] Failed to load reCAPTCHA script.");
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setLoadError(true);
-    };
-    document.head.appendChild(script);
-    scriptRef.current = script;
+    // Inject the script tag if not already injected
+    let script = document.getElementById("recaptcha-script-tag") as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement("script");
+      script.id = "recaptcha-script-tag";
+      script.src = "https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit";
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => {
+        console.error("[SSRRecaptcha] Failed to load reCAPTCHA script.");
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        if (isCurrent) setLoadError(true);
+      };
+      document.head.appendChild(script);
+    }
 
     return () => {
-      // Cleanup: remove timeout, script tag, and global callback
+      isCurrent = false;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (scriptRef.current && document.head.contains(scriptRef.current)) {
-        document.head.removeChild(scriptRef.current);
+      // Remove from callback queue if still pending
+      if (win.onRecaptchaLoadQueue) {
+        win.onRecaptchaLoadQueue = win.onRecaptchaLoadQueue.filter((cb: any) => cb !== renderWidget);
       }
-      delete win.onRecaptchaLoad;
-      scriptRef.current = null;
     };
   }, [mounted, siteKey]);
 
