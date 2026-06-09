@@ -14,7 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
-// â”€â”€ Passive capture constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Passive capture constants ───────────────────────────────────
 const TOTAL_FRAMES   = 8;      // matches backend MAX_FRAMES
 const FRAME_W        = 480;
 const FRAME_H        = 640;
@@ -46,13 +46,13 @@ function VotePage() {
   const [webcamReady, setWebcamReady] = useState(false);
   const [webcamError, setWebcamError] = useState<string | null>(null);
 
-  // â”€â”€ Passive Liveness State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Passive Liveness State ────────────────────────────────
   const [passiveState, setPassiveState] = useState<PassiveState>("idle");
   const [passiveError, setPassiveError] = useState("");
-  const [capturedCount, setCapturedCount] = useState(0);   // 0â€“5 progress
+  const [capturedCount, setCapturedCount] = useState(0);   // 0–5 progress
   const [faceSessionToken, setFaceSessionToken] = useState<string | null>(null);
   const [faceDetected, setFaceDetected] = useState(false); // face centering status
-  const [matchScore, setMatchScore] = useState<number | null>(null); // 0â€“100
+  const [matchScore, setMatchScore] = useState<number | null>(null); // 0–100
 
   // face-api.js detection loop ref
   const detectionLoopRef = useRef<any>(null);
@@ -60,7 +60,7 @@ function VotePage() {
   const faceApiLoadedRef = useRef(false);
   const passiveStateRef  = useRef<PassiveState>("idle");
 
-  // â”€â”€ Honeypot (bot detection) fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Honeypot (bot detection) fields ──────────────────────
   const [hpField1, setHpField1] = useState("");
   const [hpField2, setHpField2] = useState("");
   const [hpField3, setHpField3] = useState("");
@@ -74,7 +74,7 @@ function VotePage() {
   const { data: voter, isPending: isVoterPending } = useVoterProfile();
   const { data: effectivePhase } = useCurrentPhase();
 
-  // â”€â”€ Phase gate: redirect if voting is not open â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Phase gate: redirect if voting is not open ────────────
   useEffect(() => {
     if (effectivePhase && effectivePhase.phase !== "voting_open") {
       toast.error("Voting is not currently open.");
@@ -82,7 +82,7 @@ function VotePage() {
     }
   }, [effectivePhase, nav]);
 
-  // â”€â”€ Session Recovery & Receipt Restoration on Mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Session Recovery & Receipt Restoration on Mount ──────────
   useEffect(() => {
     // 1. Check if there's a persistent success receipt (24h retention)
     const receiptStr = localStorage.getItem("collegevote-receipt");
@@ -120,7 +120,7 @@ function VotePage() {
         if (rVerificationCode) setVerificationCode(rVerificationCode);
         if (rAntiReplayToken) setAntiReplayToken(rAntiReplayToken);
         if (rSelected) setSelected(rSelected === "" ? null : rSelected);
-        // DO NOT restore faceSessionToken from recovery â€” it may have expired
+        // DO NOT restore faceSessionToken from recovery — it may have expired
         // in the biometric token cache (120s TTL) since it was issued.
         // The user will need to do face verification again.
         // faceSessionToken is intentionally NOT restored from recovery here.
@@ -284,7 +284,7 @@ function VotePage() {
     }
   }
 
-  // â”€â”€ Cleanup on unmount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
     return () => {
       if (detectionLoopRef.current) clearInterval(detectionLoopRef.current);
@@ -292,7 +292,7 @@ function VotePage() {
     };
   }, []);
 
-  // â”€â”€ Eagerly preload face-api.js as soon as the vote page mounts â”€â”€
+  // ── Eagerly preload face-api.js as soon as the vote page mounts ──
   // This runs in background so by the time user clicks Review, model is ready.
   useEffect(() => {
     let cancelled = false;
@@ -313,7 +313,7 @@ function VotePage() {
               "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"
             );
             if (!cancelled) faceApiLoadedRef.current = true;
-          } catch { /* silent â€” will retry on review open */ }
+          } catch { /* silent — will retry on review open */ }
         };
         document.head.appendChild(s);
       } catch { /* silent background preload failure */ }
@@ -323,19 +323,19 @@ function VotePage() {
     return () => { cancelled = true; clearTimeout(t); };
   }, []);
 
-  // â”€â”€ Sync passiveState to ref (for use in async callbacks) â”€
+  // ── Sync passiveState to ref (for use in async callbacks) ─
   const setPassive = useCallback((s: PassiveState) => {
     setPassiveState(s);
     passiveStateRef.current = s;
   }, []);
 
-  // â”€â”€ Load face-api.js from CDN (tiny-face-detector only) â”€â”€
+  // ── Load face-api.js from CDN (tiny-face-detector only) ──
   const loadFaceApi = useCallback((): Promise<void> => {
     return new Promise((resolve, reject) => {
       if (faceApiLoadedRef.current) { resolve(); return; }
       const existing = document.getElementById("faceapi-cdn");
       if (existing) {
-        // Script tag already injected â€” may just need a moment to settle
+        // Script tag already injected — may just need a moment to settle
         const check = () => (window as any).faceapi ? (faceApiLoadedRef.current = true, resolve()) : reject(new Error("face-api.js not available"));
         setTimeout(check, 800);
         return;
@@ -369,7 +369,7 @@ function VotePage() {
 
       const done = (advanced: boolean) => resolve(advanced);
 
-      // Chrome, Edge, Brave â€” precise per-frame callback when available
+      // Chrome, Edge, Brave — precise per-frame callback when available
       const rvfc = (video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback;
       if (typeof rvfc === "function") {
         let settled = false;
@@ -406,7 +406,7 @@ function VotePage() {
     });
   }, []);
 
-  // â”€â”€ Capture one normalized frame from the webcam â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Capture one normalized frame from the webcam ──────────
   const captureFrame = useCallback((): string | null => {
     const video = webcamRef.current?.video;
     if (!video || video.readyState < 2) return null;
@@ -450,7 +450,7 @@ function VotePage() {
     return dataUrl;
   }, []);
 
-  // â”€â”€ Random jitter delay (req #3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Random jitter delay (req #3) ─────────────────────────
   const jitterDelay = () =>
     new Promise<void>((r) =>
       setTimeout(r, JITTER_MIN_MS + Math.random() * (JITTER_MAX_MS - JITTER_MIN_MS))
@@ -547,7 +547,7 @@ function VotePage() {
     }
   }, [selected, verificationCode, hpField1, hpField2, hpField3, queryClient]);
 
-  // â”€â”€ Main passive capture + submit flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Main passive capture + submit flow ─────────────────────
   const runPassiveCapture = useCallback(async () => {
     captureAbortRef.current = false;
     setPassive("detecting");
@@ -599,7 +599,7 @@ function VotePage() {
     setFaceDetected(true);
     setPassiveError("");
 
-    // â”€â”€ Phase 2: Capture 5 frames with jitter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Phase 2: Capture 5 frames with jitter ──────────────
     setPassive("capturing");
     const frames: string[] = [];
 
@@ -633,7 +633,7 @@ function VotePage() {
       if (i < TOTAL_FRAMES - 1) await jitterDelay();
     }
 
-    // â”€â”€ Phase 3: Submit to backend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Phase 3: Submit to backend ─────────────────────────
     setPassive("submitting");
     setIsSubmitting(true);
 
@@ -680,7 +680,7 @@ function VotePage() {
     }
   }, [antiReplayToken, captureFrame, waitForNewVideoFrame, logout, nav, verificationCode, handleCastVoteWithParams]);
 
-  // â”€â”€ Auto-start capture immediately when face_verification opens â”€â”€â”€â”€â”€
+  // ── Auto-start capture immediately when face_verification opens ─────
   useEffect(() => {
     if (step === "face_verification" && passiveStateRef.current === "idle") {
       const t = setTimeout(() => runPassiveCapture(), 100);
@@ -704,7 +704,7 @@ function VotePage() {
 
           <div className="space-y-2">
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground animate-in slide-in-from-top-2 duration-300">
-              âœ“ Vote Successfully Recorded
+              ✓ Vote Successfully Recorded
             </h1>
             <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg py-2 max-w-sm mx-auto font-medium">
               Your vote has been permanently recorded.
@@ -781,7 +781,7 @@ function VotePage() {
           <p className="text-xs text-muted-foreground">
             Please wait for admin approval on the dashboard or contact the election coordinator.
           </p>
-          {/* Session timer only shown during voting â€” hidden on blocked screen */}
+          {/* Session timer only shown during voting — hidden on blocked screen */}
           <div className="pt-4">
             <Button
               className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 w-full rounded-xl py-3 font-semibold"
@@ -859,7 +859,7 @@ function VotePage() {
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b border-border sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Cast Your Vote â€” President</h1>
+          <h1 className="text-lg font-semibold">Cast Your Vote — President</h1>
           <div className="flex items-center gap-4">
             {timeLeft && (
               <div className="flex items-center gap-1.5 px-3 py-1 bg-muted rounded-full text-xs font-mono font-semibold text-destructive">
@@ -902,7 +902,7 @@ function VotePage() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-14 w-14 rounded-xl bg-[#0F8A5F]/10 flex items-center justify-center text-3xl">
-                        {c.symbol ?? "ðŸŽ“"}
+                        {c.symbol ?? "🎓"}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold truncate">{c.full_name || c.name}</p>
@@ -910,7 +910,7 @@ function VotePage() {
                           {c.party}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
-                          {c.semester} Sem Â· {c.department}
+                          {c.semester} Sem · {c.department}
                         </p>
                       </div>
                     </div>
@@ -936,7 +936,7 @@ function VotePage() {
                           : "bg-background border-border",
                       )}
                     >
-                      {isSel ? "â— Selected" : "â—‹ Select this ticket"}
+                      {isSel ? "● Selected" : "○ Select this ticket"}
                     </div>
                   </button>
                 );
@@ -973,21 +973,21 @@ function VotePage() {
                       : "bg-background border-border",
                   )}
                 >
-                  {selected === NOTA_ID ? "â— Selected" : "â—‹ Select NOTA"}
+                  {selected === NOTA_ID ? "● Selected" : "○ Select NOTA"}
                 </div>
               </button>
             </div>
 
             <div className="flex justify-between mt-8 gap-3">
               <Button variant="outline" onClick={() => nav({ to: "/voter/dashboard" })} className="rounded-xl font-semibold">
-                â† Cancel
+                ← Cancel
               </Button>
               <Button
                 disabled={!selected || isSubmitting}
                 className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 rounded-xl font-semibold shadow-md transition-all px-6"
                 onClick={() => setStep("confirm_vote")}
               >
-                Review Vote â†’
+                Review Vote →
               </Button>
             </div>
           </>
@@ -1020,12 +1020,12 @@ function VotePage() {
                 selectedCandidate && (
                   <div className="flex items-center gap-3">
                     <div className="h-12 w-12 rounded-xl bg-[#0F8A5F]/10 flex items-center justify-center text-2xl shrink-0">
-                      {selectedCandidate.symbol ?? "ðŸŽ“"}
+                      {selectedCandidate.symbol ?? "🎓"}
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="font-bold text-lg text-foreground truncate">{selectedCandidate.full_name || selectedCandidate.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">{selectedCandidate.party}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{selectedCandidate.semester} Sem Â· {selectedCandidate.department}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{selectedCandidate.semester} Sem · {selectedCandidate.department}</p>
                     </div>
                   </div>
                 )
@@ -1045,7 +1045,7 @@ function VotePage() {
                 className="flex-1 rounded-xl py-6 font-semibold"
                 onClick={() => setStep("ballot")}
               >
-                â† Back
+                ← Back
               </Button>
               <Button
                 className="flex-1 bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white rounded-xl py-6 font-semibold shadow-md"
@@ -1059,7 +1059,7 @@ function VotePage() {
 
         {step === "face_verification" && (
           <div className="bg-card rounded-2xl shadow-sm p-6 md:p-8 max-w-2xl mx-auto">
-            {/* â”€â”€ Honeypot fields (invisible to humans, traps bots) â”€â”€ */}
+            {/* ── Honeypot fields (invisible to humans, traps bots) ── */}
             <div
               aria-hidden="true"
               className="hp-field-confirm"
@@ -1111,10 +1111,10 @@ function VotePage() {
               </p>
             </div>
 
-            {/* â”€â”€ Passive Face Verification UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+            {/* ── Passive Face Verification UI ─────────────── */}
             <div className="mb-6">
 
-              {/* Camera feed â€” always mounted while review is open so capture is instant */}
+              {/* Camera feed — always mounted while review is open so capture is instant */}
               <div
                 className={cn(
                   "rounded-xl overflow-hidden border-2 relative bg-black max-w-sm mx-auto shadow-lg mb-4",
@@ -1199,7 +1199,7 @@ function VotePage() {
                     <div className="flex items-center justify-center gap-2">
                       <ScanFace className={cn("h-5 w-5 transition-colors", faceDetected ? "text-emerald-500" : "text-[#0F8A5F] animate-pulse")} />
                       <span className="text-sm font-semibold">
-                        {faceDetected ? "Face detected â€” hold still..." : "Position your face in the frame"}
+                        {faceDetected ? "Face detected — hold still..." : "Position your face in the frame"}
                       </span>
                     </div>
                     {passiveError && (
@@ -1207,14 +1207,14 @@ function VotePage() {
                         {passiveError}
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground">No gestures required â€” just look at the camera.</p>
+                    <p className="text-xs text-muted-foreground">No gestures required — just look at the camera.</p>
                   </>
                 )}
 
                 {/* CAPTURING */}
                 {passiveState === "capturing" && (
                   <>
-                    <p className="text-sm font-semibold text-foreground">Hold still â€” verifying identity</p>
+                    <p className="text-sm font-semibold text-foreground">Hold still — verifying identity</p>
                     <div className="flex justify-center gap-1.5">
                       {Array.from({ length: TOTAL_FRAMES }).map((_, i) => (
                         <div
@@ -1321,7 +1321,7 @@ function VotePage() {
                     ) ? (
                       <div className="flex justify-center gap-2 pt-1">
                         <Button variant="outline" size="sm" onClick={() => { abortPassive(); setStep("confirm_vote"); }}>
-                          â† Back
+                          ← Back
                         </Button>
                         <Button
                           size="sm"
@@ -1347,7 +1347,7 @@ function VotePage() {
                       <div className="animate-spin h-4 w-4 border-2 border-[#0F8A5F] border-t-transparent rounded-full" />
                       <span className="text-sm font-semibold">Starting camera...</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">No gestures required â€” just look at the camera.</p>
+                    <p className="text-xs text-muted-foreground">No gestures required — just look at the camera.</p>
                   </>
                 )}
 
