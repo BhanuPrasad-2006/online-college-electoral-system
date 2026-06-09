@@ -164,8 +164,19 @@ async def list_candidates(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List candidates. Voters only see approved candidates with approved manifestos."""
+    """List candidates. Voters only see approved candidates from the active election."""
     is_admin = current_user.get("role") == UserRoleEnum.ADMIN.value
+    
+    # Get active election if not admin
+    active_election_id = None
+    if not is_admin:
+        elec_res = await db.execute(select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN).limit(1))
+        active_election = elec_res.scalar_one_or_none()
+        if active_election:
+            active_election_id = active_election.election_id
+        else:
+            return []
+
     query = (
         select(Candidate)
         .options(
@@ -173,6 +184,10 @@ async def list_candidates(
             joinedload(Candidate.position)
         )
     )
+    
+    if active_election_id:
+        query = query.where(Candidate.election_id == active_election_id)
+        
     res = await db.execute(query)
     candidates = res.scalars().all()
 

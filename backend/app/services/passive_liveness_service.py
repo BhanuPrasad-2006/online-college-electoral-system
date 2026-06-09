@@ -1,4 +1,4 @@
-"""
+﻿"""
 Passive Liveness Detection Service.
 
 Validates that a sequence of face frames represents a real, live person
@@ -22,32 +22,30 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Tunable thresholds ──────────────────────────────────────────
+# ΓöÇΓöÇ Tunable thresholds ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 # Minimum pixel-level noise variance expected from a real camera sensor.
 # LOWERED: Mobile/webcam cameras with JPEG compression have very low raw variance.
 # Printed photos / screen replays produce near-zero variance (~0).
-# Further lowered from 0.01 → 0.003 because 8-frame average variance over
-# 480x640 JPEG frames (quality 0.85) is typically 0.02–0.12 for live video.
-# At 0.003, static images still register ~0 while real cameras always exceed this.
-_MIN_PIXEL_NOISE_VARIANCE = 0.003
+# Further lowered from 0.05 ΓåÆ 0.01 because 5-frame average variance over
+# 480x640 JPEG frames (quality 0.82) is typically 0.03ΓÇô0.15 for live video.
+_MIN_PIXEL_NOISE_VARIANCE = 0.01
 
 # Minimum mean cosine distance between embeddings across the frame sequence.
 # A perfectly still printed photo will have distance ~0.
 # Natural live faces have small but non-zero drift.
-# LOWERED from 0.00001 → 0.000005 to allow for very still subjects who follow the
-# "hold still" instruction — micro-movements still produce drift above this threshold.
-_MIN_EMBEDDING_DRIFT = 0.000005
+_MIN_EMBEDDING_DRIFT = 0.00001
 
-# Maximum embedding drift — if too high, the face moved too much (cover swap).
+# Maximum embedding drift ΓÇö if too high, the face moved too much (cover swap).
 # RAISED: Some natural head wobble on mobile is larger than 0.30.
-_MAX_EMBEDDING_DRIFT = 0.50
+_MAX_EMBEDDING_DRIFT = 0.60
 
 # Minimum brightness std-deviation across frames (live scenes have micro-flicker).
-# LOWERED: Mobile/webcam cameras auto-adjust exposure — very stable brightness is normal.
-# Further lowered from 0.0003 → 0.0001 because modern webcams with auto-exposure
-# produce extremely stable brightness across 8 frames. Threshold 0.0001 still catches
-# perfectly static replays where std would be exactly 0.
-_MIN_BRIGHTNESS_VARIATION = 0.0001
+# LOWERED: Mobile/webcam cameras auto-adjust exposure ΓÇö very stable brightness is normal.
+# Further lowered from 0.001 ΓåÆ 0.0003 because simulated 480x640 webcam frames
+# with white noise std 1.5 produce brightness std ~0.0008ΓÇô0.001. Without synthetic
+# noise (real compressed webcam), it's even lower. Threshold 0.0003 still catches
+# perfectly static replays where std would be ~0.
+_MIN_BRIGHTNESS_VARIATION = 0.0003
 
 # Minimum frames required to run checks.
 _MIN_FRAMES = 3
@@ -55,11 +53,11 @@ _MIN_FRAMES = 3
 # Maximum frames accepted.
 _MAX_FRAMES = 8
 
-# Generic user-facing error message — never expose internal check names.
+# Generic user-facing error message ΓÇö never expose internal check names.
 GENERIC_FAILURE_MSG = "Unable to verify live face. Please try again."
 
 
-# ── Public API ──────────────────────────────────────────────────
+# ΓöÇΓöÇ Public API ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 def check_passive_liveness(
     frames_bgr: list,
@@ -79,27 +77,27 @@ def check_passive_liveness(
     """
     n = len(frames_bgr)
 
-    # 1 ── Minimum frame count ───────────────────────────────────
+    # 1 ΓöÇΓöÇ Minimum frame count ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if n < _MIN_FRAMES:
         return False, f"Insufficient frames: got {n}, need {_MIN_FRAMES}"
 
     try:
-        # 2 ── Pixel noise variance ─────────────────────────────
+        # 2 ΓöÇΓöÇ Pixel noise variance ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
         passed, reason = _check_pixel_noise(frames_bgr)
         if not passed:
             return False, reason
 
-        # 3 ── Embedding drift ──────────────────────────────────
+        # 3 ΓöÇΓöÇ Embedding drift ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
         passed, reason = _check_embedding_drift(embeddings)
         if not passed:
             return False, reason
 
-        # 4 ── Brightness variation ─────────────────────────────
+        # 4 ΓöÇΓöÇ Brightness variation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
         passed, reason = _check_brightness_variation(frames_bgr)
         if not passed:
             return False, reason
 
-        # 5 ── Identical-frame rejection ────────────────────────
+        # 5 ΓöÇΓöÇ Identical-frame rejection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
         passed, reason = _check_no_identical_frames(frames_bgr)
         if not passed:
             return False, reason
@@ -107,7 +105,7 @@ def check_passive_liveness(
         return True, None
 
     finally:
-        # Safe memory cleanup — release all numpy references
+        # Safe memory cleanup ΓÇö release all numpy references
         _safe_cleanup(frames_bgr)
 
 
@@ -156,7 +154,7 @@ def compute_majority_match(
     return passed, matched, total, avg_score_pct
 
 
-# ── Private checks ──────────────────────────────────────────────
+# ΓöÇΓöÇ Private checks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 def _check_pixel_noise(frames_bgr: list) -> tuple[bool, Optional[str]]:
     """
@@ -193,7 +191,7 @@ def _check_embedding_drift(embeddings: list) -> tuple[bool, Optional[str]]:
     """
     Compute mean pairwise cosine distance between consecutive embeddings.
     A real live face will have small but non-zero drift from natural micro-movement.
-    A perfectly still static source will have distance ≈ 0.
+    A perfectly still static source will have distance Γëê 0.
     """
     try:
         if len(embeddings) < 2:
@@ -219,7 +217,9 @@ def _check_embedding_drift(embeddings: list) -> tuple[bool, Optional[str]]:
             return False, "Could not compute embedding distances"
 
         mean_drift = float(np.mean(distances))
-        logger.debug(f"Passive liveness embedding drift: {mean_drift:.6f}")
+        min_drift = float(np.min(distances))
+        max_drift = float(np.max(distances))
+        logger.info(f"Passive liveness embedding drift stats: min_drift={min_drift:.6f}, avg_drift={mean_drift:.6f}, max_drift={max_drift:.6f}")
 
         del distances
         gc.collect()
@@ -293,20 +293,20 @@ def _safe_cleanup(frames_bgr: list) -> None:
         pass
 
 
-# ── Constants exposed for import ───────────────────────────────
+# ΓöÇΓöÇ Constants exposed for import ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 MIN_FRAMES = _MIN_FRAMES
 MAX_FRAMES = _MAX_FRAMES
 GENERIC_FAILURE_MSG = GENERIC_FAILURE_MSG
 
 
-# ══════════════════════════════════════════════════════════════════
-# FUTURE ARCHITECTURE STUBS — DO NOT IMPLEMENT YET
-# ══════════════════════════════════════════════════════════════════
+# ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+# FUTURE ARCHITECTURE STUBS ΓÇö DO NOT IMPLEMENT YET
+# ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
 class DeepfakeScoringInterface:
     """
     Stub interface for future deepfake detection integration.
-    Expected to return a confidence score 0.0–1.0 (0 = deepfake, 1 = real).
+    Expected to return a confidence score 0.0ΓÇô1.0 (0 = deepfake, 1 = real).
     """
     @staticmethod
     def score_frames(frames_bgr: list) -> dict:

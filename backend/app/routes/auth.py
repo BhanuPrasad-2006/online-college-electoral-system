@@ -380,7 +380,6 @@ async def get_voter_profile(
         year_str = "—"
 
     return {
-        "voter_id": str(voter.voter_id),
         "name": voter.full_name,
         "email": voter.college_email,
         "department": voter.department or "—",
@@ -696,11 +695,20 @@ async def issue_voting_token(
             detail="You do not have voting permission. Contact the election admin."
         )
 
-    # Check active election (uses PhaseEngine for consistency with cast_vote)
+    # Check active election (VOTING_OPEN status first, then PhaseEngine date fallback)
     election_res = await db.execute(
-        select(Election).order_by(Election.created_at.desc())
+        select(Election)
+        .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
+        .order_by(Election.created_at.desc())
     )
     election = election_res.scalars().first()
+    if not election:
+        # Fallback: check by date range in case status hasn't been updated
+        all_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+        for e in all_res.scalars().all():
+            if PhaseEngine.is_voting_allowed(e):
+                election = e
+                break
     if not election or not PhaseEngine.is_voting_allowed(election):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
