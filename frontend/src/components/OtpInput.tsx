@@ -35,7 +35,7 @@ export function OtpInput({
           }}
           maxLength={1}
           inputMode="numeric"
-          className="h-12 w-11 text-center text-lg font-semibold border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-card"
+          className="h-12 w-11 text-center text-lg font-semibold border border-border dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-card dark:bg-white/5 dark:text-white"
         />
       ))}
     </div>

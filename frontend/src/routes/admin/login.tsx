@@ -21,13 +21,13 @@ function AdminLogin() {
   const recaptchaRef = useRef<any>(null);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-dark to-secondary-dark p-4 relative overflow-hidden">
+    <div className="dark min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-dark to-secondary-dark p-4 relative overflow-hidden">
       <div className="absolute inset-0 opacity-20 pointer-events-none">
         <div className="absolute top-20 left-20 w-64 h-64 bg-[#0F8A5F] rounded-full blur-3xl animate-pulse-subtle" />
         <div className="absolute bottom-20 right-20 w-80 h-80 bg-[#16A34A] rounded-full blur-3xl" />
       </div>
       <div
-        className="relative w-full max-w-md glass-panel rounded-[24px] border border-white/10 shadow-2xl p-8 animate-fade-in-up"
+        className="relative w-full max-w-md dark-glass-panel rounded-[24px] border border-white/10 shadow-2xl p-8 animate-fade-in-up"
         style={{ animationDelay: "80ms" }}
       >
         <div className="flex flex-col items-center text-center mb-6">
