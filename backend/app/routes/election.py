@@ -1280,6 +1280,13 @@ async def update_election_dates(
     election.voting_end = payload.voting_end
     election.eligible_department = payload.eligible_department
     
+    # If the election was already closed or results were published, reset state to UPCOMING to allow a fresh schedule/re-run
+    if election.status in [ElectionStatusEnum.CLOSED.value, ElectionStatusEnum.RESULTS_PUBLISHED.value]:
+        election.status = ElectionStatusEnum.UPCOMING.value
+        await _reset_election_results_state(db, election_uuid, election)
+        await db.execute(delete(Vote).where(Vote.election_id == election_uuid))
+        await db.execute(update(Voter).values(has_voted=False))
+        
     await db.commit()
     await db.refresh(election)
     _reset_election_cache()
