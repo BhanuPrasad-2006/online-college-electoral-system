@@ -54,10 +54,10 @@ def call_gemini(
     system_instruction: str = None,
     response_schema = None,
     response_mime_type: str = None,
-    model: str = "gemini-2.5-flash"
+    model: str = "gemini-1.5-flash"
 ) -> str:
     """
-    Calls the Gemini API using the modern Client structure and gemini-2.5-flash model.
+    Calls the Gemini API using the modern Client structure and gemini-1.5-flash model.
     Falls back to mock data if no API key is present or if an error is encountered.
     """
     client, use_mock = get_gemini_client()
