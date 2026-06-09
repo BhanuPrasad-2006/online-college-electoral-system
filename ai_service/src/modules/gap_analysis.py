@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class ManifestoGapAnalyzer:
     def analyze_gaps(self, manifesto: str, categories: list[str]) -> dict:
         """
-        Analyze gaps between candidate's manifesto and voter concern categories using Gemini 1.5 Flash.
+        Analyze gaps between candidate's manifesto and voter concern categories using Gemini 2.5 Flash.
         """
         if not categories:
             return {"coverages": []}
@@ -31,7 +31,7 @@ class ManifestoGapAnalyzer:
                 system_instruction=system_instruction,
                 response_schema=ManifestoGapAnalysisResponseSchema,
                 response_mime_type="application/json",
-                model="gemini-1.5-flash"
+                model="gemini-2.5-flash"
             )
             data = json.loads(response_text)
             return data

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class ManifestoAnalyzer:
     def analyze(self, content: str) -> dict:
         """
-        Analyze a candidate's manifesto using Gemini 1.5 Flash and Structured JSON Output.
+        Analyze a candidate's manifesto using Gemini 2.5 Flash and Structured JSON Output.
         """
         system_instruction = (
             "You are an expert electoral analyst. Analyze the candidate's manifesto and extract:\n"
@@ -35,7 +35,7 @@ class ManifestoAnalyzer:
                 system_instruction=system_instruction,
                 response_schema=ManifestoAnalysisSchema,
                 response_mime_type="application/json",
-                model="gemini-1.5-flash"
+                model="gemini-2.5-flash"
             )
             data = json.loads(response_text)
             

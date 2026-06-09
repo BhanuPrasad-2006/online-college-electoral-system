@@ -28,11 +28,11 @@ class ChatbotHelper:
         if any(keyword in prompt_lower for keyword in neutrality_violation_keywords):
             flagged = True
 
-        # Call Gemini with strict system instruction using gemini-1.5-flash
+        # Call Gemini with strict system instruction using gemini-2.5-flash
         response_text = call_gemini(
             prompt=prompt,
             system_instruction=SYSTEM_INSTRUCTION,
-            model="gemini-1.5-flash"
+            model="gemini-2.5-flash"
         )
         
         # If the response itself indicates a neutrality refusal, ensure the flag is set

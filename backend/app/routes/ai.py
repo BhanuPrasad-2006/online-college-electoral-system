@@ -478,22 +478,51 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         instruction = await _build_contextual_instruction(db)
 
         # Get or create a Gemini Chat session for this session_id
-        if session_id not in _chat_sessions or _chat_sessions[session_id] is None:
-            chat_session = client.chats.create(
-                model="gemini-1.5-flash",
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=instruction,
-                    temperature=0.3,        # Lower = more factual, less creative
-                    max_output_tokens=1024,
-                ),
-            )
-            _chat_sessions[session_id] = {"chat": chat_session, "instruction": instruction}
-        else:
-            chat_session = _chat_sessions[session_id]["chat"]
+        import time
+        max_retries = 3
+        retry_delay = 1.0
+        chat_session = None
 
-        # Send the user message and get the AI response
-        response = chat_session.send_message(request.message)
-        reply_text = response.text
+        for attempt in range(max_retries):
+            try:
+                if session_id not in _chat_sessions or _chat_sessions[session_id] is None:
+                    chat_session = client.chats.create(
+                        model="gemini-2.5-flash",
+                        config=genai_types.GenerateContentConfig(
+                            system_instruction=instruction,
+                            temperature=0.3,        # Lower = more factual, less creative
+                            max_output_tokens=1024,
+                        ),
+                    )
+                    _chat_sessions[session_id] = {"chat": chat_session, "instruction": instruction}
+                else:
+                    chat_session = _chat_sessions[session_id]["chat"]
+                break
+            except Exception as e:
+                err_msg = str(e).lower()
+                if attempt < max_retries - 1 and any(msg in err_msg for msg in ["503", "unavailable", "429", "rate limit", "exhausted", "demand"]):
+                    logger.warning(f"Transient Gemini session creation error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                raise
+
+        # Send the user message and get the AI response with retry
+        retry_delay = 1.0
+        reply_text = None
+        for attempt in range(max_retries):
+            try:
+                response = chat_session.send_message(request.message)
+                reply_text = response.text
+                break
+            except Exception as e:
+                err_msg = str(e).lower()
+                if attempt < max_retries - 1 and any(msg in err_msg for msg in ["503", "unavailable", "429", "rate limit", "exhausted", "demand"]):
+                    logger.warning(f"Transient Gemini send_message error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                raise
 
         return ChatResponse(
             session_id=session_id,
