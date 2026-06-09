@@ -54,10 +54,10 @@ def call_gemini(
     system_instruction: str = None,
     response_schema = None,
     response_mime_type: str = None,
-    model: str = "gemini-1.5-flash"
+    model: str = "gemini-2.5-flash"
 ) -> str:
     """
-    Calls the Gemini API using the modern Client structure and gemini-1.5-flash model.
+    Calls the Gemini API using the modern Client structure and gemini-2.5-flash model.
     Falls back to mock data if no API key is present or if an error is encountered.
     """
     client, use_mock = get_gemini_client()
@@ -150,12 +150,25 @@ def call_gemini(
         config.response_mime_type = response_mime_type
 
     try:
-        response = client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=config
-        )
-        return response.text
+        import time
+        max_retries = 3
+        retry_delay = 1.0
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config
+                )
+                return response.text
+            except Exception as e:
+                err_msg = str(e).lower()
+                if attempt < max_retries - 1 and any(msg in err_msg for msg in ["503", "unavailable", "429", "rate limit", "exhausted", "demand"]):
+                    logger.warning(f"Transient Gemini error (attempt {attempt+1}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                raise e
     except Exception as e:
         logger.error(f"Gemini API call failed: {e}. Falling back to mock.")
         if response_mime_type == "application/json" or response_schema is not None:
