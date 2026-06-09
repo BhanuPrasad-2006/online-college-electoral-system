@@ -105,7 +105,11 @@ async def _mock_response(message: str, db: AsyncSession) -> str:
     if any(w in message_lower for w in ["candidate", "manifesto", "platform", "contest", "who is running", "running for"]):
         cands_res = await db.execute(
             select(Candidate)
-            .options(joinedload(Candidate.voter), joinedload(Candidate.position))
+            .options(
+                joinedload(Candidate.voter),
+                joinedload(Candidate.position),
+                joinedload(Candidate.party)
+            )
             .where(Candidate.status == "APPROVED")
         )
         candidates = cands_res.scalars().all()
@@ -119,7 +123,7 @@ async def _mock_response(message: str, db: AsyncSession) -> str:
             man_res = await db.execute(select(Manifesto).where(Manifesto.candidate_id == c.candidate_id))
             man = man_res.scalars().first()
             manifesto_txt = man.content if man else "No manifesto submitted yet."
-            party_txt = f" ({c.party})" if hasattr(c, "party") and c.party else ""
+            party_txt = f" ({c.party.name})" if c.party else ""
             reply += f"• **{c.voter.full_name}**{party_txt}\n"
             reply += f"  - Running for: {c.position.title if c.position else 'Unknown'}\n"
             reply += f"  - Dept: {c.voter.department} · Sem: {c.voter.semester}\n"
@@ -293,7 +297,8 @@ async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> st
                 select(Candidate)
                 .options(
                     joinedload(Candidate.voter),
-                    joinedload(Candidate.position)
+                    joinedload(Candidate.position),
+                    joinedload(Candidate.party)
                 )
                 .where(Candidate.status == "APPROVED")
             )
@@ -310,10 +315,15 @@ async def _build_contextual_instruction(db: Optional[AsyncSession] = None) -> st
                 )
                 man = man_res.scalars().first()
 
+                party_name = "Independent"
+                if cand.candidate_type == "PARTY" and cand.party:
+                    party_name = cand.party.name
+
                 candidate_data[name] = {
                     "position": cand.position.title if cand.position else "Unknown",
                     "department": cand.voter.department or "Unknown",
                     "year": f"{cand.voter.year_of_study}rd Year" if cand.voter.year_of_study else "Unknown",
+                    "party": party_name,
                     "manifesto_content": man.content if man else None,
                     "image_url": man.image_url if man else None,
                 }
@@ -334,10 +344,7 @@ def classify_query(message: str) -> str:
     msg = message.lower().strip()
 
     # Candidate/manifesto queries
-    candidate_names = [n.lower().split()[0] for n in CANDIDATE_MANIFESTOS.keys()]
-    if any(name in msg for name in candidate_names):
-        return "manifesto"
-    if any(w in msg for w in ["manifesto", "platform", "stance", "promise", "compare", "candidate"]):
+    if any(w in msg for w in ["manifesto", "platform", "stance", "promise", "compare", "candidate", "who is running", "running for"]):
         return "manifesto"
 
     # Voting process
@@ -382,12 +389,51 @@ def classify_query(message: str) -> str:
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/chat/suggestions", response_model=SuggestionsResponse)
-async def get_suggestions():
+async def get_suggestions(db: AsyncSession = Depends(get_db)):
     """Return suggested questions for the chatbot UI, grouped by category."""
-    return SuggestionsResponse(
-        suggestions=FLAT_SUGGESTIONS,
-        categories=SUGGESTED_QUESTIONS,
-    )
+    try:
+        # Fetch approved candidates dynamically to make suggestions realistic
+        cands_res = await db.execute(
+            select(Candidate)
+            .options(joinedload(Candidate.voter))
+            .where(Candidate.status == "APPROVED")
+        )
+        approved_candidates = cands_res.scalars().all()
+        
+        candidate_questions = ["Compare all candidates on Wi-Fi improvements"]
+        for cand in approved_candidates[:3]:
+            if cand.voter:
+                candidate_questions.append(f"Tell me about {cand.voter.full_name}'s platform")
+        
+        # Fill up to 5 questions if fewer candidates are registered
+        if len(candidate_questions) < 5:
+            fallbacks = [
+                "Who has plans for placements?",
+                "Who has plans for mental health support?",
+                "Which candidate focuses on sports facilities?",
+                "Compare candidates on cafeteria improvements"
+            ]
+            for f in fallbacks:
+                if len(candidate_questions) < 5:
+                    candidate_questions.append(f)
+                    
+        dynamic_suggestions = {
+            "Candidates & Manifestos": candidate_questions,
+            "Voting Process": SUGGESTED_QUESTIONS["Voting Process"],
+            "Election Info": SUGGESTED_QUESTIONS["Election Info"]
+        }
+        flat_list = [s for group in dynamic_suggestions.values() for s in group]
+        
+        return SuggestionsResponse(
+            suggestions=flat_list,
+            categories=dynamic_suggestions
+        )
+    except Exception as e:
+        logger.warning(f"Failed to generate dynamic suggestions: {e}")
+        return SuggestionsResponse(
+            suggestions=FLAT_SUGGESTIONS,
+            categories=SUGGESTED_QUESTIONS,
+        )
 
 
 @router.post("/chat", response_model=ChatResponse)

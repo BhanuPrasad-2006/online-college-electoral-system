@@ -195,101 +195,7 @@ STUDENT_CONCERNS = {
 #  5. CANDIDATE MANIFESTOS
 # ═══════════════════════════════════════════════════════════════
 
-CANDIDATE_MANIFESTOS = {
-    "Arjun Mehta": {
-        "position": "General Secretary",
-        "department": "Computer Science Engineering",
-        "year": "3rd Year",
-        "party": "Progress Alliance",
-        "platforms": {
-            "Placements & Career": (
-                "I will establish a dedicated Tech Placement Cell with direct tie-ups to 20+ product-based companies. "
-                "I plan to organize bi-monthly mock interview drives, resume review workshops, and a LinkedIn profile building bootcamp in collaboration with the Training & Placement department."
-            ),
-            "Campus Wi-Fi & Internet": (
-                "I will petition the management to upgrade the campus Wi-Fi infrastructure to a minimum of 100 Mbps fiber connection. "
-                "I will propose installing additional Wi-Fi repeaters in all hostel blocks and the canteen area, with a dedicated student-accessible bandwidth management portal."
-            ),
-            "Cafeteria Hygiene & Food Quality": (
-                "I plan to form a Food Quality Committee with rotating student representatives who conduct monthly hygiene audits. "
-                "I will work with the cafeteria management to introduce a weekly rotating menu, expand vegetarian and vegan options, and install a complaint drop box."
-            ),
-            "Sports & Recreation Facilities": (
-                "My plan includes organizing one inter-department sports tournament each semester and negotiating with management for gym equipment procurement. "
-                "I will revive the cricket and basketball leagues and ensure the sports grounds are maintained year-round."
-            ),
-            "Mental Health & Counselling": (
-                "I am committed to launching an anonymous online counselling booking system within the first month of my tenure. "
-                "I will advocate for two certified counsellors to be available during exam periods and will organize monthly Mental Health Awareness seminars."
-            ),
-            "Library Resources & Timings": None,
-            "Hostel Infrastructure": None,
-            "Transportation & Bus Routes": None,
-        },
-    },
-    "Priya Sharma": {
-        "position": "General Secretary",
-        "department": "Electronics & Communication Engineering",
-        "year": "4th Year",
-        "party": "Student First Movement",
-        "platforms": {
-            "Campus Wi-Fi & Internet": (
-                "I have already spoken to the IT department and the Principal about the Wi-Fi issues. "
-                "My plan is to implement a smart bandwidth allocation system that prioritizes lab and library networks during academic hours "
-                "and automatically switches to hostel networks in the evening. I will also negotiate a dedicated 200 Mbps leased line for hostel blocks."
-            ),
-            "Hostel Infrastructure": (
-                "I will form an official Hostel Welfare Committee with elected student representatives from each block. "
-                "The committee will have a direct escalation path to the Chief Warden and management, with monthly resolution meetings. "
-                "I will push for hot water geysers in all hostels and regular maintenance inspections."
-            ),
-            "Cafeteria Hygiene & Food Quality": (
-                "I will introduce a live feedback system using QR codes in the cafeteria where students can rate meals daily. "
-                "I will push for third-party food safety audits every two months and a student-voted menu system where the top-voted dishes appear each week."
-            ),
-            "Library Resources & Timings": (
-                "I will negotiate with the librarian and management to extend library hours to 11 PM on all weekdays and 9 PM on weekends. "
-                "I will also create an online portal to pre-book study rooms and request new book additions to the collection."
-            ),
-            "Transportation & Bus Routes": (
-                "I will conduct a campus-wide survey to identify the top 5 most demanded bus routes and submit a formal proposal to expand coverage. "
-                "Additionally, I will push for real-time GPS tracking integration into the college app for all buses."
-            ),
-            "Placements & Career": None,
-            "Sports & Recreation Facilities": None,
-            "Mental Health & Counselling": None,
-        },
-    },
-    "Kiran Reddy": {
-        "position": "General Secretary",
-        "department": "Mechanical Engineering",
-        "year": "3rd Year",
-        "party": "Unity Front",
-        "platforms": {
-            "Sports & Recreation Facilities": (
-                "Sports are central to my campaign. I will completely revamp the sports committee structure and introduce a dedicated Sports Secretary role. "
-                "I will organize an annual college Olympics with 15+ sports, negotiate for new gym equipment, and ensure all courts and grounds are maintained monthly. "
-                "I will also push for sports scholarships for students excelling in inter-college competitions."
-            ),
-            "Cafeteria Hygiene & Food Quality": (
-                "I propose a transparent rating system for cafeteria food quality displayed on a public notice board. "
-                "I will work with management to hire a certified nutritionist to review the monthly menu and ensure balanced meal options are always available."
-            ),
-            "Placements & Career": (
-                "I will create a cross-departmental Skill Development Club that organizes coding competitions, design hackathons, and core engineering workshops. "
-                "I will also establish an alumni mentorship network where 3rd and 4th year students can seek career guidance from senior alumni currently working in industry."
-            ),
-            "Mental Health & Counselling": (
-                "I will launch a Peer Support Network — a trained group of student volunteers who can provide initial emotional support. "
-                "I will also push for a dedicated mental health awareness week each semester with activities and open sessions."
-            ),
-            "Campus Wi-Fi & Internet": None,
-            "Hostel Infrastructure": None,
-            "Library Resources & Timings": None,
-            "Transportation & Bus Routes": None,
-        },
-    },
-}
+CANDIDATE_MANIFESTOS = {}
 
 # ═══════════════════════════════════════════════════════════════
 #  6. FAQ — Common Voter Questions
@@ -396,12 +302,10 @@ QUERY_TYPE_GUIDE = {
     "manifesto": {
         "description": "Questions about candidate platforms, stances, promises, or positions on issues.",
         "examples": [
-            "What does Arjun Mehta promise about Wi-Fi?",
             "Compare all candidates on placements",
-            "Tell me about Priya Sharma's platform",
             "Which candidates address mental health?",
         ],
-        "response_guidance": "Use CANDIDATE_MANIFESTOS data. Format comparisons as Markdown tables. If a candidate hasn't addressed an issue, explicitly state that.",
+        "response_guidance": "Use CANDIDATE MANIFESTO DATA. Format comparisons as Markdown tables. If a candidate hasn't addressed an issue, explicitly state that.",
     },
     "voting_process": {
         "description": "Questions about how to vote, when to vote, voting mechanics.",
@@ -425,11 +329,10 @@ QUERY_TYPE_GUIDE = {
     "candidate_info": {
         "description": "Questions about candidate backgrounds, eligibility, parties.",
         "examples": [
-            "Who is running for General Secretary?",
+            "Who is running for President?",
             "Tell me about the candidates",
-            "Which department is Kiran Reddy from?",
         ],
-        "response_guidance": "Use CANDIDATE_MANIFESTOS data. Focus on candidate background and positions.",
+        "response_guidance": "Use CANDIDATE MANIFESTO DATA. Focus on candidate background and positions.",
     },
     "election_schedule": {
         "description": "Questions about election timeline, phases, deadlines.",
