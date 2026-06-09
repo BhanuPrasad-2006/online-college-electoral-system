@@ -72,8 +72,8 @@ export function ReconfirmPasswordModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <div className="flex items-center gap-3 mb-2">
-          <div className="h-10 w-10 rounded-full bg-[#6C63FF]/10 flex items-center justify-center shrink-0">
-            <Lock className="h-5 w-5 text-[#6C63FF]" />
+          <div className="h-10 w-10 rounded-full bg-[#0F8A5F]/10 flex items-center justify-center shrink-0">
+            <Lock className="h-5 w-5 text-[#0F8A5F]" />
           </div>
           <div>
             <DialogTitle className="text-base">{title}</DialogTitle>
@@ -129,7 +129,7 @@ export function ReconfirmPasswordModal({
               Cancel
             </Button>
             <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+              className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
               onClick={handleConfirm}
               disabled={!password.trim() || verifying}
             >

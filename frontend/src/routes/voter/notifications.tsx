@@ -18,7 +18,7 @@ function NotifPage() {
         <Button
           variant="ghost"
           onClick={markAllNotificationsRead}
-          className="text-[#6C63FF] hover:text-[#1F3A6E]"
+          className="text-[#0F8A5F] hover:text-[#0F8A5F]"
         >
           <CheckCheck className="h-4 w-4 mr-2" /> Mark all as read
         </Button>
@@ -30,10 +30,10 @@ function NotifPage() {
             onClick={() => markNotificationRead(n.id)}
             className={cn(
               "w-full text-left p-4 flex items-start gap-4 transition-colors hover:bg-muted/50",
-              n.unread && "border-l-4 border-[#6C63FF] bg-[#6C63FF]/5",
+              n.unread && "border-l-4 border-[#0F8A5F] bg-[#0F8A5F]/5",
             )}
           >
-            <div className="h-10 w-10 rounded-lg bg-[#6C63FF]/10 text-[#6C63FF] flex items-center justify-center shrink-0">
+            <div className="h-10 w-10 rounded-lg bg-[#D9A441]/10 text-[#D9A441] flex items-center justify-center shrink-0">
               <Bell className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
@@ -42,7 +42,7 @@ function NotifPage() {
                 {n.time} · {n.type}
               </p>
             </div>
-            {n.unread && <span className="h-2 w-2 rounded-full bg-[#6C63FF] mt-2" />}
+            {n.unread && <span className="h-2 w-2 rounded-full bg-[#0F8A5F] mt-2" />}
           </button>
         ))}
       </div>

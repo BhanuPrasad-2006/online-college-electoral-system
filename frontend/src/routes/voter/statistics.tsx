@@ -58,7 +58,7 @@ function Page() {
     { name: "Voted", value: 43 },
     { name: "Remaining", value: 57 },
   ];
-  const COLORS = ["#6C63FF", "#E5E7EB"];
+  const COLORS = ["#0F8A5F", "#E5E7EB"];
   const totalVotes = turnoutData.reduce((sum, item) => sum + item.value, 0);
   const votedPercent = Math.round((turnoutData[0].value / totalVotes) * 100);
 
@@ -143,7 +143,7 @@ function Page() {
                   <Line
                     type="monotone"
                     dataKey="votes"
-                    stroke="#6C63FF"
+                    stroke="#0F8A5F"
                     strokeWidth={2.5}
                     dot={{ r: 4 }}
                   />
@@ -155,7 +155,7 @@ function Page() {
           <div className="bg-card rounded-2xl border border-border/70 shadow-sm p-6 mt-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-[#6C63FF]" />
+                <TrendingUp className="h-5 w-5 text-[#0F8A5F]" />
                 <h2 className="text-xl font-semibold">Department Breakdown</h2>
               </div>
               <div className="relative w-full sm:w-72">
@@ -165,7 +165,7 @@ function Page() {
                 <input
                   type="text"
                   placeholder="Search departments..."
-                  className="pl-9 pr-4 py-2 w-full rounded-xl border border-border/60 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/40 text-sm transition-all"
+                  className="pl-9 pr-4 py-2 w-full rounded-xl border border-border/60 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-[#0F8A5F]/40 text-sm transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -199,8 +199,8 @@ function Page() {
       {/* ── Results Announced: Full Data ── */}
       {isResultsAnnounced && (
         <>
-          <div className="bg-[#6C63FF]/10 border border-[#6C63FF]/30 rounded-xl p-4 flex gap-3">
-            <Info className="h-5 w-5 text-[#6C63FF] shrink-0 mt-0.5" />
+          <div className="bg-[#0F8A5F]/10 border border-[#D9A441]/30 rounded-xl p-4 flex gap-3">
+            <Info className="h-5 w-5 text-[#0F8A5F] shrink-0 mt-0.5" />
             <p className="text-sm">
               Individual voter data is never displayed. All statistics are aggregated.
             </p>
@@ -216,7 +216,7 @@ function Page() {
               <div className="space-y-8">
                 {publicResults.results.map((positionResult: any, idx: number) => (
                   <div key={idx}>
-                    <h3 className="text-base font-bold text-[#1F3A6E] mb-3">{positionResult.position}</h3>
+                    <h3 className="text-base font-bold text-[#0F8A5F] mb-3">{positionResult.position}</h3>
                     <div className="space-y-2">
                       {positionResult.candidates
                         .sort((a: any, b: any) => b.votes - a.votes)
@@ -249,7 +249,7 @@ function Page() {
                                     <div
                                       className={cn(
                                         "h-full rounded-full transition-all",
-                                        isWinner ? "bg-success" : "bg-[#6C63FF]/60",
+                                        isWinner ? "bg-success" : "bg-[#0F8A5F]/60",
                                       )}
                                       style={{ width: `${pct}%` }}
                                     />
@@ -308,7 +308,7 @@ function Page() {
                   <Line
                     type="monotone"
                     dataKey="votes"
-                    stroke="#6C63FF"
+                    stroke="#0F8A5F"
                     strokeWidth={2.5}
                     dot={{ r: 4 }}
                   />
@@ -320,7 +320,7 @@ function Page() {
           <div className="bg-card rounded-2xl border border-border/70 shadow-sm p-6 mt-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-[#6C63FF]" />
+                <TrendingUp className="h-5 w-5 text-[#0F8A5F]" />
                 <h2 className="text-xl font-semibold">Department Breakdown</h2>
               </div>
               <div className="relative w-full sm:w-72">
@@ -330,7 +330,7 @@ function Page() {
                 <input
                   type="text"
                   placeholder="Search departments..."
-                  className="pl-9 pr-4 py-2 w-full rounded-xl border border-border/60 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/40 text-sm transition-all"
+                  className="pl-9 pr-4 py-2 w-full rounded-xl border border-border/60 bg-muted/30 focus:outline-none focus:ring-2 focus:ring-[#0F8A5F]/40 text-sm transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -359,13 +359,13 @@ function DepartmentCards({ departments, searchQuery }: { departments: any[]; sea
         <div
           key={stat.department}
           className={cn(
-            "bg-background border border-border/50 rounded-2xl p-5 flex flex-col gap-4 shadow-sm hover:shadow-md hover:border-[#6C63FF]/30 transition-all",
+            "bg-background border border-border/50 rounded-2xl p-5 flex flex-col gap-4 shadow-sm hover:shadow-md hover:border-[#D9A441]/30 transition-all",
             "animate-fade-in-up opacity-0 [animation-fill-mode:forwards]",
           )}
           style={{ animationDelay: `${i * 50}ms` }}
         >
           <div className="flex justify-between items-center">
-            <h3 className="font-bold text-lg text-[#1F3A6E]">{stat.department}</h3>
+            <h3 className="font-bold text-lg text-[#0F8A5F]">{stat.department}</h3>
             <div className="px-2.5 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-lg text-sm font-semibold border border-violet-200 dark:border-violet-800/30">
               {stat.turnout_percentage}%
             </div>
@@ -373,7 +373,7 @@ function DepartmentCards({ departments, searchQuery }: { departments: any[]; sea
 
           <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-[#6C63FF] to-violet-400 h-full transition-all duration-1000 ease-out"
+              className="bg-gradient-to-r from-[#0F8A5F] to-violet-400 h-full transition-all duration-1000 ease-out"
               style={{ width: `${stat.turnout_percentage}%` }}
             />
           </div>
@@ -434,9 +434,9 @@ function Stat({
 }) {
   const toneClass =
     tone === "primary"
-      ? "bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/20"
+      ? "bg-[#D9A441]/10 text-[#D9A441] border-[#D9A441]/20"
       : tone === "dark"
-        ? "bg-[#1F3A6E]/10 text-[#1F3A6E] border-[#1F3A6E]/20"
+        ? "bg-[#D9A441]/10 text-[#D9A441] border-[#D9A441]/20"
         : "bg-muted text-muted-foreground border-border/50";
 
   return (

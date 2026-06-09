@@ -15,12 +15,12 @@ import { useQueryClient } from "@tanstack/react-query";
 export const Route = createFileRoute("/voter/vote")({ component: VotePage });
 
 // ── Passive capture constants ───────────────────────────────────
-const TOTAL_FRAMES   = 5;
+const TOTAL_FRAMES   = 8;      // increased from 5 — backend allows up to 8, more frames increase liveness pass rate
 const FRAME_W        = 480;
 const FRAME_H        = 640;
-const JPEG_QUALITY   = 0.82;   // mobile-optimised, low bandwidth
-const JITTER_MIN_MS  = 350;
-const JITTER_MAX_MS  = 500;    // randomised interval prevents timing attacks
+const JPEG_QUALITY   = 0.85;   // slightly higher quality for better liveness noise profile
+const JITTER_MIN_MS  = 200;    // reduced from 350 — faster capture reduces user fatigue
+const JITTER_MAX_MS  = 350;    // reduced from 500 — still random enough to prevent timing attacks
 
 type PassiveState = "idle" | "detecting" | "capturing" | "submitting" | "success" | "failed";
 
@@ -210,7 +210,7 @@ function VotePage() {
         <div className="max-w-lg w-full bg-card rounded-2xl shadow-lg border border-border p-8 md:p-10 space-y-6 text-center">
           
           <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center animate-in zoom-in duration-500">
-            <CheckCircle2 className="h-12 w-12 text-emerald-500 animate-pulse" />
+            <CheckCircle2 className="h-12 w-12 text-emerald-500 animate-fade-in" />
           </div>
 
           <div className="space-y-2">
@@ -251,7 +251,7 @@ function VotePage() {
 
           <div className="pt-2">
             <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-6 font-semibold shadow-md transition-all text-base"
+              className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 w-full rounded-xl py-6 font-semibold shadow-md transition-all text-base"
               onClick={handleReturnToDashboard}
             >
               Return to Dashboard
@@ -280,7 +280,7 @@ function VotePage() {
           {/* Session timer only shown during voting — hidden on blocked screen */}
           <div className="pt-4">
             <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full rounded-xl py-3 font-semibold"
+              className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 w-full rounded-xl py-3 font-semibold"
               onClick={() => nav({ to: "/voter/dashboard" })}
             >
               Return to Dashboard
@@ -452,7 +452,10 @@ function VotePage() {
   // ── Capture one normalized frame from the webcam ──────────
   const captureFrame = useCallback((): string | null => {
     const video = webcamRef.current?.video;
-    if (!video || video.readyState < 2) return null;
+    if (!video || video.readyState < 2) {
+      console.warn("[face-capture] Video not ready (readyState:", video?.readyState, ")");
+      return null;
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width  = FRAME_W;
@@ -476,14 +479,7 @@ function VotePage() {
       sy = (videoH - sh) / 2;
     }
 
-    console.debug("[face-capture]", {
-      videoW,
-      videoH,
-      sx,
-      sy,
-      sw,
-      sh,
-    });
+    console.log("[face-verify] Frame captured", { videoW, videoH, resolution: `${FRAME_W}x${FRAME_H}`, quality: JPEG_QUALITY });
 
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, FRAME_W, FRAME_H);
     const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
@@ -592,6 +588,7 @@ function VotePage() {
 
   // ── Main passive capture + submit flow ─────────────────────
   const runPassiveCapture = useCallback(async () => {
+    console.log("[face-verify] Starting passive capture flow — TOTAL_FRAMES =", TOTAL_FRAMES);
     captureAbortRef.current = false;
     setPassive("detecting");
     setPassiveError("");
@@ -622,6 +619,7 @@ function VotePage() {
       waitedMs += 80;
     }
     if (!webcamRef.current?.video || webcamRef.current.video.readyState < 2) {
+      console.error("[face-verify] Camera timeout — waited 4s, webcam not ready");
       setPassive("failed");
       setPassiveError("Camera took too long to start. Please try again.");
       return;
@@ -630,10 +628,12 @@ function VotePage() {
     if (captureAbortRef.current) return;
     setFaceDetected(true);
     setPassiveError("");
+    console.log("[face-verify] Camera ready, starting capture of", TOTAL_FRAMES, "frames");
 
-    // ── Phase 2: Capture 5 frames with jitter ──────────────
+    // ── Phase 2: Capture frames with jitter ──────────────
     setPassive("capturing");
     const frames: string[] = [];
+    let captureErrors = 0;
 
     for (let i = 0; i < TOTAL_FRAMES; i++) {
       if (captureAbortRef.current) {
@@ -645,6 +645,7 @@ function VotePage() {
       // Check camera health before capture
       const video = webcamRef.current?.video;
       if (!video || video.readyState < 2) {
+        console.warn("[face-verify] Camera lost at frame", i);
         setPassive("failed");
         setPassiveError("Unable to verify live face. Camera connection lost.");
         return;
@@ -653,17 +654,33 @@ function VotePage() {
       const advanced = await waitForNewVideoFrame(video);
       const frame = captureFrame();
       if (!frame) {
-        setPassive("failed");
-        setPassiveError("Unable to verify live face. Please try again.");
-        return;
+        captureErrors++;
+        console.warn("[face-verify] Frame capture failed at index", i, "(error count:", captureErrors, ")");
+        if (captureErrors >= 3) {
+          console.error("[face-verify] Too many capture errors, aborting");
+          setPassive("failed");
+          setPassiveError("Unable to verify live face. Please try again.");
+          return;
+        }
+        continue;
       }
 
       frames.push(frame);
-      setCapturedCount(i + 1);
+      setCapturedCount(frames.length);
+      console.log("[face-verify] Captured frame", frames.length, "of", TOTAL_FRAMES);
 
-      // Jitter delay between frames (req #3)
+      // Jitter delay between frames
       if (i < TOTAL_FRAMES - 1) await jitterDelay();
     }
+
+    if (frames.length < 3) {
+      console.error("[face-verify] Not enough frames captured:", frames.length);
+      setPassive("failed");
+      setPassiveError("Unable to verify live face. Please try again.");
+      return;
+    }
+
+    console.log("[face-verify] Captured", frames.length, "frames, submitting to backend");
 
     // ── Phase 3: Submit to backend ─────────────────────────
     setPassive("submitting");
@@ -672,6 +689,14 @@ function VotePage() {
     try {
       const verifyRes = await verifyFacePassive({ frames, antiReplayToken: activeToken });
 
+      console.log("[face-verify] Backend response:", {
+        success: verifyRes.success,
+        match_score: verifyRes.match_score,
+        frames_matched: verifyRes.frames_matched,
+        frames_total: verifyRes.frames_total,
+        has_token: !!verifyRes.face_session_token,
+      });
+
       // Clear frames from memory immediately after sending
       frames.length = 0;
 
@@ -679,22 +704,26 @@ function VotePage() {
         setFaceSessionToken(verifyRes.face_session_token);
         if (verifyRes.match_score !== undefined) setMatchScore(verifyRes.match_score);
         setPassive("success");
+        console.log("[face-verify] Verification SUCCESS — match score:", verifyRes.match_score);
         toast.success("Face verified successfully!");
         
         setTimeout(() => {
           handleCastVoteWithParams(verifyRes.face_session_token, activeToken);
         }, 1500);
       } else {
+        console.warn("[face-verify] Verification returned success=false or no token");
         setPassive("failed");
         setPassiveError("Unable to verify live face. Please try again.");
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("[face-verify] Verification FAILED —", err.message || err);
       frames.length = 0; // clear on error too
       if (err.match_score !== undefined) {
+        console.log("[face-verify] Match score from error:", err.match_score);
         setMatchScore(err.match_score);
       }
       const msg = err.message ?? "";
+      console.log("[face-verify] Error details:", { message: msg, match_score: err.match_score });
       if (
         msg.toLowerCase().includes("lockout") ||
         msg.toLowerCase().includes("locked") ||
@@ -704,7 +733,7 @@ function VotePage() {
         setPassive("failed");
         setTimeout(() => { logout(); nav({ to: "/" }); }, 3000);
       } else {
-        // Generic message for all other failures (req #8)
+        // Generic message for all other failures
         setPassive("failed");
         setPassiveError("Unable to verify live face. Please try again.");
       }
@@ -733,8 +762,8 @@ function VotePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="max-w-md w-full bg-card rounded-2xl shadow-sm p-8 text-center border border-border">
-          <div className="mx-auto h-14 w-14 rounded-full bg-[#6C63FF]/10 flex items-center justify-center">
-            <ShieldCheck className="h-7 w-7 text-[#6C63FF]" />
+          <div className="mx-auto h-14 w-14 rounded-full bg-[#0F8A5F]/10 flex items-center justify-center">
+            <ShieldCheck className="h-7 w-7 text-[#0F8A5F]" />
           </div>
           <h1 className="text-xl font-bold mt-4">Identity Verification</h1>
           <p className="text-sm text-muted-foreground mt-2">
@@ -766,7 +795,7 @@ function VotePage() {
               Cancel
             </Button>
             <Button
-              className="flex-1 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white rounded-xl font-semibold shadow-sm transition-all"
+              className="flex-1 bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white rounded-xl font-semibold shadow-sm transition-all"
               onClick={tryVerify}
               disabled={!verificationCode.trim() || isVerifying || verificationCode.length !== 8}
             >
@@ -822,12 +851,12 @@ function VotePage() {
                     className={cn(
                       "text-left bg-card rounded-2xl shadow-sm p-5 transition-all border-2",
                       isSel
-                        ? "border-[#6C63FF] ring-2 ring-[#6C63FF]/30"
+                        ? "border-[#0F8A5F] ring-2 ring-[#0F8A5F]/30"
                         : "border-transparent hover:shadow-md",
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-14 w-14 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center text-3xl">
+                      <div className="h-14 w-14 rounded-xl bg-[#0F8A5F]/10 flex items-center justify-center text-3xl">
                         {c.symbol ?? "🎓"}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -842,7 +871,7 @@ function VotePage() {
                     </div>
                     {c.manifesto ? (
                       <details className="mt-3 text-xs">
-                        <summary className="cursor-pointer font-medium text-[#6C63FF]">
+                        <summary className="cursor-pointer font-medium text-[#0F8A5F]">
                           Read manifesto
                         </summary>
                         <p className="mt-2 text-muted-foreground leading-relaxed whitespace-pre-wrap">
@@ -858,7 +887,7 @@ function VotePage() {
                       className={cn(
                         "mt-4 w-full py-2 rounded-lg text-sm font-medium text-center border",
                         isSel
-                          ? "bg-[#6C63FF] text-white border-[#6C63FF]"
+                          ? "bg-[#0F8A5F] text-white border-[#0F8A5F]"
                           : "bg-background border-border",
                       )}
                     >
@@ -910,7 +939,7 @@ function VotePage() {
               </Button>
               <Button
                 disabled={!selected || isSubmitting}
-                className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 rounded-xl font-semibold shadow-md transition-all px-6"
+                className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 rounded-xl font-semibold shadow-md transition-all px-6"
                 onClick={() => setStep("confirm_vote")}
               >
                 Review Vote →
@@ -921,8 +950,8 @@ function VotePage() {
 
         {step === "confirm_vote" && (
           <div className="max-w-md mx-auto bg-card rounded-2xl shadow-sm border border-border p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="mx-auto h-14 w-14 rounded-full bg-[#1F3A6E]/10 flex items-center justify-center mb-5">
-              <ShieldCheck className="h-7 w-7 text-[#1F3A6E]" />
+            <div className="mx-auto h-14 w-14 rounded-full bg-[#0F8A5F]/10 flex items-center justify-center mb-5">
+              <ShieldCheck className="h-7 w-7 text-[#0F8A5F]" />
             </div>
             
             <h2 className="text-2xl font-bold mb-2">Confirm Your Vote</h2>
@@ -945,7 +974,7 @@ function VotePage() {
               ) : (
                 selectedCandidate && (
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center text-2xl shrink-0">
+                    <div className="h-12 w-12 rounded-xl bg-[#0F8A5F]/10 flex items-center justify-center text-2xl shrink-0">
                       {selectedCandidate.symbol ?? "🎓"}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -974,7 +1003,7 @@ function VotePage() {
                 ← Back
               </Button>
               <Button
-                className="flex-1 bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white rounded-xl py-6 font-semibold shadow-md"
+                className="flex-1 bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white rounded-xl py-6 font-semibold shadow-md"
                 onClick={() => setStep("face_verification")}
               >
                 Confirm & Verify
@@ -1030,8 +1059,8 @@ function VotePage() {
               To cast your vote, please complete a live face check to verify your identity against your student profile picture.
             </p>
 
-            <div className="bg-[#6C63FF]/10 border border-[#6C63FF]/30 rounded-lg p-4 flex gap-3 mb-6">
-              <ShieldCheck className="h-5 w-5 text-[#6C63FF] shrink-0 mt-0.5" />
+            <div className="bg-[#0F8A5F]/10 border border-[#D9A441]/30 rounded-lg p-4 flex gap-3 mb-6">
+              <ShieldCheck className="h-5 w-5 text-[#0F8A5F] shrink-0 mt-0.5" />
               <p className="text-sm text-foreground/85">
                 By proceeding, your live camera feed will capture a few frames to verify liveness and authenticity.
               </p>
@@ -1046,7 +1075,7 @@ function VotePage() {
                   "rounded-xl overflow-hidden border-2 relative bg-black max-w-sm mx-auto shadow-lg mb-4",
                   passiveState === "failed" ? "border-destructive/50" :
                   passiveState === "success" ? "border-emerald-500" :
-                  faceDetected ? "border-emerald-400" : "border-[#6C63FF]"
+                  faceDetected ? "border-emerald-400" : "border-[#0F8A5F]"
                 )}
                 style={{ aspectRatio: "3/4" }}
               >
@@ -1065,7 +1094,7 @@ function VotePage() {
                     <div
                       className={cn(
                         "w-[55%] h-[75%] rounded-[50%] border-2 transition-colors duration-300",
-                        faceDetected ? "border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]" : "border-dashed border-[#6C63FF]/70"
+                        faceDetected ? "border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]" : "border-dashed border-[#0F8A5F]/70"
                       )}
                     />
                   </div>
@@ -1083,7 +1112,7 @@ function VotePage() {
                     {!webcamReady && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-20">
                         <div className="text-center space-y-2">
-                          <div className="animate-spin h-6 w-6 border-2 border-[#6C63FF] border-t-transparent rounded-full mx-auto" />
+                          <div className="animate-spin h-6 w-6 border-2 border-[#0F8A5F] border-t-transparent rounded-full mx-auto" />
                           <p className="text-xs text-white">Starting camera...</p>
                         </div>
                       </div>
@@ -1123,7 +1152,7 @@ function VotePage() {
                 {passiveState === "detecting" && (
                   <>
                     <div className="flex items-center justify-center gap-2">
-                      <ScanFace className={cn("h-5 w-5 transition-colors", faceDetected ? "text-emerald-500" : "text-[#6C63FF] animate-pulse")} />
+                      <ScanFace className={cn("h-5 w-5 transition-colors", faceDetected ? "text-emerald-500" : "text-[#0F8A5F]")} />
                       <span className="text-sm font-semibold">
                         {faceDetected ? "Face detected — hold still..." : "Position your face in the frame"}
                       </span>
@@ -1154,7 +1183,7 @@ function VotePage() {
                     </div>
                     <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-[#6C63FF] transition-all duration-500"
+                        className="h-full bg-[#0F8A5F] transition-all duration-500"
                         style={{ width: `${(capturedCount / TOTAL_FRAMES) * 100}%` }}
                       />
                     </div>
@@ -1166,7 +1195,7 @@ function VotePage() {
                 {passiveState === "submitting" && (
                   <>
                     <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin h-4 w-4 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+                      <div className="animate-spin h-4 w-4 border-2 border-[#0F8A5F] border-t-transparent rounded-full" />
                       <span className="text-sm font-semibold">Verifying...</span>
                     </div>
                     <p className="text-xs text-muted-foreground">Matching against enrolled student photo.</p>
@@ -1200,7 +1229,7 @@ function VotePage() {
                     <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden max-w-xs mx-auto">
                       <div
                         className={cn(
-                          "h-full animate-pulse transition-all duration-500",
+                          "h-full transition-all duration-500",
                           matchScore !== null && matchScore >= 80 ? "bg-emerald-500" :
                           matchScore !== null && matchScore >= 65 ? "bg-amber-500" :
                           "bg-emerald-500"
@@ -1251,7 +1280,7 @@ function VotePage() {
                         </Button>
                         <Button
                           size="sm"
-                          className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+                          className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
                           onClick={runPassiveCapture}
                         >
                           <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
@@ -1270,7 +1299,7 @@ function VotePage() {
                 {passiveState === "idle" && (
                   <>
                     <div className="flex items-center justify-center gap-2">
-                      <div className="animate-spin h-4 w-4 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+                      <div className="animate-spin h-4 w-4 border-2 border-[#0F8A5F] border-t-transparent rounded-full" />
                       <span className="text-sm font-semibold">Starting camera...</span>
                     </div>
                     <p className="text-xs text-muted-foreground">No gestures required — just look at the camera.</p>

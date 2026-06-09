@@ -123,14 +123,14 @@ function Page() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 py-8">
-      <div className="w-full max-w-md bg-card rounded-2xl shadow-sm p-8">
+    <div className="min-h-screen flex items-center justify-center premium-bg p-4 py-8">
+      <div className="w-full max-w-md glass-panel rounded-[24px] shadow-2xl p-8">
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="h-14 w-14 rounded-full bg-[#6C63FF]/10 flex items-center justify-center mb-4">
-            <ShieldCheck className="h-7 w-7 text-[#6C63FF]" />
+          <div className="h-14 w-14 rounded-full bg-[#0F8A5F]/10 flex items-center justify-center mb-4 ring-4 ring-[#0F8A5F]/5">
+            <ShieldCheck className="h-7 w-7 text-[#0F8A5F]" />
           </div>
-          <h1 className="text-2xl font-bold">Two-step verification</h1>
-          <p className="text-sm text-muted-foreground mt-2">
+          <h1 className="text-2xl font-bold text-[#102A27]">Two-step verification</h1>
+          <p className="text-sm text-muted-foreground mt-2 font-medium">
             Enter both OTPs sent to your email and phone.
           </p>
         </div>
@@ -146,21 +146,21 @@ function Page() {
         >
           <OtpInput value={emailOtp} onChange={setEmailOtp} />
           <div className="flex items-center justify-between mt-2.5">
-            <p className="text-[11px] text-muted-foreground">
-              Expires in <Countdown seconds={5 * 60} />
+            <p className="text-[11px] text-muted-foreground font-medium">
+              Expires in <span className="text-[#D97706] font-bold"><Countdown seconds={5 * 60} /></span>
             </p>
             <button
               type="button"
               disabled={emailResendIn > 0 || loading}
               onClick={resendEmail}
-              className="text-[11px] text-[#6C63FF] font-semibold hover:underline disabled:opacity-50 disabled:no-underline"
+              className="text-[11px] text-[#0F8A5F] font-bold hover:underline disabled:opacity-50 disabled:no-underline"
             >
               {emailResendIn > 0 ? `Resend in ${emailResendIn}s` : "Resend Email OTP"}
             </button>
           </div>
         </Section>
 
-        <div className="my-6 border-t border-border" />
+        <div className="my-6 border-t border-[#E6ECE9]" />
 
         <Section
           icon={<Phone className="h-4 w-4" />}
@@ -169,14 +169,14 @@ function Page() {
         >
           <OtpInput value={phoneOtp} onChange={setPhoneOtp} />
           <div className="flex items-center justify-between mt-2.5">
-            <p className="text-[11px] text-muted-foreground">
-              Expires in <Countdown seconds={5 * 60} />
+            <p className="text-[11px] text-muted-foreground font-medium">
+              Expires in <span className="text-[#D97706] font-bold"><Countdown seconds={5 * 60} /></span>
             </p>
             <button
               type="button"
               disabled={phoneResendIn > 0 || loading}
               onClick={resendPhone}
-              className="text-[11px] text-[#6C63FF] font-semibold hover:underline disabled:opacity-50 disabled:no-underline"
+              className="text-[11px] text-[#0F8A5F] font-bold hover:underline disabled:opacity-50 disabled:no-underline"
             >
               {phoneResendIn > 0 ? `Resend in ${phoneResendIn}s` : "Resend SMS OTP"}
             </button>
@@ -193,7 +193,7 @@ function Page() {
         <Button
           onClick={verify}
           disabled={!ready || loading}
-          className="w-full mt-7 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+          className="w-full mt-7 bg-gradient-to-r from-primary-dark to-primary text-white hover:opacity-95 rounded-xl font-bold border-0 shadow-md shadow-[#0F8A5F]/20"
         >
           {loading ? (
             <span className="flex items-center gap-2">
@@ -207,7 +207,7 @@ function Page() {
 
         <button
           onClick={() => nav({ to: "/" })}
-          className="w-full text-xs text-center text-muted-foreground hover:text-foreground mt-4 transition-colors"
+          className="w-full text-xs text-center text-muted-foreground hover:text-[#102A27] mt-4 transition-colors font-medium"
         >
           ← Back to Login
         </button>

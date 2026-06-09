@@ -12,8 +12,8 @@ export function PageHeader({ title, subtitle, badge, className }: PageHeaderProp
     <div className={cn("animate-fade-in-up opacity-0 [animation-fill-mode:forwards]", className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-[28px] font-bold tracking-tight">
-            <span className="gradient-text">{title}</span>
+          <h1 className="text-2xl md:text-[28px] font-bold tracking-tight text-[#1F2937]">
+            {title}
           </h1>
           {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
         </div>
@@ -43,7 +43,7 @@ export function SectionCard({
   return (
     <section
       className={cn(
-        "interactive-card bg-card rounded-2xl border border-border/60 shadow-sm p-5 md:p-6",
+        "premium-card bg-card rounded-xl border border-border/60 shadow-sm p-5 md:p-6",
         "animate-fade-in-up opacity-0 [animation-fill-mode:forwards]",
         className,
       )}
@@ -53,12 +53,12 @@ export function SectionCard({
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
             {Icon && (
-              <div className="h-8 w-8 rounded-lg bg-[#1F3A6E]/10 flex items-center justify-center shrink-0">
-                <Icon className="h-4 w-4 text-[#1F3A6E]" />
+              <div className="h-8 w-8 rounded-lg bg-[#0F8A5F]/10 flex items-center justify-center shrink-0">
+                <Icon className="h-4 w-4 text-[#0F8A5F]" />
               </div>
             )}
             <div>
-              {title && <p className="font-semibold text-sm">{title}</p>}
+              {title && <p className="font-semibold text-sm text-[#1F2937]">{title}</p>}
               {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
             </div>
           </div>

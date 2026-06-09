@@ -75,7 +75,7 @@ function Page() {
                     done
                       ? "bg-success text-white"
                       : active
-                        ? "bg-[#1F3A6E] text-white animate-pulse"
+                        ? "bg-[#0F8A5F] text-white shadow-sm"
                         : "bg-muted text-muted-foreground",
                   )}
                 >
@@ -88,7 +88,7 @@ function Page() {
                 <h3
                   className={cn(
                     "font-semibold",
-                    active && "text-[#1F3A6E]",
+                    active && "text-[#0F8A5F]",
                     done && "text-success",
                   )}
                 >

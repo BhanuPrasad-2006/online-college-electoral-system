@@ -26,14 +26,17 @@ logger = logging.getLogger(__name__)
 # Minimum pixel-level noise variance expected from a real camera sensor.
 # LOWERED: Mobile/webcam cameras with JPEG compression have very low raw variance.
 # Printed photos / screen replays produce near-zero variance (~0).
-# Further lowered from 0.05 → 0.01 because 5-frame average variance over
-# 480x640 JPEG frames (quality 0.82) is typically 0.03–0.15 for live video.
-_MIN_PIXEL_NOISE_VARIANCE = 0.01
+# Further lowered from 0.01 → 0.003 because 8-frame average variance over
+# 480x640 JPEG frames (quality 0.85) is typically 0.02–0.12 for live video.
+# At 0.003, static images still register ~0 while real cameras always exceed this.
+_MIN_PIXEL_NOISE_VARIANCE = 0.003
 
 # Minimum mean cosine distance between embeddings across the frame sequence.
 # A perfectly still printed photo will have distance ~0.
 # Natural live faces have small but non-zero drift.
-_MIN_EMBEDDING_DRIFT = 0.00001
+# LOWERED from 0.00001 → 0.000005 to allow for very still subjects who follow the
+# "hold still" instruction — micro-movements still produce drift above this threshold.
+_MIN_EMBEDDING_DRIFT = 0.000005
 
 # Maximum embedding drift — if too high, the face moved too much (cover swap).
 # RAISED: Some natural head wobble on mobile is larger than 0.30.
@@ -41,11 +44,10 @@ _MAX_EMBEDDING_DRIFT = 0.50
 
 # Minimum brightness std-deviation across frames (live scenes have micro-flicker).
 # LOWERED: Mobile/webcam cameras auto-adjust exposure — very stable brightness is normal.
-# Further lowered from 0.001 → 0.0003 because simulated 480x640 webcam frames
-# with white noise std 1.5 produce brightness std ~0.0008–0.001. Without synthetic
-# noise (real compressed webcam), it's even lower. Threshold 0.0003 still catches
-# perfectly static replays where std would be ~0.
-_MIN_BRIGHTNESS_VARIATION = 0.0003
+# Further lowered from 0.0003 → 0.0001 because modern webcams with auto-exposure
+# produce extremely stable brightness across 8 frames. Threshold 0.0001 still catches
+# perfectly static replays where std would be exactly 0.
+_MIN_BRIGHTNESS_VARIATION = 0.0001
 
 # Minimum frames required to run checks.
 _MIN_FRAMES = 3

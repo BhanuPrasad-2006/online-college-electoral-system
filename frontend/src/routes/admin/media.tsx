@@ -116,7 +116,7 @@ function Page() {
                         href={assetUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]"
+                        className="mt-3 inline-flex items-center gap-1 text-xs text-[#0F8A5F]"
                       >
                         <LinkIcon className="h-3.5 w-3.5" />
                         Open media

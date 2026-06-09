@@ -51,13 +51,13 @@ function MeetingCard({ meeting, currentAdminEmail, onJoin }: { meeting: any; cur
     <div className="p-5 border border-border/60 bg-muted/15 hover:bg-muted/30 transition-colors rounded-xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={cn(isLive ? "bg-success/10 text-success border-success/20 animate-pulse" : "bg-blue-500/10 text-blue-600 border-blue-500/20")}>
+          <Badge variant="outline" className={cn(isLive ? "bg-success/10 text-success border-success/20" : "bg-blue-500/10 text-blue-600 border-blue-500/20")}>
             {isLive ? "Active Room" : "Scheduled"}
           </Badge>
           {!isLive && (
             <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              Starts in: <span className="text-[#6C63FF] font-mono">{timeLeft}</span>
+              Starts in: <span className="text-[#D9A441] font-mono">{timeLeft}</span>
             </span>
           )}
         </div>
@@ -84,7 +84,7 @@ function MeetingCard({ meeting, currentAdminEmail, onJoin }: { meeting: any; cur
             <Users className="h-3.5 w-3.5" />
             Attendees checklist
           </span>
-          <span className="text-[10px] font-bold text-[#1F3A6E] bg-[#1F3A6E]/10 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-bold text-[#0F8A5F] bg-[#0F8A5F]/10 px-2 py-0.5 rounded-full">
             {meeting.participants?.filter((p: any) => p.attended).length || 0} / {meeting.participants?.length || 0} Attended
           </span>
         </div>
@@ -118,7 +118,7 @@ function MeetingCard({ meeting, currentAdminEmail, onJoin }: { meeting: any; cur
         <Button
           size="sm"
           onClick={onJoin}
-          className="bg-[#6C63FF] hover:bg-[#5A52D5] text-white text-xs gap-1.5 px-4 shadow-sm"
+          className="bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white text-xs gap-1.5 px-4 shadow-sm"
         >
           Join Jitsi Room
           <ArrowUpRight className="h-3.5 w-3.5" />
@@ -269,7 +269,7 @@ function Page() {
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             <h2 className="text-base font-semibold flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[#6C63FF]" /> Schedule Meeting
+              <Calendar className="h-4 w-4 text-[#0F8A5F]" /> Schedule Meeting
             </h2>
 
             {isSuperAdmin ? (
@@ -319,7 +319,7 @@ function Page() {
                           onClick={() => toggleInviteEmail(opt.email)}
                           className={cn(
                             "flex items-center justify-between p-2 rounded-md text-xs cursor-pointer transition-all",
-                            isInvited ? "bg-[#6C63FF]/15 text-[#6C63FF] font-medium" : "hover:bg-muted"
+                            isInvited ? "bg-[#D9A441]/15 text-[#D9A441] font-medium" : "hover:bg-muted"
                           )}
                         >
                           <span>{opt.name}</span>
@@ -349,7 +349,7 @@ function Page() {
                 <Button
                   type="submit"
                   disabled={scheduling}
-                  className="w-full bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 shadow-md h-11"
+                  className="w-full bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 shadow-md h-11"
                 >
                   {scheduling ? (
                     <>
@@ -379,7 +379,7 @@ function Page() {
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6">
             <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-              <Video className="h-4.5 w-4.5 text-[#6C63FF]" /> Scheduled Boardrooms
+              <Video className="h-4.5 w-4.5 text-[#0F8A5F]" /> Scheduled Boardrooms
             </h2>
 
             {loading ? (

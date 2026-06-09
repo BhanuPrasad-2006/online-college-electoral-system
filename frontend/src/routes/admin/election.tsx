@@ -72,6 +72,15 @@ function Page() {
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"voters" | "candidates" | "settings">("voters");
 
+  // Pagination states
+  const [voterPage, setVoterPage] = useState(1);
+  const [candidatePage, setCandidatePage] = useState(1);
+  const itemsPerPage = 20;
+
+  useEffect(() => {
+    setVoterPage(1);
+  }, [selectedDept, searchQuery]);
+
   // Candidates registry states
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
@@ -82,6 +91,10 @@ function Page() {
   const [previewCandidate, setPreviewCandidate] = useState<any | null>(null);
   const [rejectCandidateId, setRejectCandidateId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  useEffect(() => {
+    setCandidatePage(1);
+  }, [selectedCandidateStatus, candidateSearchQuery]);
 
   const [election, setElection] = useState<any>(null);
   const [loadingElection, setLoadingElection] = useState(true);
@@ -574,7 +587,7 @@ function Page() {
           onClick={() => setActiveTab("voters")}
           className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all -mb-px flex items-center gap-2 ${
             activeTab === "voters"
-              ? "border-[#6C63FF] text-[#6C63FF]"
+              ? "border-[#0F8A5F] text-[#0F8A5F]"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -585,7 +598,7 @@ function Page() {
           onClick={() => setActiveTab("candidates")}
           className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all -mb-px flex items-center gap-2 ${
             activeTab === "candidates"
-              ? "border-[#6C63FF] text-[#6C63FF]"
+              ? "border-[#0F8A5F] text-[#0F8A5F]"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -596,7 +609,7 @@ function Page() {
           onClick={() => setActiveTab("settings")}
           className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all -mb-px flex items-center gap-2 ${
             activeTab === "settings"
-              ? "border-[#6C63FF] text-[#6C63FF]"
+              ? "border-[#0F8A5F] text-[#0F8A5F]"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -614,7 +627,7 @@ function Page() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <h2 className="text-base font-semibold flex items-center gap-2">
-                  <Users className="h-5 w-5 text-[#6C63FF]" />
+                  <Users className="h-5 w-5 text-[#0F8A5F]" />
                   Voter Voting Permissions
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -641,7 +654,7 @@ function Page() {
                   {
                     label: "Allowed to Vote",
                     value: voters.filter((v) => v.vote_permission).length,
-                    color: "text-[#6C63FF]",
+                    color: "text-[#0F8A5F]",
                   },
                   {
                     label: "Already Voted",
@@ -694,8 +707,8 @@ function Page() {
                       onClick={() => setSelectedDept(dept)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                         isActive
-                          ? "bg-[#1F3A6E] text-white border-[#1F3A6E] shadow-sm"
-                          : "bg-muted/50 text-muted-foreground border-border hover:border-[#1F3A6E]/40 hover:text-foreground"
+                          ? "bg-[#0F8A5F] text-white border-[#0F8A5F] shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-border hover:border-[#0F8A5F]/40 hover:text-foreground"
                       }`}
                     >
                       {dept === "All" ? (
@@ -733,7 +746,7 @@ function Page() {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    className="bg-[#6C63FF] hover:bg-[#6C63FF]/90 text-white h-8 text-xs gap-1.5"
+                    className="bg-[#0F8A5F] hover:bg-[#0F8A5F]/95 text-white h-8 text-xs gap-1.5"
                     disabled={bulkUpdating || filteredVoters.every((v) => v.vote_permission)}
                     onClick={() => handleBulkPermission(selectedDept, true)}
                   >
@@ -764,7 +777,7 @@ function Page() {
 
             {loadingVoters ? (
               <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                <RefreshCw className="h-8 w-8 animate-spin text-[#6C63FF] mb-2" />
+                <RefreshCw className="h-8 w-8 animate-spin text-[#0F8A5F] mb-2" />
                 <p className="text-sm">Fetching registered voters...</p>
               </div>
             ) : filteredVoters.length === 0 ? (
@@ -775,10 +788,10 @@ function Page() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto border border-border/60 rounded-xl">
+              <div className="overflow-x-auto max-h-[650px] border border-border/60 rounded-xl relative scrollbar-thin">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground border-b border-border/60">
+                  <thead className="sticky top-0 bg-background z-20 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
+                    <tr className="bg-muted/90 backdrop-blur-sm text-xs font-semibold text-muted-foreground border-b border-border/60">
                       <th className="p-3">Student Details</th>
                       <th className="p-3">Dept / Year</th>
                       <th className="p-3 text-center">Verification ID</th>
@@ -788,8 +801,8 @@ function Page() {
                       <th className="p-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/60 text-sm">
-                    {filteredVoters.map((v) => (
+                  <tbody className="divide-y divide-border/60 text-sm bg-background">
+                    {filteredVoters.slice((voterPage - 1) * itemsPerPage, voterPage * itemsPerPage).map((v) => (
                       <tr key={v.voter_id} className="hover:bg-muted/35 transition-colors">
                         <td className="p-3">
                           <p className="font-medium text-foreground">{v.full_name}</p>
@@ -872,12 +885,12 @@ function Page() {
                           <div className="flex flex-col items-center justify-center gap-2">
                             {v.face_enrolled ? (
                               <div className="flex flex-col items-center gap-1.5">
-                                <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium">
+                                <Badge className="bg-[#0F8A5F]/15 text-[#0F8A5F] border-0 font-medium">
                                   Enrolled ✓
                                 </Badge>
                                 {v.reference_image_url && (
                                   <div
-                                    className="relative group cursor-pointer h-10 w-10 rounded-full overflow-hidden border border-[#6C63FF]/30 hover:border-[#6C63FF] transition-all"
+                                    className="relative group cursor-pointer h-10 w-10 rounded-full overflow-hidden border border-[#0F8A5F]/30 hover:border-[#0F8A5F] transition-all"
                                     onClick={() => setSelectedPreviewImage(resolveVoterPhotoUrl(v.voter_id))}
                                     title="Click to zoom reference photo"
                                   >
@@ -958,7 +971,7 @@ function Page() {
                         </td>
                         <td className="p-3 text-center">
                           {v.vote_permission ? (
-                            <Badge className="bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium gap-1">
+                            <Badge className="bg-[#0F8A5F]/15 text-[#0F8A5F] border-0 font-medium gap-1">
                               <Unlock className="h-3 w-3" />
                               Allowed
                             </Badge>
@@ -979,7 +992,7 @@ function Page() {
                             className={
                               v.vote_permission
                                 ? ""
-                                : "bg-[#6C63FF] hover:bg-[#6C63FF]/90 text-white"
+                                : "bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white"
                             }
                             disabled={updatingVoterId === v.voter_id}
                             onClick={() => handleTogglePermission(v.voter_id, v.vote_permission)}
@@ -997,6 +1010,37 @@ function Page() {
                     ))}
                   </tbody>
                 </table>
+                {/* Pagination Controls */}
+                {Math.ceil(filteredVoters.length / itemsPerPage) > 1 && (
+                  <div className="flex items-center justify-between border-t border-border/60 px-4 py-3 bg-muted/10 text-xs sticky bottom-0 bg-background z-20 shadow-[inset_0_1px_0_rgba(0,0,0,0.1)]">
+                    <span className="text-muted-foreground">
+                      Showing {(voterPage - 1) * itemsPerPage + 1} to {Math.min(voterPage * itemsPerPage, filteredVoters.length)} of {filteredVoters.length} voters
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={voterPage === 1}
+                        onClick={() => setVoterPage(prev => Math.max(prev - 1, 1))}
+                        className="h-8 px-2.5"
+                      >
+                        Previous
+                      </Button>
+                      <span className="px-2 text-muted-foreground font-semibold">
+                        Page {voterPage} of {Math.ceil(filteredVoters.length / itemsPerPage)}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={voterPage === Math.ceil(filteredVoters.length / itemsPerPage)}
+                        onClick={() => setVoterPage(prev => Math.min(prev + 1, Math.ceil(filteredVoters.length / itemsPerPage)))}
+                        className="h-8 px-2.5"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1007,7 +1051,7 @@ function Page() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                   <h2 className="text-base font-semibold flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-[#6C63FF]" />
+                    <UserCheck className="h-5 w-5 text-[#0F8A5F]" />
                     Candidates Registry
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -1039,7 +1083,7 @@ function Page() {
                     {
                       label: "Pending Review",
                       value: candidates.filter((c) => c.status === "Pending" || c.status === "Under Review").length,
-                      color: "text-[#6C63FF]",
+                      color: "text-[#0F8A5F]",
                     },
                     {
                       label: "Rejected",
@@ -1076,8 +1120,8 @@ function Page() {
                       onClick={() => setSelectedCandidateStatus(s)}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                         selectedCandidateStatus === s
-                          ? "bg-[#1F3A6E] text-white border-[#1F3A6E] shadow-sm"
-                          : "bg-muted/50 text-muted-foreground border-border hover:border-[#1F3A6E]/40 hover:text-foreground"
+                          ? "bg-[#0F8A5F] text-white border-[#0F8A5F] shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-border hover:border-[#0F8A5F]/40 hover:text-foreground"
                       }`}
                     >
                       {s}
@@ -1088,7 +1132,7 @@ function Page() {
 
               {loadingCandidates ? (
                 <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                  <RefreshCw className="h-8 w-8 animate-spin text-[#6C63FF] mb-2" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-[#0F8A5F] mb-2" />
                   <p className="text-sm">Fetching candidates...</p>
                 </div>
               ) : filteredCandidates.length === 0 ? (
@@ -1099,10 +1143,10 @@ function Page() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-border/60 rounded-xl">
+                <div className="overflow-x-auto max-h-[650px] border border-border/60 rounded-xl relative scrollbar-thin">
                   <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground border-b border-border/60">
+                    <thead className="sticky top-0 bg-background z-20 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
+                      <tr className="bg-muted/90 backdrop-blur-sm text-xs font-semibold text-muted-foreground border-b border-border/60">
                         <th className="p-3">Candidate Details</th>
                         <th className="p-3">Dept / Sem</th>
                         <th className="p-3">Applied For (Position)</th>
@@ -1111,8 +1155,8 @@ function Page() {
                         <th className="p-3 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/60 text-sm">
-                      {filteredCandidates.map((c) => (
+                    <tbody className="divide-y divide-border/60 text-sm bg-background">
+                      {filteredCandidates.slice((candidatePage - 1) * itemsPerPage, candidatePage * itemsPerPage).map((c) => (
                         <tr key={c.candidate_id} className="hover:bg-muted/35 transition-colors">
                           <td className="p-3">
                             <p className="font-medium text-foreground">{c.full_name}</p>
@@ -1123,7 +1167,7 @@ function Page() {
                             <p className="text-xs text-muted-foreground">Semester {c.semester}</p>
                           </td>
                           <td className="p-3">
-                            <Badge variant="outline" className="bg-[#6C63FF]/5 text-[#6C63FF] border-[#6C63FF]/20 px-2 py-0.5 font-medium">
+                            <Badge variant="outline" className="bg-[#0F8A5F]/5 text-[#0F8A5F] border-[#0F8A5F]/20 px-2 py-0.5 font-medium">
                               {c.position}
                             </Badge>
                           </td>
@@ -1138,7 +1182,7 @@ function Page() {
                                   : c.status === "Rejected"
                                     ? "bg-destructive/15 text-destructive border-0 font-medium"
                                     : c.status === "Under Review"
-                                      ? "bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium"
+                                      ? "bg-[#0F8A5F]/15 text-[#0F8A5F] border-0 font-medium"
                                       : "bg-warning/15 text-amber-600 border-0 font-medium"
                               }
                             >
@@ -1192,6 +1236,37 @@ function Page() {
                       ))}
                     </tbody>
                   </table>
+                  {/* Pagination Controls */}
+                  {Math.ceil(filteredCandidates.length / itemsPerPage) > 1 && (
+                    <div className="flex items-center justify-between border-t border-border/60 px-4 py-3 bg-muted/10 text-xs sticky bottom-0 bg-background z-20 shadow-[inset_0_1px_0_rgba(0,0,0,0.1)]">
+                      <span className="text-muted-foreground">
+                        Showing {(candidatePage - 1) * itemsPerPage + 1} to {Math.min(candidatePage * itemsPerPage, filteredCandidates.length)} of {filteredCandidates.length} candidates
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={candidatePage === 1}
+                          onClick={() => setCandidatePage(prev => Math.max(prev - 1, 1))}
+                          className="h-8 px-2.5"
+                        >
+                          Previous
+                        </Button>
+                        <span className="px-2 text-muted-foreground font-semibold">
+                          Page {candidatePage} of {Math.ceil(filteredCandidates.length / itemsPerPage)}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={candidatePage === Math.ceil(filteredCandidates.length / itemsPerPage)}
+                          onClick={() => setCandidatePage(prev => Math.min(prev + 1, Math.ceil(filteredCandidates.length / itemsPerPage)))}
+                          className="h-8 px-2.5"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1334,7 +1409,7 @@ function Page() {
               </Field>
             </div>
             <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 gap-2"
+              className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 gap-2"
               onClick={handleSaveElection}
               disabled={savingElection || Object.keys(validationErrors).length > 0}
             >
@@ -1356,7 +1431,7 @@ function Page() {
             <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             <h2 className="text-base font-semibold flex items-center gap-2">
               <RefreshCw
-                className={`h-4 w-4 ${loadingElection ? "animate-spin text-muted-foreground" : "text-[#6C63FF]"}`}
+                className={`h-4 w-4 ${loadingElection ? "animate-spin text-muted-foreground" : "text-[#0F8A5F]"}`}
               />
               Real-Time Phase Tracker
             </h2>
@@ -1395,7 +1470,7 @@ function Page() {
                               navigator.clipboard.writeText(election.result_integrity_hash);
                               toast.success("Integrity hash copied to clipboard!");
                             }}
-                            className="text-[#6C63FF] hover:underline"
+                            className="text-[#0F8A5F] hover:underline"
                           >
                             Copy
                           </button>
@@ -1409,7 +1484,7 @@ function Page() {
                 ) : (
                   /* Standard Phase Tracker States */
                   <div className="space-y-4">
-                    <div className="p-4 bg-[#1F3A6E]/5 rounded-xl border border-[#1F3A6E]/10 space-y-3">
+                    <div className="p-4 bg-[#D9A441]/5 rounded-xl border border-[#D9A441]/10 space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-muted-foreground">
                           Current Phase:
@@ -1420,7 +1495,7 @@ function Page() {
                               ? "bg-amber-500/15 text-amber-600 border-0"
                               : phaseData.phase === "voting_open"
                                 ? "bg-emerald-500/15 text-emerald-600 border-0"
-                                : "bg-[#6C63FF]/15 text-[#6C63FF] border-0"
+                                : "bg-[#0F8A5F]/15 text-[#0F8A5F] border-0"
                           }
                         >
                           {phaseData.is_paused
@@ -1434,14 +1509,14 @@ function Page() {
                           <span className="text-sm font-medium text-muted-foreground">
                             Time Remaining:
                           </span>
-                          <span className="text-sm font-mono font-bold text-[#1F3A6E]">
+                          <span className="text-sm font-mono font-bold text-[#0F8A5F]">
                             {phaseData.remaining_time}
                           </span>
                         </div>
                       )}
 
                       {!phaseData.is_paused && phaseData.next_phase && (
-                        <div className="flex justify-between items-center pt-2 border-t border-[#1F3A6E]/10">
+                        <div className="flex justify-between items-center pt-2 border-t border-[#D9A441]/10">
                           <span className="text-xs font-medium text-muted-foreground">Next Phase:</span>
                           <span className="text-xs font-medium text-muted-foreground">
                             {phaseData.next_phase.replace(/_/g, " ")}
@@ -1452,7 +1527,7 @@ function Page() {
 
                     <div className="flex flex-col gap-2 pt-2">
                       <Button
-                        className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full"
+                        className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 w-full"
                         onClick={() => {
                           setReconfirmDescription("Announcing the election schedule will send emails to all users.");
                           setReconfirmAction("announce");
@@ -1514,7 +1589,7 @@ function Page() {
               </div>
             ) : (
               <div className="text-sm text-muted-foreground py-4 text-center flex flex-col items-center justify-center">
-                <RefreshCw className="h-5 w-5 animate-spin text-[#6C63FF] mb-1" />
+                <RefreshCw className="h-5 w-5 animate-spin text-[#0F8A5F] mb-1" />
                 Loading tracker details...
               </div>
             )}
@@ -1557,7 +1632,7 @@ function Page() {
                     Force Close Voting
                   </Button>
                   <Button
-                    className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => {
                       setReconfirmDescription("Publishing results will make them visible to all voters and candidates.");
                       setReconfirmAction("publish_results");
@@ -1745,7 +1820,7 @@ function Page() {
 
               <div className="flex justify-end pt-2">
                 <Button
-                  className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 text-xs font-semibold px-4"
+                  className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 text-xs font-semibold px-4"
                   onClick={() => setPreviewCandidate(null)}
                 >
                   Close Preview
@@ -1767,7 +1842,7 @@ function Page() {
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             placeholder="Reason for rejection..."
-            className="w-full h-28 p-3 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/50 bg-background mt-4 resize-none text-foreground"
+            className="w-full h-28 p-3 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0F8A5F]/50 bg-background mt-4 resize-none text-foreground"
           />
           <div className="flex gap-2 justify-end mt-4">
             <Button

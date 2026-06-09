@@ -94,7 +94,7 @@ function MediaCard({ item }: { item: any }) {
             href={assetUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-1 text-xs text-[#6C63FF]"
+            className="mt-3 inline-flex items-center gap-1 text-xs text-[#0F8A5F]"
           >
             <LinkIcon className="h-3.5 w-3.5" />
             Open media
@@ -103,7 +103,7 @@ function MediaCard({ item }: { item: any }) {
 
         <div className="mt-4 flex items-center gap-2 border-t pt-3">
           <Avatar className="h-7 w-7">
-            <AvatarFallback className="bg-[#6C63FF]/10 text-[#6C63FF] text-[10px] font-semibold">
+            <AvatarFallback className="bg-[#D9A441]/10 text-[#D9A441] text-[10px] font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>

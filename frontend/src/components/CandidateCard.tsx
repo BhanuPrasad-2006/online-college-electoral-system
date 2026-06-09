@@ -32,12 +32,12 @@ export function CandidateCard({
       className={cn(
         "group interactive-card bg-card rounded-2xl border p-5 flex flex-col items-center text-center",
         selected
-          ? "ring-2 ring-[#6C63FF] border-[#6C63FF] shadow-lg shadow-[#6C63FF]/15 scale-[1.02]"
-          : "border-border/60 hover:border-[#6C63FF]/30",
+          ? "ring-2 ring-[#0F8A5F] border-[#0F8A5F] shadow-lg shadow-[#0F8A5F]/15 scale-[1.02]"
+          : "border-border/60 hover:border-[#D9A441]/30",
       )}
     >
-      <Avatar className="h-20 w-20 mb-3 ring-2 ring-[#6C63FF]/20 transition-transform group-hover:scale-105">
-        <AvatarFallback className="bg-gradient-to-br from-[#6C63FF]/15 to-[#1F3A6E]/15 text-[#6C63FF] text-xl font-semibold">
+      <Avatar className="h-20 w-20 mb-3 ring-2 ring-[#0F8A5F]/20 transition-transform group-hover:scale-105">
+        <AvatarFallback className="bg-gradient-to-br from-[#0F8A5F]/15 to-[#0F8A5F]/15 text-[#0F8A5F] text-xl font-semibold">
           {initials}
         </AvatarFallback>
       </Avatar>
@@ -63,7 +63,7 @@ export function CandidateCard({
           className={cn(
             "mt-4 w-full py-2 rounded-lg text-sm font-medium border transition-colors",
             selected
-              ? "bg-[#6C63FF] text-white border-[#6C63FF]"
+              ? "bg-[#0F8A5F] text-white border-[#0F8A5F]"
               : "bg-background border-border hover:bg-muted",
           )}
         >

@@ -71,7 +71,7 @@ function Page() {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3 py-2 text-xs rounded-lg whitespace-nowrap capitalize ${
-              filter === f ? "bg-[#1F3A6E] text-white" : "bg-muted"
+              filter === f ? "bg-[#0F8A5F] text-white" : "bg-muted"
             }`}
           >
             {f === "All" ? "All" : f}
@@ -178,7 +178,7 @@ function Page() {
                           rel="noopener noreferrer"
                           className="flex items-center gap-3 p-4 bg-muted/20 hover:bg-muted/40 transition-colors"
                         >
-                          <FileText className="h-6 w-6 text-[#6C63FF]" />
+                          <FileText className="h-6 w-6 text-[#0F8A5F]" />
                           <span className="text-sm font-medium">View Attached PDF</span>
                         </a>
                       ) : (

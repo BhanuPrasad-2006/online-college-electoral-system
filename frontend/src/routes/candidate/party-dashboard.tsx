@@ -65,7 +65,7 @@ function Page() {
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-2.5 rounded-xl bg-[#1F3A6E] text-white font-semibold hover:bg-[#1F3A6E]/90 transition-all shadow-md"
+            className="px-6 py-2.5 rounded-xl bg-[#0F8A5F] text-white font-semibold hover:bg-[#0F8A5F]/90 transition-all shadow-md"
           >
             Try Again
           </button>
@@ -182,7 +182,7 @@ function Page() {
           <SectionCard>
             <div className="flex items-center justify-between mb-4 border-b border-border/40 pb-3">
               <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-[#6C63FF]" />
+                <FileText className="h-5 w-5 text-[#0F8A5F]" />
                 <h2 className="text-base font-semibold">Party Manifesto</h2>
               </div>
               {isLeader && party.status === "APPROVED" && (
@@ -192,7 +192,7 @@ function Page() {
                     setManifestoText(party.manifesto || "");
                     setManifestoOpen(true);
                   }}
-                  className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 text-xs"
+                  className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 text-xs"
                 >
                   <Sparkles className="h-3 w-3 mr-1.5" />
                   Edit Manifesto
@@ -208,7 +208,7 @@ function Page() {
 
           <SectionCard>
             <div className="flex items-center gap-2 mb-4 border-b border-border/40 pb-3">
-              <Users className="h-5 w-5 text-[#6C63FF]" />
+              <Users className="h-5 w-5 text-[#0F8A5F]" />
               <h2 className="text-base font-semibold">Party Members</h2>
             </div>
             <div className="overflow-x-auto">
@@ -228,7 +228,7 @@ function Page() {
                       <td className="py-3 font-semibold text-foreground flex items-center gap-1.5">
                         {m.full_name}
                         {m.is_leader && (
-                          <Badge className="bg-[#1F3A6E]/20 text-[#1F3A6E] dark:text-blue-400 text-[10px]">Leader</Badge>
+                          <Badge className="bg-[#D9A441]/20 text-[#D9A441] dark:text-blue-400 text-[10px]">Leader</Badge>
                         )}
                       </td>
                       <td className="py-3 text-muted-foreground">{m.department || "General"}</td>
@@ -250,7 +250,7 @@ function Page() {
           {isLeader && party.status === "APPROVED" && (
             <SectionCard>
               <div className="flex items-center gap-2 mb-4 border-b border-border/40 pb-3">
-                <UserPlus className="h-5 w-5 text-[#6C63FF]" />
+                <UserPlus className="h-5 w-5 text-[#0F8A5F]" />
                 <h2 className="text-base font-semibold">Invite Members</h2>
               </div>
               <form onSubmit={handleSendInvite} className="space-y-3">
@@ -300,7 +300,7 @@ function Page() {
                 <Button
                   type="submit"
                   disabled={isInviting || !inviteEmail}
-                  className="w-full bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white text-xs py-2 flex items-center justify-center gap-1.5 mt-2"
+                  className="w-full bg-gradient-to-r from-[#1F2937] to-[#0F8A5F] text-white text-xs py-2 flex items-center justify-center gap-1.5 mt-2"
                 >
                   <Send className="h-3 w-3" />
                   {isInviting ? "Sending..." : "Send Invitation"}
@@ -311,7 +311,7 @@ function Page() {
 
           <SectionCard>
             <div className="flex items-center gap-2 mb-4 border-b border-border/40 pb-3">
-              <Clock className="h-5 w-5 text-[#6C63FF]" />
+              <Clock className="h-5 w-5 text-[#0F8A5F]" />
               <h2 className="text-base font-semibold">Pending Invitations</h2>
             </div>
             <div className="space-y-3">
@@ -364,7 +364,7 @@ function Page() {
               value={manifestoText}
               onChange={(e) => setManifestoText(e.target.value)}
               placeholder="Enter party manifesto (minimum 50 characters)..."
-              className="w-full h-64 p-3 bg-background border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-[#1F3A6E]"
+              className="w-full h-64 p-3 bg-background border border-border/80 rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-[#0F8A5F]"
             />
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setManifestoOpen(false)}>
@@ -373,7 +373,7 @@ function Page() {
               <Button
                 type="submit"
                 disabled={isUpdatingManifesto || manifestoText.length < 50}
-                className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+                className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
               >
                 {isUpdatingManifesto ? "Updating..." : "Update Manifesto"}
               </Button>

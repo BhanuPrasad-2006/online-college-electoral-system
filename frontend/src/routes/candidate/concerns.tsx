@@ -118,7 +118,7 @@ function Page() {
                     href={resolveApiAssetUrl(c.attachment_url)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#6C63FF] hover:underline font-medium"
+                    className="text-[#0F8A5F] hover:underline font-medium"
                   >
                     📎 Attachment
                   </a>

@@ -143,20 +143,20 @@ function Page() {
           onClick={() => setTab("pending")}
           className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
             tab === "pending"
-              ? "bg-[#6C63FF]/10 text-[#6C63FF] border-b-2 border-[#6C63FF]"
+              ? "bg-[#D9A441]/10 text-[#D9A441] border-b-2 border-[#0F8A5F]"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Pending Reviews
           {pendingList.length > 0 && (
-            <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-[#6C63FF]/20 text-[#6C63FF] rounded-full">{pendingList.length}</span>
+            <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-[#D9A441]/20 text-[#D9A441] rounded-full">{pendingList.length}</span>
           )}
         </button>
         <button
           onClick={() => setTab("requests")}
           className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
             tab === "requests"
-              ? "bg-[#6C63FF]/10 text-[#6C63FF] border-b-2 border-[#6C63FF]"
+              ? "bg-[#D9A441]/10 text-[#D9A441] border-b-2 border-[#0F8A5F]"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -169,7 +169,7 @@ function Page() {
           onClick={() => setTab("enrolled")}
           className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
             tab === "enrolled"
-              ? "bg-[#6C63FF]/10 text-[#6C63FF] border-b-2 border-[#6C63FF]"
+              ? "bg-[#D9A441]/10 text-[#D9A441] border-b-2 border-[#0F8A5F]"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -224,7 +224,7 @@ function Page() {
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="flex-1">
                       <p className="text-[10px] text-muted-foreground mb-1 font-medium">Pending</p>
-                      <div className="aspect-square rounded-xl bg-muted overflow-hidden border-2 border-[#6C63FF]/40 ring-2 ring-[#6C63FF]/10">
+                      <div className="aspect-square rounded-xl bg-muted overflow-hidden border-2 border-[#0F8A5F]/40 ring-2 ring-[#0F8A5F]/10">
                         {voter.pending_image_url ? (
                           <img src={resolveVoterPhotoUrl(voter.voter_id, true)} alt="Pending" className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=pending"; }} />
@@ -268,10 +268,10 @@ function Page() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {reuploadList.map((voter: any) => (
-                <div key={voter.voter_id} className="bg-card rounded-2xl border border-[#6C63FF]/30 p-4 space-y-3 shadow-sm">
+                <div key={voter.voter_id} className="bg-card rounded-2xl border border-[#D9A441]/30 p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Camera className="h-4 w-4 text-[#6C63FF]" />
+                      <Camera className="h-4 w-4 text-[#0F8A5F]" />
                       <div>
                         <h3 className="font-semibold text-sm">{voter.full_name}</h3>
                         <p className="text-xs text-muted-foreground">{voter.college_email}</p>
@@ -313,7 +313,7 @@ function Page() {
 
                   <div className="flex gap-2">
                     {!voter.has_submitted_new_photo && (
-                      <Button size="sm" className="flex-1 bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90"
+                      <Button size="sm" className="flex-1 bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
                         onClick={() => setReuploadDialogVoter(voter)} disabled={!!actionLoading}>
                         {actionLoading === "reupload-" + voter.voter_id ? "..." : <><Camera className="h-3.5 w-3.5 mr-1" />Resend Request</>}
                       </Button>
@@ -388,7 +388,7 @@ function Page() {
                   </div>
 
                   <div className="flex gap-2 pt-2 border-t border-border/40">
-                    <Button size="sm" variant="outline" className="w-full text-[#6C63FF] border-[#6C63FF]/30 hover:bg-[#6C63FF]/10"
+                    <Button size="sm" variant="outline" className="w-full text-[#0F8A5F] border-[#D9A441]/30 hover:bg-[#0F8A5F]/10"
                       onClick={() => setReuploadDialogVoter(voter)} disabled={!!actionLoading}>
                       <Camera className="h-3.5 w-3.5 mr-1" />Request Re-upload
                     </Button>
@@ -406,7 +406,7 @@ function Page() {
           {reviewVoter && (
             <div className="space-y-5">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#6C63FF] to-[#1F3A6E] flex items-center justify-center text-white font-bold text-sm">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#1F2937] to-[#0F8A5F] flex items-center justify-center text-white font-bold text-sm">
                   {reviewVoter.full_name?.charAt(0) || "?"}
                 </div>
                 <div>
@@ -443,7 +443,7 @@ function Page() {
                       <Camera className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-semibold">Pending Photo</span>
                     </div>
-                    <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border-2 border-[#6C63FF]/40 ring-2 ring-[#6C63FF]/10">
+                    <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border-2 border-[#0F8A5F]/40 ring-2 ring-[#0F8A5F]/10">
                       <img
                         src={resolveVoterPhotoUrl(reviewVoter.voter_id, true)}
                         alt="Pending"
@@ -459,7 +459,7 @@ function Page() {
                 <Button size="sm" variant="outline" onClick={() => setReviewVoter(null)}>
                   Close
                 </Button>
-                <Button size="sm" variant="outline" className="text-[#6C63FF] border-[#6C63FF]/30 hover:bg-[#6C63FF]/10"
+                <Button size="sm" variant="outline" className="text-[#0F8A5F] border-[#D9A441]/30 hover:bg-[#0F8A5F]/10"
                   onClick={() => { setReviewVoter(null); handleRequestReupload(reviewVoter.voter_id, reviewVoter.full_name); }}
                   disabled={!!actionLoading}>
                   <Camera className="h-3.5 w-3.5 mr-1" />Request Re-upload
@@ -505,7 +505,7 @@ function Page() {
                 <Button size="sm" variant="outline" onClick={() => setReuploadDialogVoter(null)}>
                   Cancel
                 </Button>
-                <Button size="sm" className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90"
+                <Button size="sm" className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
                   onClick={() => handleRequestReupload(reuploadDialogVoter.voter_id, reuploadDialogVoter.full_name)}
                   disabled={!!actionLoading}>
                   {actionLoading === "reupload-" + reuploadDialogVoter.voter_id ? "..." : "Send Request"}

@@ -133,7 +133,7 @@ function CandidateDetail({ active }: { active: any }) {
         {/* Decorative circles */}
         <div
           className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #6C63FF, transparent)" }}
+          style={{ background: "radial-gradient(circle, #0F8A5F, transparent)" }}
         />
         <div
           className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full opacity-10"
@@ -148,7 +148,7 @@ function CandidateDetail({ active }: { active: any }) {
                 <AvatarFallback
                   className="text-xl font-bold"
                   style={{
-                    background: "linear-gradient(135deg, #6C63FF, #a78bfa)",
+                    background: "linear-gradient(135deg, #0F8A5F, #a78bfa)",
                     color: "white",
                   }}
                 >
@@ -259,20 +259,20 @@ function CandidateDetail({ active }: { active: any }) {
                     href={active.manifesto_image_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-4 bg-[#6C63FF]/5 hover:bg-[#6C63FF]/10 transition-colors"
+                    className="flex items-center gap-3 p-4 bg-[#0F8A5F]/5 hover:bg-[#0F8A5F]/10 transition-colors"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-[#6C63FF]/15 flex items-center justify-center flex-shrink-0">
-                      <FileText className="h-5 w-5 text-[#6C63FF]" />
+                    <div className="w-10 h-10 rounded-lg bg-[#0F8A5F]/15 flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-5 w-5 text-[#0F8A5F]" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#6C63FF]">
+                      <p className="text-sm font-semibold text-[#0F8A5F]">
                         View Manifesto PDF
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Click to open in new tab
                       </p>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-[#6C63FF] ml-auto flex-shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-[#0F8A5F] ml-auto flex-shrink-0" />
                   </a>
                 ) : (
                   <div>
@@ -289,7 +289,7 @@ function CandidateDetail({ active }: { active: any }) {
             {/* Manifesto text */}
             <div>
               <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-[#6C63FF]" />
+                <BookOpen className="h-4 w-4 text-[#0F8A5F]" />
                 Manifesto Statement
               </h3>
               {active.manifesto ? (
@@ -314,14 +314,14 @@ function CandidateDetail({ active }: { active: any }) {
             {hasImpact && (
               <div>
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <Brain className="h-4 w-4 text-[#6C63FF]" />
+                  <Brain className="h-4 w-4 text-[#0F8A5F]" />
                   Key Promises
                 </h3>
                 <div className="space-y-2.5">
                   {active.impact_statements.map((imp: any, i: number) => (
                     <div
                       key={i}
-                      className="bg-[#6C63FF]/5 border border-[#6C63FF]/15 rounded-xl p-3.5"
+                      className="bg-[#0F8A5F]/5 border border-[#0F8A5F]/15 rounded-xl p-3.5"
                     >
                       <p className="text-sm font-semibold text-foreground">
                         "{imp.promise}"
@@ -344,7 +344,7 @@ function CandidateDetail({ active }: { active: any }) {
             <div
               className="rounded-xl p-4 text-white"
               style={{
-                background: "linear-gradient(135deg, #6C63FF 0%, #a78bfa 100%)",
+                background: "linear-gradient(135deg, #0F8A5F 0%, #a78bfa 100%)",
               }}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -361,7 +361,7 @@ function CandidateDetail({ active }: { active: any }) {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">Concern Coverage</h3>
-                <span className="text-xs font-bold text-[#6C63FF] bg-[#6C63FF]/10 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-bold text-[#0F8A5F] bg-[#0F8A5F]/10 px-2 py-0.5 rounded-full">
                   {coverageCount}/{COVERAGE_CATS.length} areas
                 </span>
               </div>
@@ -423,14 +423,14 @@ function CandidateDetail({ active }: { active: any }) {
             {hasImpact && (
               <div>
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-[#6C63FF]" />
+                  <Sparkles className="h-4 w-4 text-[#0F8A5F]" />
                   AI Impact Estimates
                 </h3>
                 <div className="space-y-2.5">
                   {active.impact_statements.map((imp: any, i: number) => (
                     <div
                       key={i}
-                      className="border border-[#6C63FF]/20 rounded-xl p-3 space-y-1"
+                      className="border border-[#D9A441]/20 rounded-xl p-3 space-y-1"
                     >
                       <p className="text-xs font-semibold text-foreground">
                         Promise: "{imp.promise}"
@@ -588,7 +588,7 @@ function Page() {
                 "bg-card rounded-2xl shadow-sm p-5 text-left transition-all w-full border border-transparent group interactive-card",
                 isPendingStatus
                   ? "opacity-60 cursor-not-allowed border-dashed border-border"
-                  : "hover:shadow-md hover:border-solid hover:border-[#6C63FF]/25 cursor-pointer",
+                  : "hover:shadow-md hover:border-solid hover:border-[#0F8A5F]/25 cursor-pointer",
               )}
             >
               <div className="flex items-center gap-4">
@@ -598,7 +598,7 @@ function Page() {
                     style={{
                       background:
                         "linear-gradient(135deg, rgba(108,99,255,0.15), rgba(167,139,250,0.2))",
-                      color: "#6C63FF",
+                      color: "#0F8A5F",
                     }}
                   >
                     {initials}
@@ -616,7 +616,7 @@ function Page() {
                   )}
                 </div>
                 {!isPendingStatus && (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-[#6C63FF] transition-colors flex-shrink-0" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-[#0F8A5F] transition-colors flex-shrink-0" />
                 )}
               </div>
               <div className="flex items-center gap-2 mt-3">

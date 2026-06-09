@@ -336,7 +336,7 @@ function Register() {
                   i < step
                     ? "bg-success/15 text-success"
                     : i === step
-                      ? "bg-[#1F3A6E] text-white"
+                      ? "bg-[#0F8A5F] text-white"
                       : "bg-muted text-muted-foreground",
                 )}
               >
@@ -431,20 +431,20 @@ function Register() {
                   className={cn(
                     "group flex flex-col items-center gap-4 p-7 rounded-2xl border-2 text-center transition-all duration-200 cursor-pointer",
                     candidateType === "INDEPENDENT"
-                      ? "border-[#1F3A6E] bg-[#1F3A6E]/8 ring-2 ring-[#1F3A6E]/30 shadow-lg"
-                      : "border-border bg-card hover:border-[#1F3A6E]/40 hover:bg-[#1F3A6E]/4 hover:shadow-md",
+                      ? "border-[#0F8A5F] bg-[#0F8A5F]/8 ring-2 ring-[#0F8A5F]/30 shadow-lg"
+                      : "border-border bg-card hover:border-[#0F8A5F]/40 hover:bg-[#0F8A5F]/4 hover:shadow-md",
                   )}
                 >
                   <div className={cn(
                     "h-16 w-16 rounded-2xl flex items-center justify-center transition-all",
                     candidateType === "INDEPENDENT"
-                      ? "bg-[#1F3A6E] shadow-lg shadow-[#1F3A6E]/30"
-                      : "bg-muted group-hover:bg-[#1F3A6E]/15",
+                      ? "bg-[#0F8A5F] shadow-lg shadow-[#0F8A5F]/30"
+                      : "bg-muted group-hover:bg-[#0F8A5F]/15",
                   )}>
-                    <User className={cn("h-8 w-8", candidateType === "INDEPENDENT" ? "text-white" : "text-[#1F3A6E]")} />
+                    <User className={cn("h-8 w-8", candidateType === "INDEPENDENT" ? "text-white" : "text-[#0F8A5F]")} />
                   </div>
                   <div>
-                    <p className={cn("font-bold text-base", candidateType === "INDEPENDENT" ? "text-[#1F3A6E]" : "")}>
+                    <p className={cn("font-bold text-base", candidateType === "INDEPENDENT" ? "text-[#0F8A5F]" : "")}>
                       Independent Candidate
                     </p>
                     <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
@@ -452,7 +452,7 @@ function Register() {
                     </p>
                   </div>
                   {candidateType === "INDEPENDENT" && (
-                    <div className="flex items-center gap-1.5 text-[#1F3A6E] text-xs font-semibold">
+                    <div className="flex items-center gap-1.5 text-[#0F8A5F] text-xs font-semibold">
                       <CheckCircle2 className="h-4 w-4" /> Selected
                     </div>
                   )}
@@ -465,20 +465,20 @@ function Register() {
                   className={cn(
                     "group flex flex-col items-center gap-4 p-7 rounded-2xl border-2 text-center transition-all duration-200 cursor-pointer",
                     candidateType === "PARTY"
-                      ? "border-[#6C63FF] bg-[#6C63FF]/8 ring-2 ring-[#6C63FF]/30 shadow-lg"
-                      : "border-border bg-card hover:border-[#6C63FF]/40 hover:bg-[#6C63FF]/4 hover:shadow-md",
+                      ? "border-[#0F8A5F] bg-[#0F8A5F]/8 ring-2 ring-[#0F8A5F]/30 shadow-lg"
+                      : "border-border bg-card hover:border-[#0F8A5F]/40 hover:bg-[#0F8A5F]/4 hover:shadow-md",
                   )}
                 >
                   <div className={cn(
                     "h-16 w-16 rounded-2xl flex items-center justify-center transition-all",
                     candidateType === "PARTY"
-                      ? "bg-[#6C63FF] shadow-lg shadow-[#6C63FF]/30"
-                      : "bg-muted group-hover:bg-[#6C63FF]/15",
+                      ? "bg-[#0F8A5F] shadow-lg shadow-[#0F8A5F]/30"
+                      : "bg-muted group-hover:bg-[#0F8A5F]/15",
                   )}>
-                    <Users className={cn("h-8 w-8", candidateType === "PARTY" ? "text-white" : "text-[#6C63FF]")} />
+                    <Users className={cn("h-8 w-8", candidateType === "PARTY" ? "text-white" : "text-[#0F8A5F]")} />
                   </div>
                   <div>
-                    <p className={cn("font-bold text-base", candidateType === "PARTY" ? "text-[#6C63FF]" : "")}>
+                    <p className={cn("font-bold text-base", candidateType === "PARTY" ? "text-[#0F8A5F]" : "")}>
                       Party Candidate
                     </p>
                     <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
@@ -486,7 +486,7 @@ function Register() {
                     </p>
                   </div>
                   {candidateType === "PARTY" && (
-                    <div className="flex items-center gap-1.5 text-[#6C63FF] text-xs font-semibold">
+                    <div className="flex items-center gap-1.5 text-[#0F8A5F] text-xs font-semibold">
                       <CheckCircle2 className="h-4 w-4" /> Selected
                     </div>
                   )}
@@ -494,8 +494,8 @@ function Register() {
               </div>
 
               {candidateType === "PARTY" && (
-                <div className="mt-4 rounded-xl bg-[#6C63FF]/8 border border-[#6C63FF]/20 p-4">
-                  <p className="text-xs text-[#6C63FF] font-semibold flex items-center gap-2">
+                <div className="mt-4 rounded-xl bg-[#0F8A5F]/8 border border-[#D9A441]/20 p-4">
+                  <p className="text-xs text-[#0F8A5F] font-semibold flex items-center gap-2">
                     <Sparkles className="h-3.5 w-3.5" />
                     Party Candidate Flow
                   </p>
@@ -561,8 +561,8 @@ function Register() {
           {step === 2 && candidateType === "PARTY" && (
             <div className="space-y-5">
               <div className="flex items-center gap-2 mb-2">
-                <div className="h-8 w-8 rounded-lg bg-[#6C63FF]/15 flex items-center justify-center">
-                  <Building2 className="h-4 w-4 text-[#6C63FF]" />
+                <div className="h-8 w-8 rounded-lg bg-[#0F8A5F]/15 flex items-center justify-center">
+                  <Building2 className="h-4 w-4 text-[#0F8A5F]" />
                 </div>
                 <div>
                   <h2 className="text-base font-semibold">Create Your Party</h2>
@@ -660,8 +660,8 @@ function Register() {
             <div className="space-y-3">
               <h2 className="text-base font-semibold">Review your information</h2>
 
-              <div className="p-3 bg-[#1F3A6E]/8 border border-[#1F3A6E]/20 rounded-xl mb-3">
-                <p className="text-xs font-semibold text-[#1F3A6E]">
+              <div className="p-3 bg-[#0F8A5F]/8 border border-[#D9A441]/20 rounded-xl mb-3">
+                <p className="text-xs font-semibold text-[#0F8A5F]">
                   Candidate Type: {candidateType === "PARTY" ? "🏛 Party Candidate (Leader)" : "👤 Independent Candidate"}
                 </p>
               </div>
@@ -724,7 +724,7 @@ function Register() {
           </Button>
           {step < STEPS.length - 1 ? (
             <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+              className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
               disabled={step === 3 && !termsValue}
               onClick={handleNext}
             >
@@ -732,7 +732,7 @@ function Register() {
             </Button>
           ) : (
             <Button
-              className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+              className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
               disabled={!confirmValue || !termsValue || loading}
               onClick={submit}
             >
@@ -774,7 +774,7 @@ function UploadBox({ label, value, onSet, simName }: { label: string; value: str
       ) : (
         <button
           onClick={() => onSet(simName || `${label.toLowerCase().replace(/\s+/g, "-")}.jpg`)}
-          className="inline-flex items-center gap-2 text-xs text-[#6C63FF] font-medium"
+          className="inline-flex items-center gap-2 text-xs text-[#0F8A5F] font-medium"
         >
           <Upload className="h-4 w-4" /> Drag & drop or click
         </button>

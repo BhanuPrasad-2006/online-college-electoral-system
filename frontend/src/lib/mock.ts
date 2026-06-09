@@ -1,10 +1,16 @@
 // Election starts in the future so the floating island shows the pre-voting state.
 const now = Date.now();
 export const ELECTION = {
-  name: "Student Council Election 2026",
-  votingStart: new Date(now + 1000 * 60 * 60 * 24 * 2 + 1000 * 60 * 60 * 14 + 1000 * 60 * 32),
-  votingEnd: new Date(now + 1000 * 60 * 60 * 24 * 2 + 1000 * 60 * 60 * 22),
-  registrationEnd: new Date(now + 1000 * 60 * 60 * 24),
+  name: "Student Council Election",
+  registration_start: new Date(now - 1000 * 60 * 60 * 24 * 3),
+  registration_end: new Date(now + 1000 * 60 * 60 * 24 * 2),
+  document_deadline: new Date(now + 1000 * 60 * 60 * 24 * 4),
+  voting_start: new Date(now + 1000 * 60 * 60 * 24 * 5),
+  voting_end: new Date(now + 1000 * 60 * 60 * 24 * 6),
+  results_published_at: new Date(now + 1000 * 60 * 60 * 24 * 7),
+  votingStart: new Date(now + 1000 * 60 * 60 * 24 * 5),
+  votingEnd: new Date(now + 1000 * 60 * 60 * 24 * 6),
+  registrationEnd: new Date(now + 1000 * 60 * 60 * 24 * 2),
 };
 
 export type Candidate = {

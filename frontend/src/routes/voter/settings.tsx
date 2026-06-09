@@ -144,7 +144,7 @@ function Page() {
 {/* ── Profile Photo Section ── */}
       <div className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Camera className="h-5 w-5 text-[#6C63FF]" />
+          <Camera className="h-5 w-5 text-[#0F8A5F]" />
           <h2 className="text-base font-semibold">Profile Photo</h2>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -156,7 +156,7 @@ function Page() {
           <div className="flex flex-col items-center shrink-0">
             {voter.reference_image_url ? (
               <div className="relative">
-                <Avatar className="h-20 w-20 ring-2 ring-[#6C63FF]/30 rounded-xl">
+                <Avatar className="h-20 w-20 ring-2 ring-[#0F8A5F]/30 rounded-xl">
                   <AvatarImage
                     src={resolveVoterPhotoUrl(voter.voter_id)}
                     alt="Profile photo"
@@ -222,7 +222,7 @@ function Page() {
             <div className="shrink-0 flex flex-col items-center gap-1.5">
               <button
                 onClick={() => { setPhotoMode("webcam"); setWebcamReady(false); setWebcamError(null); }}
-                className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${voter.photo_reupload_requested ? "bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 shadow-md animate-pulse font-semibold" : "bg-[#6C63FF]/10 text-[#6C63FF] hover:bg-[#6C63FF]/20"}`}
+                className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${voter.photo_reupload_requested ? "bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 shadow-sm font-semibold" : "bg-[#D9A441]/10 text-[#D9A441] hover:bg-[#0F8A5F]/20"}`}
               >
                 <Video className="h-3.5 w-3.5" />
                 {voter.photo_reupload_requested ? "Take New Selfie" : "Take Selfie"}
@@ -268,9 +268,9 @@ function Page() {
         </div>
 
         {voter.photo_reupload_requested && !voter.pending_face_enrolled && (
-          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#6C63FF]/10 border border-[#6C63FF]/20">
-            <Camera className="h-4 w-4 text-[#6C63FF] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#6C63FF] font-medium">
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#0F8A5F]/10 border border-[#D9A441]/20">
+            <Camera className="h-4 w-4 text-[#0F8A5F] shrink-0 mt-0.5" />
+            <p className="text-xs text-[#0F8A5F] font-medium">
               The election admin has requested you to upload a new photo. Please take a selfie or upload a clear, well-lit photo of your face.
             </p>
           </div>
@@ -278,10 +278,10 @@ function Page() {
 
         {/* ── Webcam Capture Modal ── */}
         {photoMode === "webcam" && (
-          <div className="border border-[#6C63FF]/30 rounded-xl bg-muted/20 p-4 space-y-3">
+          <div className="border border-[#D9A441]/30 rounded-xl bg-muted/20 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold flex items-center gap-1.5">
-                <Video className="h-4 w-4 text-[#6C63FF]" /> Live Selfie Capture
+                <Video className="h-4 w-4 text-[#0F8A5F]" /> Live Selfie Capture
               </p>
               <button onClick={() => { setPhotoMode(null); setWebcamReady(false); setWebcamError(null); }}
                 className="p-1 rounded-full hover:bg-muted text-muted-foreground">
@@ -291,7 +291,7 @@ function Page() {
             <p className="text-xs text-muted-foreground">
               Position your face in the center of the frame, ensure good lighting, and look directly at the camera. This photo will be used for face verification during voting.
             </p>
-            <div className="rounded-xl overflow-hidden border-2 border-[#6C63FF]/30 bg-muted/40 relative">
+            <div className="rounded-xl overflow-hidden border-2 border-[#D9A441]/30 bg-muted/40 relative">
               <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md z-10 flex items-center gap-1">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
@@ -310,7 +310,7 @@ function Page() {
                   {!webcamReady && (
                     <div className="h-48 flex items-center justify-center">
                       <div className="text-center space-y-2">
-                        <div className="animate-spin h-5 w-5 border-2 border-[#6C63FF] border-t-transparent rounded-full mx-auto" />
+                        <div className="animate-spin h-5 w-5 border-2 border-[#0F8A5F] border-t-transparent rounded-full mx-auto" />
                         <p className="text-xs text-muted-foreground">Starting camera...</p>
                       </div>
                     </div>
@@ -335,7 +335,7 @@ function Page() {
               </Button>
               <Button
                 size="sm"
-                className="flex-1 bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90"
+                className="flex-1 bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
                 disabled={!webcamReady || !!webcamError || isUploading}
                 onClick={handleCaptureSelfie}
               >
@@ -352,7 +352,7 @@ function Page() {
         className="bg-card rounded-2xl shadow-sm p-6 space-y-4"
       >
         <div className="flex items-center gap-2">
-          <KeyRound className="h-5 w-5 text-[#6C63FF]" />
+          <KeyRound className="h-5 w-5 text-[#0F8A5F]" />
           <h2 className="text-base font-semibold">Security & Password</h2>
         </div>
 
@@ -398,7 +398,7 @@ function Page() {
           <Button
             type="submit"
             disabled={loading}
-            className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 h-11 px-6 shadow-md"
+            className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 h-11 px-6 shadow-md"
           >
             {loading ? "Processing..." : "Update Password"}
           </Button>
@@ -425,8 +425,8 @@ function Page() {
             {/* Modal Header */}
             <div className="p-6 pb-0 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#6C63FF]/15 flex items-center justify-center">
-                  <ShieldCheck className="h-6 w-6 text-[#6C63FF]" />
+                <div className="h-10 w-10 rounded-xl bg-[#0F8A5F]/15 flex items-center justify-center">
+                  <ShieldCheck className="h-6 w-6 text-[#0F8A5F]" />
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Verify Your Identity</h3>
@@ -455,7 +455,7 @@ function Page() {
                   6-Digit Email OTP
                 </label>
                 <Input
-                  className="mt-2 h-12 text-center text-xl font-bold tracking-[0.4em] bg-muted/40 focus:bg-card focus:ring-[#6C63FF] border-border"
+                  className="mt-2 h-12 text-center text-xl font-bold tracking-[0.4em] bg-muted/40 focus:bg-card focus:ring-[#0F8A5F] border-border"
                   placeholder="000000"
                   type="text"
                   maxLength={6}
@@ -478,7 +478,7 @@ function Page() {
                 <Button
                   type="submit"
                   disabled={otpLoading}
-                  className="flex-1 h-11 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-95"
+                  className="flex-1 h-11 bg-gradient-to-r from-[#1F2937] to-[#0F8A5F] text-white hover:opacity-95"
                 >
                   {otpLoading ? "Verifying..." : "Confirm & Update"}
                 </Button>

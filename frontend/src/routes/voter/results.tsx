@@ -18,8 +18,10 @@ import {
   Search,
   PartyPopper,
   Eye,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import {
   ResponsiveContainer,
   PieChart,
@@ -62,7 +64,7 @@ function ResultsPage() {
     { name: "Voted", value: votedCount },
     { name: "Remaining", value: remainingCount },
   ];
-  const COLORS = ["#6C63FF", "#E5E7EB"];
+  const COLORS = ["#0F8A5F", "#E6ECE9"];
   const votedPercent = kpi?.turnout ? Math.round(kpi.turnout) : 0;
 
   const filteredDepts = deptTurnout.filter((d) =>
@@ -131,100 +133,123 @@ function ResultsPage() {
           const sorted = [...(positionResult.candidates || [])].sort(
             (a: any, b: any) => b.votes - a.votes,
           );
-          const winner = sorted[0];
-          if (!winner) return null;
-          const totalVotesForPos = sorted.reduce(
-            (sum, c) => sum + c.votes,
-            0,
-          );
+          const totalVotesForPos = sorted.reduce((sum, c) => sum + c.votes, 0);
+          const maxVotes = sorted.length > 0 ? sorted[0].votes : 0;
+          
+          // Determine tie cases
+          const isTie = sorted.length > 1 && sorted[0].votes === sorted[1].votes;
+          const winners = sorted.filter(c => c.votes === maxVotes && maxVotes > 0);
+          const winnerNames = winners.map((w: any) => w.name).join(", ");
 
           return (
             <div
               key={positionResult.position}
-              className="bg-card rounded-2xl border border-border/70 shadow-sm overflow-hidden"
+              className="bg-white rounded-[24px] border border-[#E6ECE9] shadow-sm overflow-hidden premium-card"
             >
-              <div className="bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Medal className="h-5 w-5 text-amber-300" />
+              {/* Position Header Banner */}
+              <div className="bg-gradient-to-r from-primary-dark to-secondary-dark px-6 py-5 flex items-center justify-between border-b border-[#E6ECE9]">
+                <div>
+                  <p className="text-[10px] font-bold text-[#16A34A] uppercase tracking-widest">Contested Position</p>
+                  <h2 className="text-base font-extrabold text-white flex items-center gap-2 mt-0.5">
+                    <Trophy className="h-5 w-5 text-[#D9A441] animate-pulse-subtle" />
                     {positionResult.position}
                   </h2>
-                  {winner && (
-                    <div className="flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1">
-                      <Crown className="h-4 w-4 text-amber-300" />
-                      <span className="text-xs font-semibold text-white/90">
-                        {winner.name}
-                      </span>
-                    </div>
-                  )}
                 </div>
+                {maxVotes > 0 && (
+                  <div className="flex items-center gap-2">
+                    {isTie ? (
+                      <Badge className="bg-[#D97706] text-white border-0 text-[11px] font-bold py-1 px-3 rounded-full flex items-center gap-1">
+                        <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                        Tie Declared
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-[#16A34A]/20 text-[#16A34A] border border-[#16A34A]/30 text-[11px] font-bold py-1 px-3 rounded-full flex items-center gap-1 backdrop-blur-sm">
+                        <Crown className="h-3.5 w-3.5 text-[#D9A441] mr-1" />
+                        Winner: {winners[0].name}
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="p-6 space-y-3">
+              {/* Candidates list for this position */}
+              <div className="p-6 space-y-4">
                 {sorted.map((cand, ci) => {
                   const pct =
                     totalVotesForPos > 0
                       ? Math.round((cand.votes / totalVotesForPos) * 100)
                       : 0;
-                  const isWinner = ci === 0;
-                  const rankIcon =
-                    ci === 0 ? (
-                      <Trophy className="h-5 w-5 text-amber-500" />
-                    ) : ci === 1 ? (
-                      <Medal className="h-5 w-5 text-gray-400" />
-                    ) : (
-                      <Medal className="h-5 w-5 text-amber-700/60" />
-                    );
-
+                  const isWinner = maxVotes > 0 && cand.votes === maxVotes;
+                  
                   return (
                     <div
                       key={ci}
                       className={cn(
-                        "flex items-center gap-4 p-4 rounded-xl border transition-all",
+                        "flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200",
                         isWinner
-                          ? "bg-success/5 border-success/30 shadow-sm"
-                          : "bg-background border-border/40 hover:border-border/70",
+                          ? isTie
+                            ? "bg-amber-50/50 border-amber-200/60 shadow-sm"
+                            : "bg-[#16A34A]/5 border-[#16A34A]/20 shadow-sm"
+                          : "bg-white border-[#E6ECE9] hover:border-[#0F8A5F]/20",
                       )}
                     >
+                      {/* Winner Card Trophy/Rank Circle */}
                       <div
                         className={cn(
-                          "h-10 w-10 rounded-full flex items-center justify-center shrink-0",
+                          "h-12 w-12 rounded-xl flex items-center justify-center shrink-0 border",
                           isWinner
-                            ? "bg-amber-100"
-                            : ci === 1
-                              ? "bg-gray-100"
-                              : "bg-muted",
+                            ? isTie
+                              ? "bg-amber-100/60 border-amber-200 text-[#D97706]"
+                              : "bg-[#16A34A]/10 border-[#16A34A]/25 text-[#16A34A]"
+                            : "bg-[#F8FAF9] border-[#E6ECE9] text-muted-foreground",
                         )}
                       >
-                        {rankIcon}
+                        {isWinner ? (
+                          isTie ? (
+                            <AlertTriangle className="h-5 w-5" />
+                          ) : (
+                            <Trophy className="h-5 w-5 text-[#D9A441]" />
+                          )
+                        ) : (
+                          <Medal className="h-5 w-5" />
+                        )}
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-sm truncate">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-sm text-[#102A27]">
                             {cand.name}
                           </p>
                           {isWinner && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">
-                              <Crown className="h-3 w-3" />
-                              WINNER
-                            </span>
+                            isTie ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-[#D97706] bg-[#D97706]/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                Tied Leader
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-[#16A34A] bg-[#16A34A]/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                <Crown className="h-3 w-3 text-[#D9A441]" />
+                                Winner
+                              </span>
+                            )
                           )}
                         </div>
 
+                        {/* Progress Bar & Percentage */}
                         <div className="flex items-center gap-3 mt-2">
-                          <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all duration-1000 ease-out",
                                 isWinner
-                                  ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                                  : "bg-[#6C63FF]/50",
+                                  ? isTie
+                                    ? "bg-gradient-to-r from-[#D97706] to-[#F59E0B]"
+                                    : "bg-gradient-to-r from-[#0F8A5F] to-[#16A34A]"
+                                  : "bg-gray-300",
                               )}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="text-xs font-bold text-muted-foreground w-24 text-right tabular-nums shrink-0">
+                          <span className="text-xs font-bold text-muted-foreground w-28 text-right tabular-nums shrink-0">
                             {cand.votes.toLocaleString()} votes &middot; {pct}%
                           </span>
                         </div>
@@ -238,9 +263,9 @@ function ResultsPage() {
         })}
 
         {/* Turnout Summary */}
-        <div className="bg-card rounded-2xl border border-border/70 shadow-sm p-6">
-          <h2 className="text-lg font-bold flex items-center gap-2 mb-6">
-            <BarChart3 className="h-5 w-5 text-[#6C63FF]" />
+        <div className="bg-white rounded-[24px] border border-[#E6ECE9] shadow-sm p-6 premium-card">
+          <h2 className="text-lg font-bold text-[#102A27] flex items-center gap-2 mb-6">
+            <BarChart3 className="h-5 w-5 text-[#0F8A5F]" />
             Voter Turnout
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -269,32 +294,32 @@ function ResultsPage() {
             </div>
             <div className="flex flex-col justify-center space-y-4">
               <div className="text-center md:text-left">
-                <p className="text-4xl font-bold text-[#6C63FF]">
+                <p className="text-4xl font-extrabold text-[#0F8A5F]">
                   {votedPercent}%
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground font-semibold">
                   Total Voter Turnout
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Voted</span>
-                  <span className="font-semibold">43%</span>
+                  <span className="text-muted-foreground font-medium">Voted</span>
+                  <span className="font-bold text-[#102A27]">{votedPercent}%</span>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-150 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-[#6C63FF] rounded-full"
-                    style={{ width: "43%" }}
+                    className="h-full bg-[#0F8A5F] rounded-full transition-all duration-1000"
+                    style={{ width: `${votedPercent}%` }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Remaining</span>
-                  <span className="font-semibold">57%</span>
+                  <span className="text-muted-foreground font-medium">Remaining</span>
+                  <span className="font-bold text-[#102A27]">{100 - votedPercent}%</span>
                 </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-150 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-[#E5E7EB] rounded-full"
-                    style={{ width: "57%" }}
+                    className="h-full bg-[#E6ECE9] rounded-full transition-all duration-1000"
+                    style={{ width: `${100 - votedPercent}%` }}
                   />
                 </div>
               </div>
@@ -303,9 +328,9 @@ function ResultsPage() {
         </div>
 
         {/* Department Turnout */}
-        <div className="bg-card rounded-2xl border border-border/70 shadow-sm p-6">
-          <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-            <Users className="h-5 w-5 text-[#6C63FF]" />
+        <div className="bg-white rounded-[24px] border border-[#E6ECE9] shadow-sm p-6 premium-card">
+          <h2 className="text-lg font-bold text-[#102A27] flex items-center gap-2 mb-4">
+            <Users className="h-5 w-5 text-[#0F8A5F]" />
             Department-wise Turnout
           </h2>
           <div className="relative mb-4">
@@ -315,7 +340,7 @@ function ResultsPage() {
               placeholder="Search departments..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border/60 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 focus:border-[#6C63FF] transition-all"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border/60 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-[#0F8A5F]/30 focus:border-[#0F8A5F] transition-all"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -336,17 +361,17 @@ function ResultsPage() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-semibold text-sm">{d.department}</p>
-                      <span className="text-xs font-bold text-[#6C63FF]">
+                      <span className="text-xs font-bold text-[#0F8A5F]">
                         {pct}%
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-[#6C63FF] to-[#1F3A6E] rounded-full transition-all"
+                        className="h-full bg-gradient-to-r from-primary to-secondary-dark rounded-full transition-all"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                    <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">
                       {d.total || 0} voted &middot; {d.registered || 0} registered
                     </p>
                   </div>

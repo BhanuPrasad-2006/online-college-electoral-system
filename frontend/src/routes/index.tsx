@@ -95,10 +95,10 @@ function GlassInput({
             ...(props.style || {}),
           }}
           onFocus={(e) => {
-            e.currentTarget.style.border = "1px solid rgba(139,120,255,0.5)";
+            e.currentTarget.style.border = "1px solid rgba(15,138,95,0.5)";
             e.currentTarget.style.background = "rgba(255,255,255,0.10)";
             e.currentTarget.style.boxShadow =
-              "0 0 0 3px rgba(108,99,255,0.15), inset 0 1px 0 rgba(255,255,255,0.08)";
+              "0 0 0 3px rgba(15,138,95,0.15), inset 0 1px 0 rgba(255,255,255,0.08)";
           }}
           onBlur={(e) => {
             e.currentTarget.style.border = "1px solid rgba(255,255,255,0.12)";
@@ -163,27 +163,27 @@ function GlassButton({
       className={`h-12 w-full rounded-xl text-sm font-bold transition-all duration-200 relative overflow-hidden ${className}`}
       style={{
         background: disabled
-          ? "rgba(108,99,255,0.3)"
-          : "linear-gradient(135deg, rgba(108,99,255,0.9) 0%, rgba(139,92,246,0.85) 100%)",
-        border: "1px solid rgba(167,139,250,0.4)",
+          ? "rgba(15,138,95,0.3)"
+          : "linear-gradient(135deg, rgba(15,138,95,0.95) 0%, rgba(22,163,74,0.85) 100%)",
+        border: "1px solid rgba(22,163,74,0.4)",
         color: disabled ? "rgba(255,255,255,0.4)" : "white",
         boxShadow: disabled
           ? "none"
-          : "0 4px 24px rgba(108,99,255,0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
+          : "0 4px 24px rgba(15,138,95,0.35), inset 0 1px 0 rgba(255,255,255,0.2)",
         cursor: disabled ? "not-allowed" : "pointer",
       }}
       onMouseEnter={(e) => {
         if (!disabled) {
           e.currentTarget.style.transform = "translateY(-1px)";
           e.currentTarget.style.boxShadow =
-            "0 8px 32px rgba(108,99,255,0.45), inset 0 1px 0 rgba(255,255,255,0.2)";
+            "0 8px 32px rgba(15,138,95,0.45), inset 0 1px 0 rgba(255,255,255,0.2)";
         }
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = disabled
           ? "none"
-          : "0 4px 24px rgba(108,99,255,0.35), inset 0 1px 0 rgba(255,255,255,0.2)";
+          : "0 4px 24px rgba(15,138,95,0.35), inset 0 1px 0 rgba(255,255,255,0.2)";
       }}
     >
       {/* Shimmer effect */}
@@ -582,18 +582,18 @@ function Login() {
             <div
               className="w-12 h-12 rounded-2xl flex items-center justify-center"
               style={{
-                background: "linear-gradient(135deg, rgba(108,99,255,0.4), rgba(139,92,246,0.3))",
-                border: "1px solid rgba(167,139,250,0.3)",
+                background: "linear-gradient(135deg, rgba(15,138,95,0.4), rgba(22,163,74,0.3))",
+                border: "1px solid rgba(22,163,74,0.3)",
                 backdropFilter: "blur(12px)",
                 WebkitBackdropFilter: "blur(12px)",
-                boxShadow: "0 4px 20px rgba(108,99,255,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
+                boxShadow: "0 4px 20px rgba(15,138,95,0.25), inset 0 1px 0 rgba(255,255,255,0.15)",
               }}
             >
-              <GraduationCap className="h-6 w-6 text-white" />
+              <ShieldCheck className="h-6 w-6 text-white" />
             </div>
             <div>
-              <p className="font-bold text-white text-lg leading-none">CollegeVote</p>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(180,200,255,0.5)" }}>
+              <p className="font-bold text-white text-lg leading-none">DSCE Balloty</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(167,243,208,0.5)" }}>
                 Student Election Portal
               </p>
             </div>
@@ -604,7 +604,7 @@ function Login() {
             <h1
               className="text-4xl font-extrabold leading-tight"
               style={{
-                background: "linear-gradient(135deg, #e2e8ff 0%, #a5b4fc 50%, #c4b5fd 100%)",
+                background: "linear-gradient(135deg, #e6ece9 0%, #a7f3d0 50%, #d1fae5 100%)",
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 color: "transparent",
@@ -618,7 +618,7 @@ function Login() {
             </h1>
             <p
               className="text-sm mt-4 leading-relaxed"
-              style={{ color: "rgba(180,200,255,0.6)" }}
+              style={{ color: "rgba(167,243,208,0.6)" }}
             >
               Secure, AI-powered student council elections. Every vote is
               encrypted, verified, and anonymous.
@@ -641,11 +641,11 @@ function Login() {
               >
                 <div
                   className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(108,99,255,0.2)", color: "rgba(167,139,250,0.9)" }}
+                  style={{ background: "rgba(15,138,95,0.2)", color: "rgba(167,243,208,0.9)" }}
                 >
                   {f.icon}
                 </div>
-                <span className="text-sm" style={{ color: "rgba(200,215,255,0.75)" }}>
+                <span className="text-sm" style={{ color: "rgba(209,250,229,0.75)" }}>
                   {f.text}
                 </span>
               </div>
@@ -654,9 +654,9 @@ function Login() {
 
           {/* Stat cards */}
           <div className="space-y-2 pt-2">
-            <StatCard icon={<Vote className="h-4 w-4 text-purple-300" />} label="Live Vote Tracker" value="7,812 Votes Cast" delay={500} />
-            <StatCard icon={<Users className="h-4 w-4 text-blue-300" />} label="Voter Turnout" value="68% So Far" delay={600} />
-            <StatCard icon={<BarChart3 className="h-4 w-4 text-cyan-300" />} label="Final Manifestos" value="All Released" delay={700} />
+            <StatCard icon={<Vote className="h-4 w-4 text-[#16A34A]" />} label="Live Vote Tracker" value="7,812 Votes Cast" delay={500} />
+            <StatCard icon={<Users className="h-4 w-4 text-[#D9A441]" />} label="Voter Turnout" value="68% So Far" delay={600} />
+            <StatCard icon={<BarChart3 className="h-4 w-4 text-[#0F8A5F]" />} label="Final Manifestos" value="All Released" delay={700} />
           </div>
         </div>
 
@@ -669,19 +669,19 @@ function Login() {
           <div
             className="rounded-3xl p-8 relative overflow-hidden"
             style={{
-              background: "rgba(14,20,50,0.55)",
+              background: "rgba(7,29,26,0.75)",
               backdropFilter: "blur(40px) saturate(1.6)",
               WebkitBackdropFilter: "blur(40px) saturate(1.6)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: "1px solid rgba(15,138,95,0.15)",
               boxShadow:
-                "0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(108,99,255,0.08), inset 0 1px 0 rgba(255,255,255,0.09)",
+                "0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(15,138,95,0.08), inset 0 1px 0 rgba(255,255,255,0.09)",
             }}
           >
             {/* Inner glow */}
             <div
               className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-px"
               style={{
-                background: "linear-gradient(90deg, transparent, rgba(167,139,250,0.5), transparent)",
+                background: "linear-gradient(90deg, transparent, rgba(15,138,95,0.5), transparent)",
               }}
             />
 
@@ -690,13 +690,13 @@ function Login() {
               <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{
-                  background: "linear-gradient(135deg, rgba(108,99,255,0.5), rgba(139,92,246,0.4))",
-                  border: "1px solid rgba(167,139,250,0.3)",
+                  background: "linear-gradient(135deg, rgba(15,138,95,0.5), rgba(22,163,74,0.4))",
+                  border: "1px solid rgba(22,163,74,0.3)",
                 }}
               >
-                <GraduationCap className="h-5 w-5 text-white" />
+                <ShieldCheck className="h-5 w-5 text-white" />
               </div>
-              <span className="font-bold text-white">CollegeVote</span>
+              <span className="font-bold text-white">DSCE Balloty</span>
             </div>
 
             {/* Error banner */}
@@ -731,12 +731,12 @@ function Login() {
                 <div className="mb-7">
                   <h2
                     className="text-2xl font-bold"
-                    style={{ color: "rgba(230,240,255,0.97)" }}
+                    style={{ color: "rgba(230,250,240,0.97)" }}
                   >
                     Welcome back
                   </h2>
-                  <p className="text-sm mt-1" style={{ color: "rgba(180,200,255,0.55)" }}>
-                    Student Council Election 2026
+                  <p className="text-sm mt-1" style={{ color: "rgba(167,243,208,0.55)" }}>
+                    Student Council Election {new Date().getFullYear()}
                   </p>
                 </div>
 
@@ -756,11 +756,11 @@ function Login() {
                       style={
                         tab === t
                           ? {
-                              background: "linear-gradient(135deg, rgba(108,99,255,0.7), rgba(139,92,246,0.6))",
+                              background: "linear-gradient(135deg, rgba(15,138,95,0.75), rgba(22,163,74,0.65))",
                               color: "white",
-                              boxShadow: "0 2px 12px rgba(108,99,255,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+                              boxShadow: "0 2px 12px rgba(15,138,95,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
                             }
-                          : { color: "rgba(180,200,255,0.5)" }
+                          : { color: "rgba(167,243,208,0.5)" }
                       }
                     >
                       {t === "voter" ? (

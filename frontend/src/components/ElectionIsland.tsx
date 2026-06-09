@@ -73,11 +73,11 @@ function buildPillText(phase: Phase, target: number | null, now: number): string
     case "pre_registration":
       return target ? `📋 Registration opens in ${cd}` : "📋 Registration coming soon";
     case "registration_open":
-      return `🟢 Reg. open! Interested? Register · closes in ${cd}`;
+      return `🟢 Registration Open`;
     case "between":
       return `⏳ Registration closed · Voting opens in ${cd}`;
     case "voting_open":
-      return `🗳️ Voting is LIVE! · closes in ${cd}`;
+      return `🗳️ Voting is LIVE`;
     case "closed":
       return "🔒 Voting ended · Results pending";
     case "results":
@@ -87,9 +87,9 @@ function buildPillText(phase: Phase, target: number | null, now: number): string
 
 const DOT: Record<Phase, string> = {
   pre_registration: "bg-blue-400",
-  registration_open: "bg-[#6C63FF] animate-pulse",
+  registration_open: "bg-emerald-500",
   between: "bg-amber-400",
-  voting_open: "bg-[#6C63FF] animate-pulse",
+  voting_open: "bg-[#3B82F6]",
   closed: "bg-gray-500",
   results: "bg-amber-400",
 };
@@ -156,7 +156,7 @@ export function ElectionIsland({
           "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium",
           "bg-card/90 backdrop-blur-md border border-border/60",
           GLOW[phase],
-          urgent && "ring-2 ring-[#6C63FF]/40",
+          urgent && "ring-2 ring-[#0F8A5F]/40",
         )}
       >
         <span className={cn("h-2 w-2 rounded-full shrink-0", DOT[phase])} />

@@ -40,7 +40,7 @@ export function TimerBanner({ label, target }: { label?: string; target?: Date }
       className={cn(
         "rounded-2xl px-5 md:px-7 py-4 md:py-5 text-white shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3",
         urgent
-          ? "bg-gradient-to-r from-red-600 to-red-500 animate-pulse"
+          ? "bg-gradient-to-r from-red-600 to-red-500"
           : "bg-gradient-to-r from-[#1F3A6B] via-[#2E75B6] to-[#3E8FCF]",
       )}
     >

@@ -67,20 +67,20 @@ function AdminOtpVerify() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0F1C2E] p-4 py-8">
-      <div className="w-full max-w-md bg-card rounded-2xl shadow-2xl p-8">
+    <div className="min-h-screen flex items-center justify-center premium-bg p-4 py-8">
+      <div className="w-full max-w-md glass-panel rounded-[24px] shadow-2xl p-8">
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="h-14 w-14 rounded-full bg-[#6C63FF]/10 flex items-center justify-center mb-4">
-            <ShieldCheck className="h-7 w-7 text-[#6C63FF]" />
+          <div className="h-14 w-14 rounded-full bg-[#0F8A5F]/10 flex items-center justify-center mb-4 ring-4 ring-[#0F8A5F]/5">
+            <ShieldCheck className="h-7 w-7 text-[#0F8A5F]" />
           </div>
-          <h1 className="text-2xl font-bold">Admin verification</h1>
-          <p className="text-sm text-muted-foreground mt-2">Two OTPs are required.</p>
+          <h1 className="text-2xl font-bold text-[#102A27]">Admin verification</h1>
+          <p className="text-sm text-muted-foreground mt-2 font-medium">Two OTPs are required.</p>
         </div>
 
-        {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
+        {error && <p className="text-red-500 text-sm text-center mb-4 font-semibold">{error}</p>}
 
         <Section
-          icon={<Mail className="h-4 w-4" />}
+          icon={<Mail className="h-4 w-4 text-[#0F8A5F]" />}
           title="Email OTP"
           subtitle={
             email
@@ -89,30 +89,37 @@ function AdminOtpVerify() {
           }
         >
           <OtpInput value={emailOtp} onChange={setEmailOtp} />
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Expires in <Countdown seconds={5 * 60} />
+          <p className="text-xs text-muted-foreground text-center mt-2 font-medium">
+            Expires in <span className="text-[#D97706] font-bold"><Countdown seconds={5 * 60} /></span>
           </p>
         </Section>
 
-        <div className="my-6 border-t border-border" />
+        <div className="my-6 border-t border-[#E6ECE9]" />
 
         <Section
-          icon={<Phone className="h-4 w-4" />}
+          icon={<Phone className="h-4 w-4 text-[#0F8A5F]" />}
           title="Phone OTP"
           subtitle={mobile ? `Sent to +91-XXXXXX${mobile.slice(-4)}` : "Sent via secure SMS"}
         >
           <OtpInput value={phoneOtp} onChange={setPhoneOtp} />
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Expires in <Countdown seconds={5 * 60} />
+          <p className="text-xs text-muted-foreground text-center mt-2 font-medium">
+            Expires in <span className="text-[#D97706] font-bold"><Countdown seconds={5 * 60} /></span>
           </p>
         </Section>
 
         <Button
           onClick={verify}
           disabled={!ready || loading}
-          className="w-full mt-7 bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+          className="w-full mt-7 bg-gradient-to-r from-primary-dark to-primary text-white hover:opacity-95 rounded-xl font-bold border-0 shadow-md shadow-[#0F8A5F]/20"
         >
-          {loading ? "Verifying..." : "Verify Both & Continue"}
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              Verifying...
+            </span>
+          ) : (
+            "Verify Both & Continue"
+          )}
         </Button>
       </div>
     </div>

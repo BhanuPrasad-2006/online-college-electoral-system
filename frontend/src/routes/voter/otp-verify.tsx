@@ -87,16 +87,16 @@ function OtpVerify() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center mesh-bg p-4">
+    <div className="min-h-screen flex items-center justify-center premium-bg p-4">
       <div
-        className="w-full max-w-md glass-panel rounded-2xl border border-border/60 shadow-2xl p-8 animate-fade-in-up"
+        className="w-full max-w-md glass-panel rounded-[24px] border border-border shadow-2xl p-8 animate-fade-in-up"
         style={{ animationDelay: "60ms" }}
       >
         <div className="flex flex-col items-center text-center">
-          <div className="h-14 w-14 rounded-full bg-gradient-to-br from-[#6C63FF]/20 to-[#1F3A6E]/20 flex items-center justify-center mb-4 ring-4 ring-[#6C63FF]/10 animate-pulse-glow">
-            <Mail className="h-7 w-7 text-[#6C63FF]" />
+          <div className="h-14 w-14 rounded-full bg-[#0F8A5F]/10 flex items-center justify-center mb-4 ring-4 ring-[#0F8A5F]/5 shadow-lg shadow-[#0F8A5F]/5">
+            <Mail className="h-7 w-7 text-[#0F8A5F]" />
           </div>
-          <h1 className="text-2xl font-bold">Check your college email</h1>
+          <h1 className="text-2xl font-bold text-[#102A27]">Check your college email</h1>
           <p className="text-sm text-muted-foreground mt-2">
             A 6-digit OTP has been sent to{" "}
             <span className="font-semibold text-foreground">
@@ -116,15 +116,15 @@ function OtpVerify() {
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground text-center mt-4">
-          OTP expires in <Countdown seconds={5 * 60} />
+        <p className="text-xs text-muted-foreground text-center mt-4 font-medium">
+          OTP expires in <span className="text-[#D97706] font-bold"><Countdown seconds={5 * 60} /></span>
         </p>
 
         <Button
           variant="outline"
           disabled={resendIn > 0}
           onClick={resend}
-          className="w-full mt-6 transition-all hover:border-[#6C63FF]/40"
+          className="w-full mt-6 transition-all hover:border-[#0F8A5F]/40 hover:text-[#0F8A5F] rounded-xl"
         >
           {resendIn > 0 ? `Resend OTP in ${resendIn}s` : "Resend OTP"}
         </Button>
@@ -132,7 +132,7 @@ function OtpVerify() {
         <Button
           onClick={complete}
           disabled={otp.some((d) => !d) || loading}
-          className="w-full mt-3 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-95 border-0 shadow-lg btn-shine"
+          className="w-full mt-3 bg-gradient-to-r from-primary-dark to-primary text-white hover:opacity-95 border-0 shadow-lg rounded-xl font-bold"
         >
           {loading ? (
             <span className="flex items-center gap-2">
@@ -146,13 +146,13 @@ function OtpVerify() {
 
         <button
           onClick={() => nav({ to: "/" })}
-          className="w-full text-xs text-center text-muted-foreground hover:text-foreground mt-4 transition-colors"
+          className="w-full text-xs text-center text-muted-foreground hover:text-[#102A27] mt-4 transition-colors font-medium"
         >
           ← Back to Login
         </button>
 
-        <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-1.5">
-          <ShieldCheck className="h-3.5 w-3.5 text-[#6C63FF]" />
+        <p className="text-xs text-center text-muted-foreground mt-4 flex items-center justify-center gap-1.5 font-medium">
+          <ShieldCheck className="h-4 w-4 text-[#16A34A]" />
           Secured with end-to-end encryption
         </p>
       </div>

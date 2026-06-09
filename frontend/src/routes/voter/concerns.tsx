@@ -109,7 +109,7 @@ function Page() {
 
       <div className="bg-card rounded-2xl shadow-sm p-5 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <MessageSquarePlus className="h-5 w-5 text-[#6C63FF]" />
+          <MessageSquarePlus className="h-5 w-5 text-[#0F8A5F]" />
           <h2 className="text-base font-semibold">New Concern</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -232,7 +232,7 @@ function Page() {
         <Button
           onClick={submit}
           disabled={submitting}
-          className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 mt-2"
+          className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 mt-2"
         >
           <Send className="h-4 w-4 mr-2" /> Send Concern
         </Button>

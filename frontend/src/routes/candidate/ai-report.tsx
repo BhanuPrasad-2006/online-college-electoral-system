@@ -140,14 +140,14 @@ function Page() {
                 className="flex items-center justify-between p-4 bg-muted/40 rounded-lg gap-3 flex-wrap"
               >
                 <div>
-                  <p className="text-xs text-[#6C63FF] font-semibold">Priority {i + 1}</p>
+                  <p className="text-xs text-[#0F8A5F] font-semibold">Priority {i + 1}</p>
                   <p className="text-sm font-medium mt-0.5">
                     Address {c.name.toLowerCase()} — {c.mentions} students concerned, {c.negative}%
                     negative
                   </p>
                 </div>
                 <Link to="/candidate/manifesto">
-                  <Button size="sm" className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90">
+                  <Button size="sm" className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90">
                     Add to Manifesto →
                   </Button>
                 </Link>

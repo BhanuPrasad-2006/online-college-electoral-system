@@ -64,12 +64,12 @@ export function AppLayout() {
 
   return (
     <NotificationProvider>
-      <div className="min-h-screen mesh-bg">
+      <div className="h-screen w-screen flex overflow-hidden premium-bg">
         {/* Floating election countdown island */}
         <ElectionIsland />
 
-        {/* Desktop sidebar — fixed to left, always visible while scrolling */}
-        <div className="hidden md:block">
+        {/* Desktop sidebar — permanently visible and fixed on the left */}
+        <div className="hidden md:block w-[260px] shrink-0 h-screen z-20">
           <Sidebar kind={kind} />
         </div>
 
@@ -83,15 +83,13 @@ export function AppLayout() {
           </SheetContent>
         </Sheet>
 
-        {/*
-        Main content area.
-        md:ml-[260px] offsets the content to the right of the fixed sidebar.
-        The sidebar is fixed (out of normal flow) so we need this margin manually.
-      */}
-        <div className="flex flex-col min-h-screen md:ml-[260px]">
+        {/* Main content area — independently scrollable */}
+        <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
           <Header onMenu={() => setMobileOpen(true)} />
-          <main className="flex-1 px-4 md:px-8 py-6 pt-20 pb-24 md:pb-8">
-            <Outlet />
+          <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 pb-24 md:pb-8">
+            <div className="max-w-[1600px] mx-auto w-full">
+              <Outlet />
+            </div>
           </main>
           <MobileBottomNav kind={kind} />
         </div>

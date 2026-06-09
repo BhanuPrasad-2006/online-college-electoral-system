@@ -96,7 +96,7 @@ function Page() {
               key={s}
               onClick={() => setFilter(s)}
               className={`px-3 py-2 text-xs rounded-lg whitespace-nowrap font-medium transition-all ${
-                filter === s ? "bg-[#1F3A6E] text-white" : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                filter === s ? "bg-[#0F8A5F] text-white" : "bg-muted hover:bg-muted/80 text-muted-foreground"
               }`}
             >
               {s}
@@ -229,7 +229,7 @@ function Page() {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Reason for rejection..."
-            className="w-full h-28 p-3 mt-3 border border-border/80 rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-[#1F3A6E] text-foreground"
+            className="w-full h-28 p-3 mt-3 border border-border/80 rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-[#0F8A5F] text-foreground"
           />
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="outline" onClick={() => setRejectId(null)} disabled={!!actionLoading}>
@@ -310,7 +310,7 @@ function Page() {
                         <div className="text-right">
                           <span className="font-medium">{member.position || "Member"}</span>
                           {member.is_leader && (
-                            <Badge className="ml-2 bg-[#1F3A6E]/20 text-[#1F3A6E] dark:text-blue-400 text-[10px]">Leader</Badge>
+                            <Badge className="ml-2 bg-[#D9A441]/20 text-[#D9A441] dark:text-blue-400 text-[10px]">Leader</Badge>
                           )}
                         </div>
                       </div>

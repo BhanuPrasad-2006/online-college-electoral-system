@@ -377,7 +377,7 @@ function Page() {
           </div>
           <Button
             onClick={handleSearchCommit}
-            className="bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white"
+            className="bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white"
           >
             Search
           </Button>
@@ -426,7 +426,7 @@ function Page() {
             className={cn(
               "px-3 py-1.5 text-xs rounded-lg font-medium whitespace-nowrap transition-colors",
               category === cat
-                ? "bg-[#1F3A6E] text-white shadow-sm"
+                ? "bg-[#0F8A5F] text-white shadow-sm"
                 : "bg-muted hover:bg-muted/80 text-muted-foreground",
             )}
           >
@@ -479,7 +479,7 @@ function Page() {
                       setDateTo("");
                       setPage(0);
                     }}
-                    className="text-xs text-[#1F3A6E] hover:underline mt-1"
+                    className="text-xs text-[#0F8A5F] hover:underline mt-1"
                   >
                     Clear all filters
                   </button>
@@ -569,7 +569,7 @@ function Page() {
                 className={cn(
                   "h-8 w-8 rounded-lg text-xs font-medium transition-colors",
                   p === page
-                    ? "bg-[#1F3A6E] text-white"
+                    ? "bg-[#0F8A5F] text-white"
                     : "hover:bg-muted text-muted-foreground",
                 )}
               >

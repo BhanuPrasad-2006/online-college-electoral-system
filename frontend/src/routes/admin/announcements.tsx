@@ -60,7 +60,7 @@ function Page() {
       </div>
       <div className="bg-card rounded-2xl shadow-sm p-6 space-y-4">
         <h2 className="text-base font-semibold flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-[#6C63FF]" /> Compose
+          <Megaphone className="h-4 w-4 text-[#0F8A5F]" /> Compose
         </h2>
         <div>
           <label className="text-xs font-medium text-muted-foreground">Send To</label>
@@ -90,7 +90,7 @@ function Page() {
           />
         </div>
         <Button
-          className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+          className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
           disabled={sending}
           onClick={send}
         >

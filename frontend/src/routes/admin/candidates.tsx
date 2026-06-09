@@ -89,7 +89,7 @@ function Page() {
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className={`px-3 py-2 text-xs rounded-lg whitespace-nowrap ${filter === s ? "bg-[#1F3A6E] text-white" : "bg-muted"}`}
+              className={`px-3 py-2 text-xs rounded-lg whitespace-nowrap ${filter === s ? "bg-[#0F8A5F] text-white" : "bg-muted"}`}
             >
               {s}
             </button>
@@ -132,7 +132,7 @@ function Page() {
                         : c.status === "Rejected"
                           ? "bg-destructive text-white"
                           : c.status === "Under Review"
-                            ? "bg-[#6C63FF]/20 text-[#6C63FF]"
+                            ? "bg-[#D9A441]/20 text-[#D9A441]"
                             : "bg-warning text-warning-foreground"
                     }
                   >
@@ -280,7 +280,7 @@ function Page() {
 
               <div className="flex justify-end pt-2">
                 <Button
-                  className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 text-xs font-semibold px-4"
+                  className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 text-xs font-semibold px-4"
                   onClick={() => setPreviewCandidate(null)}
                 >
                   Close Preview

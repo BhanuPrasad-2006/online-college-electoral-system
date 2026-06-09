@@ -74,7 +74,7 @@ const PRIORITY_TONES: Record<string, string> = {
   MEDIUM: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
   HIGH: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
   URGENT: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
-  EMERGENCY: "bg-red-600 text-white border-transparent animate-pulse",
+  EMERGENCY: "bg-red-700 text-white border-transparent",
 };
 
 function Page() {
@@ -169,9 +169,9 @@ function Page() {
               <button
                 key={tpl.label}
                 onClick={() => handleApplyTemplate(tpl)}
-                className="interactive-card bg-card p-4 rounded-xl border border-border/60 hover:border-[#6C63FF]/40 text-left flex flex-col justify-between h-28"
+                className="interactive-card bg-card p-4 rounded-xl border border-border/60 hover:border-[#0F8A5F]/40 text-left flex flex-col justify-between h-28"
               >
-                <span className="text-xs font-semibold text-[#6C63FF] uppercase tracking-wide">
+                <span className="text-xs font-semibold text-[#D9A441] uppercase tracking-wide">
                   {tpl.label}
                 </span>
                 <span className="text-xs text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
@@ -188,7 +188,7 @@ function Page() {
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             <h2 className="text-base font-semibold flex items-center gap-2">
-              <Megaphone className="h-4 w-4 text-[#6C63FF]" /> Compose Notice
+              <Megaphone className="h-4 w-4 text-[#0F8A5F]" /> Compose Notice
             </h2>
 
             {isSuperAdmin ? (
@@ -246,7 +246,7 @@ function Page() {
                 <Button
                   type="submit"
                   disabled={publishing}
-                  className="w-full bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 shadow-md h-11"
+                  className="w-full bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 shadow-md h-11"
                 >
                   {publishing ? "Generating & Sending..." : "Publish & Email PDF"}
                 </Button>
@@ -269,7 +269,7 @@ function Page() {
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6">
             <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-              <FileCheck className="h-4 w-4 text-[#6C63FF]" /> Official Notices Ledger
+              <FileCheck className="h-4 w-4 text-[#0F8A5F]" /> Official Notices Ledger
             </h2>
 
             {loading ? (
@@ -293,7 +293,7 @@ function Page() {
                         <Badge variant="outline" className={cn(PRIORITY_TONES[n.priority])}>
                           {n.priority}
                         </Badge>
-                        <span className="text-[10px] bg-[#1F3A6E]/10 text-[#1F3A6E] font-semibold px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] bg-[#D9A441]/10 text-[#D9A441] font-semibold px-2 py-0.5 rounded-full">
                           Target: {n.role_target || "ALL"}
                         </span>
                       </div>
@@ -323,7 +323,7 @@ function Page() {
                             size="sm"
                             variant="outline"
                             onClick={() => openPdf(n.pdf_url)}
-                            className="bg-card text-xs hover:border-[#6C63FF]/30 hover:text-[#6C63FF] gap-1.5"
+                            className="bg-card text-xs hover:border-[#D9A441]/30 hover:text-[#0F8A5F] gap-1.5"
                           >
                             <Eye className="h-3.5 w-3.5" /> View Signed PDF
                           </Button>

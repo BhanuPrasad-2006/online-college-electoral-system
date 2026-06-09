@@ -197,7 +197,7 @@ function Page() {
             <Line
               type="monotone"
               dataKey="votes"
-              stroke="#6C63FF"
+              stroke="#0F8A5F"
               strokeWidth={2.5}
               dot={{ r: 4 }}
             />
@@ -376,7 +376,7 @@ function Page() {
             <Line
               type="monotone"
               dataKey="votes"
-              stroke="#1F3A6E"
+              stroke="#0F8A5F"
               strokeWidth={2.5}
               dot={{ r: 3 }}
             />

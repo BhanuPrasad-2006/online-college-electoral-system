@@ -142,8 +142,8 @@ function Page() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card border-border/60 shadow-sm">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-[#6C63FF]/10 flex items-center justify-center shrink-0">
-              <MessageSquare className="h-5 w-5 text-[#6C63FF]" />
+            <div className="h-10 w-10 rounded-xl bg-[#0F8A5F]/10 flex items-center justify-center shrink-0">
+              <MessageSquare className="h-5 w-5 text-[#0F8A5F]" />
             </div>
             <div>
               <p className="text-2xl font-bold">{totalConcerns}</p>
@@ -199,7 +199,7 @@ function Page() {
           placeholder="Search clusters by keyword or category..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border/60 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 focus:border-[#6C63FF]/50 transition-all"
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border/60 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-[#0F8A5F]/30 focus:border-[#0F8A5F]/50 transition-all"
         />
       </div>
 
@@ -237,7 +237,7 @@ function Page() {
                 key={cluster.cluster_id ?? "__unclustered__"}
                 className={cn(
                   "bg-card border-border/60 shadow-sm cursor-pointer transition-all duration-200",
-                  "hover:shadow-md hover:border-[#6C63FF]/30 hover:-translate-y-0.5",
+                  "hover:shadow-md hover:border-[#D9A441]/30 hover:-translate-y-0.5",
                   cluster.is_unclustered && "opacity-70 hover:opacity-100",
                 )}
                 onClick={() => setSelectedCluster(cluster)}
@@ -252,7 +252,7 @@ function Page() {
                             "font-semibold text-xs",
                             cluster.is_unclustered
                               ? "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
-                              : "bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/20",
+                              : "bg-[#D9A441]/10 text-[#D9A441] border-[#D9A441]/20",
                           )}
                         >
                           {cluster.is_unclustered ? "Unclustered" : "Cluster"}
@@ -282,7 +282,7 @@ function Page() {
                       </CardTitle>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-2xl font-bold tabular-nums text-[#6C63FF]">
+                      <span className="text-2xl font-bold tabular-nums text-[#0F8A5F]">
                         {cluster.size}
                       </span>
                       <span className="text-xs text-muted-foreground">concerns</span>
@@ -351,7 +351,7 @@ function Page() {
                       <Clock className="h-3 w-3" />
                       {cluster.concerns.length} items
                     </div>
-                    <span className="text-xs font-medium text-[#6C63FF] flex items-center gap-1">
+                    <span className="text-xs font-medium text-[#0F8A5F] flex items-center gap-1">
                       View details <ChevronRight className="h-3.5 w-3.5" />
                     </span>
                   </div>
@@ -375,7 +375,7 @@ function Page() {
                       "font-semibold text-xs",
                       selectedCluster.is_unclustered
                         ? "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
-                        : "bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/20",
+                        : "bg-[#D9A441]/10 text-[#D9A441] border-[#D9A441]/20",
                     )}
                   >
                     {selectedCluster.is_unclustered

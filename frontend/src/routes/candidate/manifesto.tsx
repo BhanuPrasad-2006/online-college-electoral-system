@@ -227,7 +227,7 @@ function Page() {
       <div className="bg-card rounded-2xl shadow-sm p-4 flex items-center gap-3">
         <span className="text-sm font-medium">Coverage:</span>
         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-[#6C63FF]" style={{ width: `${overall}%` }} />
+          <div className="h-full bg-[#0F8A5F]" style={{ width: `${overall}%` }} />
         </div>
         <span className="text-sm font-bold tabular-nums">{overall}%</span>
       </div>
@@ -336,7 +336,7 @@ function Page() {
               </Button>
               <Button
                 size="sm"
-                className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90"
+                className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90"
                 disabled={submitting || isLocked}
                 onClick={() => setReconfirmOpen(true)}
               >
@@ -348,7 +348,7 @@ function Page() {
 
         <aside className="lg:col-span-2 bg-card rounded-2xl shadow-sm p-5 space-y-5">
           <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-[#6C63FF]" />
+            <Brain className="h-5 w-5 text-[#0F8A5F]" />
             <h2 className="text-base font-semibold">AI Recommendations</h2>
           </div>
           <div className="space-y-2">
@@ -396,7 +396,7 @@ function Page() {
                         t + `\n\n${s.replace("Add: ", "## ")}\n[Outline a concrete plan here]\n`,
                     )
                   }
-                  className="block w-full text-left text-xs px-3 py-2 rounded-lg bg-[#6C63FF]/10 text-[#6C63FF] hover:bg-[#6C63FF]/15 disabled:opacity-50"
+                  className="block w-full text-left text-xs px-3 py-2 rounded-lg bg-[#D9A441]/10 text-[#D9A441] hover:bg-[#0F8A5F]/15 disabled:opacity-50"
                 >
                   {s}
                 </button>

@@ -139,7 +139,7 @@ function Page() {
       {/* Report Content */}
       <div ref={reportRef} className="space-y-6 print:space-y-4">
         {/* Report Header */}
-        <div className="bg-gradient-to-br from-[#1F3A6E] to-[#6C63FF] rounded-2xl p-6 md:p-8 text-white shadow-lg print:bg-white print:text-black print:border-2 print:border-gray-300 print:rounded-none">
+        <div className="bg-gradient-to-br from-[#1F2937] to-[#0F8A5F] rounded-2xl p-6 md:p-8 text-white shadow-lg print:bg-white print:text-black print:border-2 print:border-gray-300 print:rounded-none">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -195,7 +195,7 @@ function Page() {
         <Card className="bg-card border-border/60 shadow-sm print:shadow-none print:border">
           <CardHeader className="p-5 pb-2">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-[#6C63FF]" />
+              <FileText className="h-4 w-4 text-[#0F8A5F]" />
               <CardTitle className="text-base">Executive Summary</CardTitle>
             </div>
           </CardHeader>
@@ -218,7 +218,7 @@ function Page() {
             <ul className="space-y-2">
               {data.key_findings?.map((finding, i) => (
                 <li key={i} className="flex items-start gap-3 text-sm">
-                  <span className="h-5 w-5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF] flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold">
+                  <span className="h-5 w-5 rounded-full bg-[#D9A441]/10 text-[#D9A441] flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold">
                     {i + 1}
                   </span>
                   <span className="text-foreground/85">{finding}</span>
@@ -337,7 +337,7 @@ function Page() {
           <CardHeader className="p-5 pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-[#6C63FF]" />
+                <Layers className="h-4 w-4 text-[#0F8A5F]" />
                 <CardTitle className="text-base">Top Issue Clusters</CardTitle>
               </div>
               <span className="text-xs text-muted-foreground">
@@ -364,7 +364,7 @@ function Page() {
                 >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-lg font-bold tabular-nums text-[#6C63FF]">
+                      <span className="text-lg font-bold tabular-nums text-[#0F8A5F]">
                         {cluster.size}
                       </span>
                       <span className="text-xs text-muted-foreground">concerns</span>

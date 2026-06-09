@@ -182,11 +182,11 @@ function Register() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4 py-8">
       <div className="w-full max-w-3xl bg-card rounded-2xl shadow-sm border border-border/60 p-6 md:p-10 relative overflow-hidden glass-panel">
         {/* Decorative elements */}
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#6C63FF]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#1F3A6E]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#0F8A5F]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-[#0F8A5F]/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex items-center gap-3 mb-2">
-          <Award className="h-7 w-7 text-[#6C63FF]" />
+          <Award className="h-7 w-7 text-[#0F8A5F]" />
           <h1 className="text-2xl font-bold">Candidate Application Form</h1>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -203,14 +203,14 @@ function Register() {
                   i < step
                     ? "bg-success/10 text-success border border-success/20"
                     : i === step
-                      ? "bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white shadow-md shadow-[#6C63FF]/20"
+                      ? "bg-gradient-to-r from-[#1F2937] to-[#0F8A5F] text-white shadow-md shadow-[#0F8A5F]/20"
                       : "bg-muted text-muted-foreground",
                 )}
               >
                 <span
                   className={cn(
                     "h-4 w-4 rounded-full flex items-center justify-center text-[10px] font-bold",
-                    i === step ? "bg-white text-[#1F3A6E]" : "bg-muted-foreground/20 text-current",
+                    i === step ? "bg-white text-[#0F8A5F]" : "bg-muted-foreground/20 text-current",
                   )}
                 >
                   {i < step ? "✓" : i + 1}
@@ -238,7 +238,7 @@ function Register() {
           {step === 0 && (
             <div className="space-y-5 max-w-md mx-auto">
               <div className="text-center mb-6">
-                <Lock className="h-10 w-10 text-[#6C63FF] mx-auto mb-2" />
+                <Lock className="h-10 w-10 text-[#0F8A5F] mx-auto mb-2" />
                 <h3 className="text-lg font-semibold">Verify Voter Identity</h3>
                 <p className="text-xs text-muted-foreground mt-1">
                   Only 3rd and 4th-year registered voters are eligible to contest.
@@ -268,7 +268,7 @@ function Register() {
                 <Button
                   onClick={handleCheckEligibility}
                   disabled={loading}
-                  className="w-full mt-4 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white font-semibold hover:opacity-95 shadow-md"
+                  className="w-full mt-4 bg-gradient-to-r from-[#1F2937] to-[#0F8A5F] text-white font-semibold hover:opacity-95 shadow-md"
                 >
                   {loading ? "Checking Database..." : "Verify & Send OTP"}
                 </Button>
@@ -279,7 +279,7 @@ function Register() {
           {/* STEP 2: OTP Verification */}
           {step === 1 && (
             <div className="space-y-5 max-w-md mx-auto text-center">
-              <Mail className="h-12 w-12 text-[#6C63FF] mx-auto mb-2 animate-bounce" />
+              <Mail className="h-12 w-12 text-[#0F8A5F] mx-auto mb-2 animate-bounce" />
               <h3 className="text-lg font-semibold">Enter 6-Digit Email OTP</h3>
               <p className="text-xs text-muted-foreground">
                 We've sent a 6-digit confirmation code to{" "}
@@ -299,7 +299,7 @@ function Register() {
                 <Button
                   onClick={handleVerifyOtp}
                   disabled={loading}
-                  className="w-full bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white font-semibold shadow-md"
+                  className="w-full bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white font-semibold shadow-md"
                 >
                   {loading ? "Verifying..." : "Verify OTP & Continue"}
                 </Button>
@@ -318,7 +318,7 @@ function Register() {
           {step === 2 && (
             <div className="space-y-6 max-w-md mx-auto">
               <div className="text-center mb-4">
-                <Award className="h-10 w-10 text-[#6C63FF] mx-auto mb-2" />
+                <Award className="h-10 w-10 text-[#0F8A5F] mx-auto mb-2" />
                 <h3 className="text-lg font-semibold">Choose Your Running Position</h3>
                 <p className="text-xs text-muted-foreground">
                   Select the official council position you wish to contest for.
@@ -372,7 +372,7 @@ function Register() {
                   }
                   setStep(3);
                 }}
-                className="w-full bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white font-semibold"
+                className="w-full bg-gradient-to-r from-[#1F2937] to-[#0F8A5F] text-white font-semibold"
               >
                 Proceed to Details
               </Button>
@@ -383,7 +383,7 @@ function Register() {
           {step === 3 && (
             <div className="space-y-5 max-w-md mx-auto">
               <div className="text-center mb-4">
-                <User className="h-10 w-10 text-[#6C63FF] mx-auto mb-2" />
+                <User className="h-10 w-10 text-[#0F8A5F] mx-auto mb-2" />
                 <h3 className="text-lg font-semibold">Voter Profile Prefilled Info</h3>
                 <p className="text-xs text-muted-foreground">
                   These details are synced directly from the voter database.
@@ -417,7 +417,7 @@ function Register() {
                     }
                     setStep(4);
                   }}
-                  className="w-full bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white font-semibold mt-4"
+                  className="w-full bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white font-semibold mt-4"
                 >
                   Continue to Manifesto
                 </Button>
@@ -429,7 +429,7 @@ function Register() {
           {step === 4 && (
             <div className="space-y-5 max-w-lg mx-auto">
               <div className="text-center mb-3">
-                <FileText className="h-10 w-10 text-[#6C63FF] mx-auto mb-2" />
+                <FileText className="h-10 w-10 text-[#0F8A5F] mx-auto mb-2" />
                 <h3 className="text-lg font-semibold">Campaign Manifesto</h3>
                 <p className="text-xs text-muted-foreground">
                   State your vision, goals, and campaign promises.
@@ -443,7 +443,7 @@ function Register() {
                     onChange={(e) => setFormValue("manifesto", e.target.value)}
                     rows={4}
                     placeholder="Type your official manifesto. What positive changes will you bring?"
-                    className="w-full p-3 border border-input bg-background rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6C63FF]"
+                    className="w-full p-3 border border-input bg-background rounded-xl text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F8A5F]"
                   />
                 </Field>
 
@@ -455,7 +455,7 @@ function Register() {
                     }
                     setStep(5);
                   }}
-                  className="w-full bg-[#1F3A6E] hover:bg-[#1F3A6E]/90 text-white font-semibold"
+                  className="w-full bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white font-semibold"
                 >
                   Continue to Review
                 </Button>

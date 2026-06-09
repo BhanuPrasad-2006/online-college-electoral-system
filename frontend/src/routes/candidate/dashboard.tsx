@@ -1,22 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { PageLoader } from "@/components/PageLoader";
-import { useCandidateProfile, useCurrentPhase, useElection } from "@/hooks/use-election-data";
+import { useCandidateProfile, useCurrentPhase, useElection, useKpi } from "@/hooks/use-election-data";
 import { useNotifications } from "@/context/NotificationStore";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { PageHeader, SectionCard } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { CheckCircle2, Clock, FileCheck, Brain, Bell, AlertCircle, Lock } from "lucide-react";
+import { CheckCircle2, Clock, FileCheck, Brain, Bell, AlertCircle, Lock, Users, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAntiAbuse } from "@/hooks/useAntiAbuse";
+import { Button } from "@/components/ui/button";
+import { ElectionCalendar } from "@/components/ElectionCalendar";
+import { ElectionTimeline } from "@/components/ElectionTimeline";
 
 function Page() {
   const nav = useNavigate();
   const { data: profile, isPending: loadingProfile, isError: profileError } = useCandidateProfile();
   const { data: phaseData } = useCurrentPhase();
   const { data: election } = useElection();
+  const { data: kpi } = useKpi();
   const antiAbuse = useAntiAbuse();
   const { notifications = [] } = useNotifications();
 
@@ -77,14 +81,14 @@ function Page() {
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-2.5 rounded-xl bg-[#1F3A6E] text-white font-semibold hover:bg-[#1F3A6E]/90 transition-all shadow-md"
+            className="px-6 py-2.5 rounded-xl bg-[#0F8A5F] text-white font-semibold hover:bg-[#0F8A5F]/90 transition-all shadow-md"
           >
             Try Again
           </button>
         </div>
         <p className="text-xs text-muted-foreground">
           Need help?{" "}
-          <Link to="/candidate/apply" className="text-[#6C63FF] hover:underline font-medium">
+          <Link to="/candidate/apply" className="text-[#0F8A5F] hover:underline font-medium">
             Register as Candidate
           </Link>
         </p>
@@ -129,255 +133,297 @@ function Page() {
     },
   ];
 
+  const phaseLabel = phaseData?.phase?.replace(/_/g, " ") || "Loading...";
+  const phaseDisp = phaseLabel.charAt(0).toUpperCase() + phaseLabel.slice(1);
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={`Welcome back, ${candidateName.split(" ")[0]}`}
-        subtitle={`Running for ${profile.position} · ${profile.department}`}
-      />
-
-      {/* Application Status Banner Gating */}
-      {(statusUpper === "PENDING" || statusUpper === "UNDER_REVIEW") && (
-        <div className="bg-warning/10 border border-warning/20 text-warning-foreground rounded-xl p-4 flex items-start gap-3 animate-fade-in">
-          <Clock className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold">Application Under Review</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Your candidate profile has been logged and is currently in{" "}
-              <span className="font-semibold">{profile.status}</span> status. The Election Committee
-              is verifying your details. Campaign analytics and AI matching tools will become fully
-              active once approved.
-            </p>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-[1600px] w-full items-start">
+      {/* ── LEFT: Main content area (2/3 width) ── */}
+      <div className="lg:col-span-2 space-y-6">
+        
+        {/* ── Hero Card ── */}
+        <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#0A3B35] via-[#0D5248] to-[#08302A] shadow-xl border border-[#0F8A5F]/20 p-6 md:p-8">
+          <div className="absolute inset-0 opacity-[0.05] pointer-events-none">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#16A34A] rounded-full blur-3xl -translate-x-1/3 translate-y-1/3" />
           </div>
-        </div>
-      )}
-
-      {/* Phase Info Banner */}
-      {phaseData && (
-        <div className="bg-[#1F3A6E] text-white rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in shadow-md">
-          <div>
-            <p className="text-sm font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4 text-[#6C63FF]" />
-              Current Phase:{" "}
-              {phaseData.is_paused
-                ? "PAUSED"
-                : (phaseData.phase || "Unknown").toUpperCase().replace(/_/g, " ")}
-            </p>
-            {!phaseData.is_paused && phaseData.remaining_time && (
-              <p className="text-xs text-white/80 mt-1">
-                Time Remaining:{" "}
-                <span className="font-bold text-white">{phaseData.remaining_time}</span>
+          
+          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <Badge variant="outline" className="border-white/20 text-[#16A34A] bg-[#16A34A]/10 text-[11px] font-bold py-0.5 px-2.5 rounded-full backdrop-blur-sm">
+                  <Users className="h-3 w-3 mr-1 shrink-0" />
+                  Candidate Portal
+                </Badge>
+                <Badge
+                  className={`text-[11px] border-0 font-bold py-0.5 px-2.5 rounded-full ${
+                    isApproved ? "bg-[#16A34A] text-white" : isRejected ? "bg-[#DC2626] text-white" : "bg-[#D97706] text-white"
+                  }`}
+                >
+                  {profile.status}
+                </Badge>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                Welcome back, {candidateName.split(" ")[0]}! 👋
+              </h1>
+              <p className="text-sm text-white/70 max-w-lg leading-relaxed">
+                Running for <span className="text-white/90 font-semibold">{profile.position}</span> · {profile.department}
               </p>
+            </div>
+
+            {/* Countdown Box */}
+            {phaseData?.remaining_time && (
+              <div className="bg-white/10 border border-white/20 rounded-[20px] p-4 text-center shrink-0 min-w-[170px] backdrop-blur-md">
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-white/60">Time Remaining</p>
+                <p className="text-lg font-mono font-bold text-white mt-1">{phaseData.remaining_time}</p>
+              </div>
             )}
           </div>
-          {!phaseData.is_paused && phaseData.next_phase && (
-            <div className="text-right">
-              <p className="text-xs text-white/60 uppercase tracking-wider font-semibold">
-                Up Next
+
+          {/* Quick status bar */}
+          <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3 border-t border-white/10 pt-4">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/50">Current Phase</p>
+              <p className="text-xs font-bold text-white mt-0.5 capitalize">
+                {phaseData?.is_paused ? "PAUSED" : phaseDisp}
               </p>
-              <p className="text-sm font-medium">{phaseData.next_phase.replace(/_/g, " ")}</p>
             </div>
-          )}
-        </div>
-      )}
-
-      {statusUpper === "REJECTED" && (
-        <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-4 flex items-start gap-3 animate-fade-in">
-          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold">Application Rejected</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Reason from Admin:{" "}
-              <span className="font-semibold text-foreground">
-                "{profile.admin_remarks || "No remarks provided"}"
-              </span>
-              . Please contact the Administrator for assistance.
-            </p>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/50">Next Phase</p>
+              <p className="text-xs font-bold text-white mt-0.5 capitalize">
+                {phaseData?.next_phase ? phaseData.next_phase.replace(/_/g, " ") : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/50">Voter Turnout</p>
+              <p className="text-xs font-bold text-white mt-0.5">
+                {kpi?.turnout ? `${kpi.turnout}%` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-white/50">Registered Voters</p>
+              <p className="text-xs font-bold text-white mt-0.5">
+                {kpi?.registered ? kpi.registered.toLocaleString() : "—"}
+              </p>
+            </div>
           </div>
         </div>
-      )}
 
-      {statusUpper === "APPROVED" && (
-        <div className="bg-success/10 border border-success/20 text-success rounded-xl p-4 flex items-start gap-3 animate-fade-in">
-          <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold">Application Approved</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Congratulations! Your candidacy for{" "}
-              <span className="font-semibold text-foreground">{profile.position}</span> is active
-              and approved. You are authorized to proceed with your campaign.
+        {/* ── Status Alerts ── */}
+        {(statusUpper === "PENDING" || statusUpper === "UNDER_REVIEW") && (
+          <div className="bg-[#D97706]/5 border border-[#D97706]/20 rounded-[24px] p-5 flex items-start gap-4 shadow-sm bg-white">
+            <div className="h-10 w-10 rounded-xl bg-[#D97706]/10 flex items-center justify-center text-[#D97706] shrink-0">
+              <Clock className="h-5 w-5 animate-pulse-subtle" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#102A27]">Application Under Review</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Your candidate profile has been logged and is currently in{" "}
+                <span className="font-bold text-[#102A27]">{profile.status}</span> status. The Election Committee
+                is verifying your details. Campaign analytics and AI matching tools will become fully
+                active once approved.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {statusUpper === "REJECTED" && (
+          <div className="bg-[#DC2626]/5 border border-[#DC2626]/20 rounded-[24px] p-5 flex items-start gap-4 shadow-sm bg-white">
+            <div className="h-10 w-10 rounded-xl bg-[#DC2626]/10 flex items-center justify-center text-[#DC2626] shrink-0">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#102A27]">Application Rejected</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Reason from Admin:{" "}
+                <span className="font-bold text-danger">
+                  "{profile.admin_remarks || "No remarks provided"}"
+                </span>
+                . Please contact the Administrator for assistance or re-submission.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {statusUpper === "APPROVED" && (
+          <div className="bg-[#16A34A]/5 border border-[#16A34A]/20 rounded-[24px] p-5 flex items-start gap-4 shadow-sm bg-white">
+            <div className="h-10 w-10 rounded-xl bg-[#16A34A]/10 flex items-center justify-center text-[#16A34A] shrink-0">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#102A27]">Application Approved</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Congratulations! Your candidacy for{" "}
+                <span className="font-bold text-[#102A27]">{profile.position}</span> is active
+                and approved. You are authorized to proceed with your campaign.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Stepper Timeline Roadmap ── */}
+        <ElectionTimeline />
+
+        {/* ── Stat Cards Grid ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            icon={FileCheck}
+            label="Application Status"
+            value={
+              <Badge
+                className={cn(
+                  "font-bold border-0 px-2.5 py-0.5 text-xs rounded-full",
+                  statusUpper === "APPROVED"
+                    ? "bg-[#16A34A] text-white"
+                    : statusUpper === "REJECTED"
+                      ? "bg-[#DC2626] text-white"
+                      : statusUpper === "UNDER_REVIEW"
+                        ? "bg-[#2563EB] text-white"
+                        : "bg-[#D97706] text-white",
+                )}
+              >
+                {profile.status}
+              </Badge>
+            }
+            delay={100}
+          />
+
+          <StatCard
+            icon={FileCheck}
+            label="Manifesto Status"
+            value={
+              <Badge className="bg-[#0F8A5F] text-white border-0 font-bold px-2.5 py-0.5 text-xs rounded-full">
+                Published
+              </Badge>
+            }
+            tone="bg-[#0F8A5F]/10 text-[#0F8A5F]"
+            delay={150}
+          />
+
+          <StatCard
+            icon={Brain}
+            label="AI Diagnostics"
+            value={
+              <Link
+                to="/candidate/ai-report"
+                className="text-[#0F8A5F] font-bold hover:underline text-xs flex items-center gap-1"
+              >
+                View Report →
+              </Link>
+            }
+            delay={200}
+          />
+        </div>
+
+        {/* ── AI Diagnostics Summary ── */}
+        <div className="bg-white rounded-[24px] border border-[#E6ECE9] p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-[#0F8A5F]" />
+            <div>
+              <h3 className="text-sm font-bold text-[#102A27]">AI Diagnostics Summary</h3>
+              <p className="text-[10px] text-muted-foreground leading-none mt-0.5">Analyze manifesto alignment and concerns</p>
+            </div>
+          </div>
+          
+          <div className="bg-[#D97706]/5 border border-[#D97706]/20 rounded-[20px] p-4">
+            <p className="text-xs font-bold text-[#D97706]">Top Student Concern: Wi-Fi & Infrastructure</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              412 mentions · 67% negative sentiment
             </p>
           </div>
-        </div>
-      )}
-
-      <SectionCard delay={100}>
-        <h2 className="text-base font-semibold mb-5">Application Status</h2>
-        <div className="flex items-center">
-          {timelineStages.map((s, i, a) => (
-            <div key={i} className="flex-1 flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={cn(
-                    "h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold transition-transform hover:scale-110",
-                    s.state === "done"
-                      ? "bg-success text-white shadow-md shadow-success/30"
-                      : s.state === "active"
-                        ? "bg-gradient-to-br from-[#1F3A6E] to-[#6C63FF] text-white shadow-md animate-pulse"
-                        : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  {s.state === "done" ? <CheckCircle2 className="h-5 w-5" /> : i + 1}
-                </div>
-                <p className="text-xs font-medium mt-2 text-center">{s.label}</p>
-                <p className="text-[10px] text-muted-foreground">{s.date}</p>
-              </div>
-              {i < a.length - 1 && (
-                <div
-                  className={cn(
-                    "flex-1 h-0.5 mx-2 transition-colors",
-                    s.state === "done" ? "bg-success" : "bg-border",
-                  )}
-                />
-              )}
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-muted-foreground">Manifesto coverage of top concerns</span>
+              <span className="text-[#0F8A5F]">64%</span>
             </div>
-          ))}
-        </div>
-      </SectionCard>
+            <Progress value={64} className="h-2 rounded-full" />
+          </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          icon={FileCheck}
-          label="Application Status"
-          value={
-            <Badge
-              className={cn(
-                statusUpper === "APPROVED"
-                  ? "bg-success text-white"
-                  : statusUpper === "REJECTED"
-                    ? "bg-destructive text-white"
-                    : statusUpper === "UNDER_REVIEW"
-                      ? "bg-info text-white"
-                      : "bg-warning text-warning-foreground",
-              )}
-            >
-              {profile.status}
-            </Badge>
-          }
-          delay={150}
-        />
-
-        <StatCard
-          icon={FileCheck}
-          label="Manifesto Status"
-          value={<Badge className="bg-[#6C63FF] text-white">Published</Badge>}
-          tone="bg-[#6C63FF]/10 text-[#6C63FF]"
-          delay={200}
-        />
-        <StatCard
-          icon={Brain}
-          label="AI Report"
-          value={
+          <div className="flex gap-2 flex-wrap pt-2">
             <Link
               to="/candidate/ai-report"
-              className="text-[#6C63FF] font-semibold hover:underline"
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-[#0F8A5F] text-white text-xs font-bold hover:bg-[#0F8A5F]/90 transition-all shadow-md"
             >
-              View →
+              View Full AI Report
             </Link>
-          }
-          delay={250}
-        />
+
+            {phaseData?.phase === "results_announced" && (
+              <Button
+                onClick={() => antiAbuse.runWithProtection("download-pdf", handleDownloadPdf, 10)}
+                disabled={antiAbuse.isBlocked("download-pdf")}
+                className="inline-flex items-center px-4 py-2.5 rounded-xl bg-[#16A34A] text-white text-xs font-bold hover:bg-[#16A34A]/90 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {antiAbuse.isBlocked("download-pdf") ? (
+                  <>
+                    <div className="mr-2 h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Please wait...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="h-4 w-4 mr-1.5" />
+                    Download PDF Report
+                  </>
+                )}
+              </Button>
+            )}
+
+            {phaseData?.phase === "registration_open" || phaseData?.phase === "campaign_period" ? (
+              <Link
+                to="/candidate/manifesto"
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-[#E6ECE9] bg-white text-[#102A27] text-xs font-bold hover:bg-gray-50 transition-all"
+              >
+                Edit Manifesto
+              </Link>
+            ) : (
+              <div
+                className="inline-flex items-center px-4 py-2.5 rounded-xl border border-dashed border-muted bg-muted/40 text-muted-foreground text-xs font-bold cursor-not-allowed"
+                title="Manifesto editing is only allowed during registration and campaign periods"
+              >
+                <Lock className="h-3.5 w-3.5 mr-1.5" />
+                Manifesto Locked
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <SectionCard delay={300}>
-        <div className="flex items-center gap-2 mb-4">
-          <Brain className="h-5 w-5 text-[#6C63FF]" />
-          <h2 className="text-base font-semibold">AI Report Summary</h2>
-        </div>
-        <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 mb-4">
-          <p className="text-sm font-semibold">Top Student Concern: Wi-Fi & Infrastructure</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            412 mentions · 67% negative sentiment
-          </p>
-        </div>
-        <div className="space-y-2 mb-5">
-          <div className="flex justify-between text-sm">
-            <span>Manifesto coverage of top concerns</span>
-            <span className="font-semibold text-[#6C63FF]">64%</span>
+      {/* ── RIGHT: Side widgets (1/3 width) ── */}
+      <div className="space-y-6">
+        {/* Dynamic Election Calendar Component */}
+        <ElectionCalendar />
+
+        {/* Important Announcements / Notices */}
+        <div className="bg-white rounded-[24px] border border-[#E6ECE9] p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-[#102A27] flex items-center gap-2">
+              <Bell className="h-4.5 w-4.5 text-[#0F8A5F]" />
+              Announcements
+            </h3>
+            <Link to="/candidate/notifications" className="text-xs font-bold text-[#0F8A5F] hover:underline">View All</Link>
           </div>
-          <Progress value={64} className="h-2.5" />
-        </div>
-        <div className="flex gap-3 flex-wrap">
-          <Link
-            to="/candidate/ai-report"
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white text-sm font-semibold shadow-md hover:opacity-95 transition-all hover:-translate-y-0.5"
-          >
-            View Full AI Report
-          </Link>
-
-          {phaseData?.phase === "results_announced" && (
-            <button
-              onClick={() => antiAbuse.runWithProtection("download-pdf", handleDownloadPdf, 10)}
-              disabled={antiAbuse.isBlocked("download-pdf")}
-              className="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm font-semibold shadow-md hover:opacity-95 transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {antiAbuse.isBlocked("download-pdf") ? (
-                <>
-                  <div className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Please wait...
-                </>
-              ) : (
-                <>
-                  <FileCheck className="h-4 w-4 mr-2" />
-                  Download Detailed Report (PDF)
-                </>
-              )}
-            </button>
-          )}
-
-          {phaseData?.phase === "registration_open" || phaseData?.phase === "campaign_period" ? (
-            <Link
-              to="/candidate/manifesto"
-              className="inline-flex items-center px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors"
-            >
-              Edit Manifesto
-            </Link>
-          ) : (
-            <div
-              className="inline-flex items-center px-4 py-2 rounded-lg border border-border bg-muted/50 text-muted-foreground text-sm font-medium cursor-not-allowed"
-              title="Manifesto editing is only allowed during registration and campaign periods"
-            >
-              <Lock className="h-4 w-4 mr-2" />
-              Manifesto Locked
-            </div>
-          )}
-        </div>
-      </SectionCard>
-
-      <SectionCard delay={400}>
-        <div className="flex items-center gap-2 mb-4">
-          <Bell className="h-5 w-5 text-[#6C63FF]" />
-          <h2 className="text-base font-semibold">Recent Notifications</h2>
-        </div>
-        <div className="space-y-1">
-          {notifications.slice(0, 4).map((n, i) => (
-            <div
-              key={n.id}
-              className={cn(
-                "flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-lg transition-colors hover:bg-muted/50",
-                "animate-fade-in-up opacity-0 [animation-fill-mode:forwards]",
-              )}
-              style={{ animationDelay: `${450 + i * 50}ms` }}
-            >
-              <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">{n.title}</p>
-                <p className="text-xs text-muted-foreground">{n.time}</p>
+          <div className="divide-y divide-[#E6ECE9]">
+            {notifications.slice(0, 4).map((n: any, i: number) => (
+              <div
+                key={n.id}
+                onClick={() => nav({ to: "/candidate/notifications" })}
+                className="py-3 cursor-pointer group flex items-start gap-2.5"
+              >
+                <Megaphone className="h-4 w-4 text-[#0F8A5F] mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[#102A27] group-hover:text-[#0F8A5F] transition-colors truncate">
+                    {n.title}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+            {notifications.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-6">No announcements available.</p>
+            )}
+          </div>
         </div>
-      </SectionCard>
+      </div>
     </div>
   );
 }

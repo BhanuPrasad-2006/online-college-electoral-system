@@ -181,7 +181,7 @@ function Page() {
 
       <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
         <div className="flex items-center gap-2 mb-1">
-          <Shield className="h-5 w-5 text-[#6C63FF]" />
+          <Shield className="h-5 w-5 text-[#0F8A5F]" />
           <h2 className="text-base font-semibold">Account</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -202,7 +202,7 @@ function Page() {
 
       <form onSubmit={handlePasswordChangeRequest} className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <KeyRound className="h-5 w-5 text-[#6C63FF]" />
+          <KeyRound className="h-5 w-5 text-[#0F8A5F]" />
           <h2 className="text-base font-semibold">Change Password</h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -221,7 +221,7 @@ function Page() {
           </div>
         </div>
         <div className="flex justify-end pt-2">
-          <Button type="submit" disabled={loading} className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 h-11 px-6 shadow-md">
+          <Button type="submit" disabled={loading} className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 h-11 px-6 shadow-md">
             {loading ? "Processing..." : "Update Password"}
           </Button>
         </div>
@@ -231,7 +231,7 @@ function Page() {
       {isSuperAdmin && (
         <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-6">
           <div className="flex items-center gap-2 border-b pb-3">
-            <UserPlus className="h-5 w-5 text-[#6C63FF]" />
+            <UserPlus className="h-5 w-5 text-[#0F8A5F]" />
             <h2 className="text-base font-semibold">Admin User Manager (Super Admin Only)</h2>
           </div>
 
@@ -292,7 +292,7 @@ function Page() {
               <Button
                 type="button"
                 disabled={creatingAdmin}
-                className="w-full bg-[#6C63FF] hover:bg-[#5A52D5] text-white h-10 shadow-sm"
+                className="w-full bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white h-10 shadow-sm"
                 onClick={() => {
                   if (!newName.trim() || !newEmail.trim() || !newPasswordVal.trim() || !newRole) {
                     toast.error("Please fill in all fields for the new admin account.");
@@ -334,7 +334,7 @@ function Page() {
                           <div>
                             <p className="font-semibold text-sm">{adm.full_name} {isSelf && <span className="text-xs text-blue-500 font-normal">(You)</span>}</p>
                             <p className="text-xs text-muted-foreground mt-0.5">{adm.email}</p>
-                            <span className="inline-block bg-[#1F3A6E]/10 text-[#1F3A6E] text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1">
+                            <span className="inline-block bg-[#D9A441]/10 text-[#D9A441] text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1">
                               {formatRole(adm.role)}
                             </span>
                           </div>
@@ -401,8 +401,8 @@ function Page() {
           <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border/60 overflow-hidden relative animate-scale-up">
             <div className="p-6 pb-0 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#6C63FF]/15 flex items-center justify-center">
-                  <ShieldCheck className="h-6 w-6 text-[#6C63FF]" />
+                <div className="h-10 w-10 rounded-xl bg-[#0F8A5F]/15 flex items-center justify-center">
+                  <ShieldCheck className="h-6 w-6 text-[#0F8A5F]" />
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Verify Your Identity</h3>
@@ -431,7 +431,7 @@ function Page() {
                   required
                 />
               </div>
-              <Button type="submit" disabled={otpLoading || otpCode.length < 4} className="w-full h-12 bg-[#6C63FF] hover:bg-[#5A52D5] text-white font-semibold shadow-md">
+              <Button type="submit" disabled={otpLoading || otpCode.length < 4} className="w-full h-12 bg-[#0F8A5F] hover:bg-[#0F8A5F]/90 text-white font-semibold shadow-md">
                 {otpLoading ? "Verifying..." : "Verify & Update Password"}
               </Button>
             </form>

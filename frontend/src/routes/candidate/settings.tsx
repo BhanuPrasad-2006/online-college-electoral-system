@@ -105,7 +105,7 @@ function Page() {
         className="bg-card rounded-2xl shadow-sm p-6 space-y-4"
       >
         <div className="flex items-center gap-2">
-          <KeyRound className="h-5 w-5 text-[#6C63FF]" />
+          <KeyRound className="h-5 w-5 text-[#0F8A5F]" />
           <h2 className="text-base font-semibold">Change Password</h2>
         </div>
 
@@ -151,7 +151,7 @@ function Page() {
           <Button
             type="submit"
             disabled={loading}
-            className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 h-11 px-6 shadow-md"
+            className="bg-[#0F8A5F] text-white hover:bg-[#0F8A5F]/90 h-11 px-6 shadow-md"
           >
             {loading ? "Processing..." : "Update Password"}
           </Button>
@@ -178,8 +178,8 @@ function Page() {
             {/* Modal Header */}
             <div className="p-6 pb-0 flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#6C63FF]/15 flex items-center justify-center">
-                  <ShieldCheck className="h-6 w-6 text-[#6C63FF]" />
+                <div className="h-10 w-10 rounded-xl bg-[#0F8A5F]/15 flex items-center justify-center">
+                  <ShieldCheck className="h-6 w-6 text-[#0F8A5F]" />
                 </div>
                 <div>
                   <h3 className="font-bold text-lg">Verify Your Identity</h3>
@@ -208,7 +208,7 @@ function Page() {
                   6-Digit Email OTP
                 </label>
                 <Input
-                  className="mt-2 h-12 text-center text-xl font-bold tracking-[0.4em] bg-muted/40 focus:bg-card focus:ring-[#6C63FF] border-border"
+                  className="mt-2 h-12 text-center text-xl font-bold tracking-[0.4em] bg-muted/40 focus:bg-card focus:ring-[#0F8A5F] border-border"
                   placeholder="000000"
                   type="text"
                   maxLength={6}
@@ -231,7 +231,7 @@ function Page() {
                 <Button
                   type="submit"
                   disabled={otpLoading}
-                  className="flex-1 h-11 bg-gradient-to-r from-[#1F3A6E] to-[#6C63FF] text-white hover:opacity-95"
+                  className="flex-1 h-11 bg-gradient-to-r from-[#1F2937] to-[#0F8A5F] text-white hover:opacity-95"
                 >
                   {otpLoading ? "Verifying..." : "Confirm & Update"}
                 </Button>
