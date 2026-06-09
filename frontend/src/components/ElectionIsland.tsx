@@ -45,6 +45,10 @@ function computePhase(
 } {
   if (!election) return { phase: "pre_registration", target: null };
 
+  const status = (election.status || "").toUpperCase();
+  if (status === "RESULTS_PUBLISHED") return { phase: "results", target: null };
+  if (status === "CLOSED") return { phase: "closed", target: null };
+
   const regStart = election.registration_start
     ? new Date(election.registration_start).getTime()
     : null;
@@ -58,9 +62,6 @@ function computePhase(
     return { phase: "voting_open", target: votEnd };
   if (regStart && now < regStart) return { phase: "pre_registration", target: regStart };
   if (votStart && now < votStart) return { phase: "between", target: votStart };
-
-  const status = (election.status || "").toUpperCase();
-  if (status === "RESULTS_PUBLISHED") return { phase: "results", target: null };
 
   return { phase: "closed", target: null };
 }
