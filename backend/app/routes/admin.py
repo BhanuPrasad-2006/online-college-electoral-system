@@ -114,15 +114,15 @@ async def upload_voter_face(
         raise HTTPException(status_code=404, detail="Voter not found.")
         
     # 5. Process with AI Service
-        try:
-            embedding = await extract_face_embedding(image_data)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except RuntimeError as e:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(e),
-            )
+    try:
+        embedding = await extract_face_embedding(image_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
 
     # 6. Save image — faces/{department}/{usn}_{voter_hash}.jpg
     try:
