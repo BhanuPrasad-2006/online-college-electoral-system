@@ -183,6 +183,18 @@ function VoterDash() {
     return () => clearInterval(interval);
   }, [logout, nav]);
 
+  useEffect(() => {
+    if (voter && !voter.voted) {
+      try {
+        if (localStorage.getItem("collegevote-has-voted") === "true") {
+          localStorage.removeItem("collegevote-has-voted");
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [voter]);
+
   // Early return for loaders AFTER all hooks have executed unconditionally
   if (isPending || !voter) return <PageLoader />;
 

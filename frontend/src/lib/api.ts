@@ -1419,3 +1419,13 @@ export async function rejectPartyInvitation(invitationId: string) {
     {},
   );
 }
+
+export async function submitSupportTicket(payload: {
+  name: string;
+  email: string;
+  student_id: string;
+  semester: string;
+  message: string;
+}) {
+  return post<{ message: string }>("/election/support", payload);
+}

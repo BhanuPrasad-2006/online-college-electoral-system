@@ -1,4 +1,4 @@
-﻿import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 import { PageLoader } from "@/components/PageLoader";
@@ -160,6 +160,25 @@ function VotePage() {
     clearRecoverySession();
     nav({ to: "/voter/dashboard" });
   };
+
+  useEffect(() => {
+    if (voter && !voter.voted) {
+      try {
+        if (localStorage.getItem("collegevote-has-voted") === "true") {
+          localStorage.removeItem("collegevote-has-voted");
+        }
+        if (localStorage.getItem("collegevote-receipt")) {
+          localStorage.removeItem("collegevote-receipt");
+          if (step === "success") {
+            setStep("verification_id");
+            setTxDetails(null);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [voter, step]);
 
   useEffect(() => {
     // JWT Session Timer

@@ -170,7 +170,12 @@ async def list_candidates(
     # Get active election if not admin
     active_election_id = None
     if not is_admin:
-        elec_res = await db.execute(select(Election).where(Election.status == ElectionStatusEnum.VOTING_OPEN).limit(1))
+        elec_res = await db.execute(
+            select(Election)
+            .where(Election.status != ElectionStatusEnum.UPCOMING.value)
+            .order_by(Election.created_at.desc())
+            .limit(1)
+        )
         active_election = elec_res.scalar_one_or_none()
         if active_election:
             active_election_id = active_election.election_id

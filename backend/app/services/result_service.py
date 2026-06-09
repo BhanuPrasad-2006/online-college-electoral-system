@@ -13,8 +13,10 @@ class ResultService:
         self.db = db
 
     async def compute_results(self, election_id: str) -> dict:
-        """Aggregate vote counts per candidate per position."""
-        # Using SQLAlchemy 2.0 async select
+        """Aggregate vote counts per candidate per position, including candidates with 0 votes."""
+        from app.enums.candidate_status import CandidateStatusEnum
+        
+        # Aggregate vote counts for candidates who received votes
         query = select(
             Vote.position_id,
             Vote.candidate_id,
@@ -28,6 +30,14 @@ class ResultService:
         result = await self.db.execute(query)
         results = result.all()
 
+        # Query all approved candidates for this election to make sure we show them with 0 votes
+        cand_query = select(Candidate).where(
+            Candidate.election_id == election_id,
+            Candidate.status == CandidateStatusEnum.APPROVED.value
+        )
+        cand_result = await self.db.execute(cand_query)
+        approved_cands = cand_result.scalars().all()
+
         grouped: dict = {}
         for position_id, candidate_id, vote_count in results:
             pos_str = str(position_id)
@@ -37,6 +47,22 @@ class ResultService:
                 "candidate_id": str(candidate_id) if candidate_id else "NOTA",
                 "vote_count": vote_count,
             })
+
+        # Inject candidates who got 0 votes
+        for cand in approved_cands:
+            pos_str = str(cand.position_id)
+            cand_id_str = str(cand.candidate_id)
+            
+            if pos_str not in grouped:
+                grouped[pos_str] = []
+                
+            # If the candidate doesn't have any votes recorded, add them with 0 votes
+            exists = any(item["candidate_id"] == cand_id_str for item in grouped[pos_str])
+            if not exists:
+                grouped[pos_str].append({
+                    "candidate_id": cand_id_str,
+                    "vote_count": 0,
+                })
 
         return grouped
 

@@ -214,18 +214,41 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
         </div>
 
         {/* Support Card */}
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-[#0F4A40]/30 border border-[#0F8A5F]/20">
-          <div className="h-8 w-8 rounded-lg bg-[#0F8A5F]/20 flex items-center justify-center shrink-0">
-            <Users className="h-4 w-4 text-[#16A34A]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-sidebar-foreground/50 leading-none">Need Help?</p>
-            <a
-              href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Election Support Request")}&body=${encodeURIComponent("Name:\nStudent ID:\nRole:\nIssue:\n")}`}
-              className="text-xs font-bold text-white hover:underline truncate block"
-            >Contact Support</a>
-          </div>
-        </div>
+        {kind === "voter" ? (
+          <Link
+            to="/voter/support"
+            className="flex items-center gap-3 p-3 rounded-xl bg-[#0F4A40]/30 border border-[#0F8A5F]/20 hover:bg-[#0F4A40]/50 hover:border-[#0F8A5F]/40 cursor-pointer block group transition-all duration-150"
+          >
+            <div className="flex items-center gap-3 w-full">
+              <div className="h-8 w-8 rounded-lg bg-[#0F8A5F]/20 flex items-center justify-center shrink-0 group-hover:bg-[#0F8A5F]/30 transition-colors">
+                <Users className="h-4 w-4 text-[#16A34A]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-sidebar-foreground/50 leading-none">Need Help?</p>
+                <p className="text-xs font-bold text-white group-hover:underline truncate mt-1 block">
+                  Contact Support
+                </p>
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <a
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Election Support Request")}&body=${encodeURIComponent("Name:\nStudent ID:\nRole:\nIssue:\n")}`}
+            className="flex items-center gap-3 p-3 rounded-xl bg-[#0F4A40]/30 border border-[#0F8A5F]/20 hover:bg-[#0F4A40]/50 hover:border-[#0F8A5F]/40 cursor-pointer block group transition-all duration-150"
+          >
+            <div className="flex items-center gap-3 w-full">
+              <div className="h-8 w-8 rounded-lg bg-[#0F8A5F]/20 flex items-center justify-center shrink-0 group-hover:bg-[#0F8A5F]/30 transition-colors">
+                <Users className="h-4 w-4 text-[#16A34A]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-sidebar-foreground/50 leading-none">Need Help?</p>
+                <p className="text-xs font-bold text-white group-hover:underline truncate mt-1 block">
+                  Contact Support
+                </p>
+              </div>
+            </div>
+          </a>
+        )}
 
         {/* System Status */}
         <div className="flex items-center justify-between px-1 text-[10px] text-sidebar-foreground/45 font-medium">

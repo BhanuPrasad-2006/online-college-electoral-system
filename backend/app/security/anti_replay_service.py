@@ -105,7 +105,7 @@ class AntiReplayService:
 
         # Normalize to timezone-aware UTC for comparison
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(timezone.utc)
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
         else:
             expires_at = expires_at.astimezone(timezone.utc)
 

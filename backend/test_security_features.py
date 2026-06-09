@@ -60,7 +60,8 @@ from app.models.ai_alert import AIAlert
 from app.models.audit_log import AuditLog
 from app.enums.alert_type import AlertTypeEnum
 from app.enums.alert_severity import AlertSeverityEnum
-from app.api.deps import get_current_user, get_admin_user
+from app.api.deps import get_current_user, get_admin_user, get_voting_session
+from fastapi import Request
 
 test_engine = create_async_engine(TEST_DB_URL, echo=False)
 TestSessionLocal = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
@@ -80,19 +81,35 @@ app.dependency_overrides[get_db] = override_get_db
 MOCK_VOTER_ID = "00000000-0000-0000-0000-000000000001"
 MOCK_ADMIN_EMAIL = "admin@test.edu"
 
-async def mock_get_current_user():
+async def mock_get_current_user(request: Request):
+    path = request.url.path
+    if "/admin" in path:
+        return {
+            "user_id": uuid.UUID(MOCK_VOTER_ID),
+            "email": MOCK_ADMIN_EMAIL,
+            "role": "admin",
+            "admin_role": "SUPER_ADMIN"
+        }
     return {
         "user_id": uuid.UUID(MOCK_VOTER_ID),
-        "email": MOCK_ADMIN_EMAIL,
-        "role": "admin",
-        "admin_role": "SUPER_ADMIN"
+        "email": "voter@test.edu",
+        "role": "voter"
     }
 
 async def mock_get_admin_user():
     return {"user_id": "admin-uuid", "email": MOCK_ADMIN_EMAIL, "role": "admin"}
 
+async def mock_get_voting_session():
+    return {
+        "user_id": uuid.UUID(MOCK_VOTER_ID),
+        "role": "voter",
+        "email": "voter@test.edu",
+        "election_id": "11111111-1111-1111-1111-111111111111",
+    }
+
 app.dependency_overrides[get_current_user] = mock_get_current_user
 app.dependency_overrides[get_admin_user] = mock_get_admin_user
+app.dependency_overrides[get_voting_session] = mock_get_voting_session
 
 # Disable rate limit for testing to prevent 429 errors from multiple sequential requests
 from app.middleware.rate_limit import limiter
@@ -333,7 +350,7 @@ async def test_tampered_db_detection(client: AsyncClient):
     async with TestSessionLocal() as session:
         result = await session.execute(select(Vote).where(Vote.ledger_sequence == 2))
         vote2 = result.scalar_one()
-        vote2.candidate_id = "99999999-9999-9999-9999-999999999999" # Tamper!
+        vote2.candidate_id = uuid.UUID("99999999-9999-9999-9999-999999999999") # Tamper!
         await session.commit()
 
     # Verify ledger integrity verification detects the tampering
@@ -471,11 +488,11 @@ async def test_anomaly_alert_generation(client: AsyncClient):
         base_time = datetime.now(timezone.utc)
         for i in range(6):
             vote = Vote(
-                vote_id=str(uuid.uuid4()),
+                vote_id=uuid.uuid4(),
                 voter_token_hash=hashlib.sha256(str(uuid.uuid4()).encode("utf-8")).hexdigest(),
-                candidate_id="33333333-3333-3333-3333-333333333333",
-                election_id="11111111-1111-1111-1111-111111111111",
-                position_id="22222222-2222-2222-2222-222222222222",
+                candidate_id=uuid.UUID("33333333-3333-3333-3333-333333333333"),
+                election_id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+                position_id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
                 voted_at=base_time - timedelta(seconds=i * 5),
                 ledger_sequence=100 + i,
                 current_hash=hashlib.sha256(str(i).encode("utf-8")).hexdigest(),

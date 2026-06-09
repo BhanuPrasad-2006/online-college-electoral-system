@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete
 from sqlalchemy.orm import joinedload
 import httpx
 from fastapi.responses import StreamingResponse
@@ -345,16 +345,16 @@ async def get_department_stats(
     """Fetch voting statistics per department, scoped to the active election.
 
     - `total_voters` per department comes from the Voter table (global).
-    - `voted` per department is 0 because votes are stored anonymously
-      (voter_token_hash, not voter_id), so per-department breakdown is unavailable.
+    - `voted` per department is computed by counting voters in that department who have voted.
     - `total_election_votes` provides the overall election-wide vote count.
     """
-    from sqlalchemy import func
+    from sqlalchemy import func, case
     
-    # Count total voters per department (correct — voters are global)
+    # Count total voters and voted voters per department
     dept_query = select(
         func.coalesce(Voter.department, "Unknown").label("department"),
         func.count(Voter.voter_id).label("total_voters"),
+        func.sum(case((Voter.has_voted == True, 1), else_=0)).label("voted")
     ).group_by(Voter.department)
 
     dept_result = await db.execute(dept_query)
@@ -370,18 +370,23 @@ async def get_department_stats(
         vote_count_result = await db.execute(vote_count_query)
         total_election_votes = vote_count_result.scalar() or 0
     
-    # Per-department voted is 0 because anonymous votes can't be linked to departments.
-    # The true election-wide count is `total_election_votes`.
     stats = []
     for row in dept_rows:
         total = row.total_voters
+        voted = int(row.voted or 0)
+        not_voted = max(0, total - voted)
+        turnout = (voted / total * 100.0) if total > 0 else 0.0
+        
         stats.append({
             "department": row.department,
             "total_voters": total,
             "total_election_votes": total_election_votes,
-            "voted": 0,
-            "not_voted": total,
-            "turnout_percentage": 0.0,
+            "voted": voted,
+            "not_voted": not_voted,
+            "turnout_percentage": round(turnout, 2),
+            # Support results page structure
+            "total": voted,
+            "registered": total,
         })
         
     # Sort alphabetically by department name
@@ -571,6 +576,8 @@ async def create_election(
     )
 
     db.add(election)
+    # Reset has_voted status for all voters for the new election session
+    await db.execute(update(Voter).values(has_voted=False))
     await db.commit()
     await db.refresh(election)
     _reset_election_cache()
@@ -641,6 +648,18 @@ async def resume_election(
     return {"message": "Election resumed."}
 
 
+async def _reset_election_results_state(db: AsyncSession, election_uuid: uuid.UUID, election: Election):
+    election.results_published = False
+    election.result_integrity_hash = None
+    # Delete from result_publications
+    await db.execute(delete(ResultPublication).where(ResultPublication.election_id == election_uuid))
+    # Reset candidate winner status
+    await db.execute(
+        update(Candidate)
+        .where(Candidate.election_id == election_uuid)
+        .values(is_winner=False, winner_announced_at=None)
+    )
+
 @router.post("/{election_id}/emergency-stop")
 async def emergency_stop_election(
     election_id: str,
@@ -659,6 +678,7 @@ async def emergency_stop_election(
         
     election.voting_end = datetime.now(timezone.utc)
     election.status = ElectionStatusEnum.CLOSED.value
+    await _reset_election_results_state(db, election_uuid, election)
     await db.commit()
     _reset_election_cache()
     return {"message": "Emergency stop executed. Voting closed."}
@@ -708,6 +728,9 @@ async def open_voting(
         if ve <= now_naive:
             election.voting_end = now + timedelta(hours=24)
 
+    await _reset_election_results_state(db, election_uuid, election)
+    # Reset has_voted status for all voters when starting/reopening voting
+    await db.execute(update(Voter).values(has_voted=False))
     await db.commit()
     await db.refresh(election)
     _reset_election_cache()
@@ -743,6 +766,7 @@ async def close_voting(
     election.status = ElectionStatusEnum.CLOSED.value
     election.voting_end = datetime.now(timezone.utc)
     
+    await _reset_election_results_state(db, election_uuid, election)
     await db.commit()
     await db.refresh(election)
     _reset_election_cache()
@@ -1261,4 +1285,81 @@ async def update_election_dates(
     _reset_election_cache()
     
     return {"message": "Election details saved successfully.", "election": election}
+
+
+from pydantic import BaseModel
+
+class SupportSubmissionRequest(BaseModel):
+    name: str
+    email: str
+    student_id: str
+    semester: str
+    message: str
+
+
+@router.post("/support", status_code=status.HTTP_200_OK)
+async def submit_voter_support(
+    body: SupportSubmissionRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Submit a support ticket from a voter, email it to the admin, and log it."""
+    from app.core.config import settings
+    from app.services.email_service import send_election_email
+    from app.models.audit_log import AuditLog
+    
+    # 1. Recipient email is settings.GMAIL_SENDER_EMAIL
+    admin_email = settings.GMAIL_SENDER_EMAIL
+    
+    # 2. Construct HTML email body
+    subject = f"Support Request from {body.name} ({body.student_id})"
+    
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; color: #333333;">
+        <div style="background: #0f8a5f; padding: 15px; border-radius: 8px 8px 0 0; text-align: center; color: white;">
+            <h2 style="margin: 0;">🗳️ College Vote Support Ticket</h2>
+        </div>
+        <div style="background: #f8fafc; padding: 24px; border: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; line-height: 1.6;">
+            <p><strong>Voter Name:</strong> {body.name}</p>
+            <p><strong>Email:</strong> {body.email}</p>
+            <p><strong>Student ID:</strong> {body.student_id}</p>
+            <p><strong>Semester/Year:</strong> {body.semester}</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+            <p><strong>Message / Issue:</strong></p>
+            <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #cbd5e1; white-space: pre-wrap;">{body.message}</div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # 3. Trigger email in background
+    asyncio.create_task(
+        send_election_email(
+            to_email=admin_email,
+            recipient_name="Election Administrator",
+            subject=subject,
+            html_body=html_body
+        )
+    )
+    
+    # 4. Log audit log
+    user_uuid = None
+    if current_user.get("user_id"):
+        try:
+            user_uuid = uuid.UUID(current_user["user_id"])
+        except ValueError:
+            pass
+            
+    audit = AuditLog(
+        event_type="SUPPORT_REQUEST_SUBMITTED",
+        actor_id=user_uuid,
+        description=f"Voter {body.email} submitted a support request: {body.message[:100]}...",
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return {"message": "Support request submitted successfully. The administrator has been notified."}
+
 

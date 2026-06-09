@@ -74,7 +74,7 @@ async def _do_upload(
         "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
         "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
         "Content-Type": content_type or "application/octet-stream",
-        "x-upsert": "false",
+        "x-upsert": "true",
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:

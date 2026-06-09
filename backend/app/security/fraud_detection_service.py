@@ -25,6 +25,11 @@ class FraudDetectionService:
         Do NOT block votes initially, only flag suspicious behavior for admin review.
         """
         election_id = vote_data.get("election_id")
+        if isinstance(election_id, str):
+            try:
+                election_id = uuid.UUID(election_id)
+            except ValueError:
+                pass
         ip_address = vote_data.get("ip_address")
         submit_time_ms = vote_data.get("submit_time_ms")
         trap_data = vote_data.get("trap_data") or {}
