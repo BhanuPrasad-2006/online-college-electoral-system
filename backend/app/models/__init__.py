@@ -26,6 +26,7 @@ from app.models.notice import Notice
 from app.models.notice_recipient import NoticeRecipient
 from app.models.admin_meeting import AdminMeeting
 from app.models.meeting_participant import MeetingParticipant
+from app.models.result_publication import ResultPublication
 
 __all__ = [
     "Voter",
@@ -54,4 +55,6 @@ __all__ = [
     "NoticeRecipient",
     "AdminMeeting",
     "MeetingParticipant",
+    "ResultPublication",
 ]
+
