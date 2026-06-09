@@ -299,3 +299,162 @@ class PDFService:
         doc.build(elements, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
         buffer.seek(0)
         return buffer
+
+    @staticmethod
+    def generate_election_results_pdf(
+        college_name: str,
+        election_name: str,
+        election_year: str,
+        election_id: str,
+        publication_id: str,
+        published_by_email: str,
+        published_at_str: str,
+        audit_hash: str,
+        results: list
+    ) -> io.BytesIO:
+        """
+        Generate a professional PDF report for the election results.
+        """
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=40,
+            leftMargin=40,
+            topMargin=40,
+            bottomMargin=40
+        )
+        
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        title_style = ParagraphStyle(
+            'ResultsTitleStyle',
+            parent=styles['Heading1'],
+            fontSize=20,
+            textColor=colors.HexColor("#1F3A6E"),
+            alignment=TA_CENTER,
+            spaceAfter=5
+        )
+        subtitle_style = ParagraphStyle(
+            'ResultsSubtitleStyle',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor("#6C63FF"),
+            alignment=TA_CENTER,
+            spaceAfter=15
+        )
+        heading_style = ParagraphStyle(
+            'ResultsHeadingStyle',
+            parent=styles['Heading2'],
+            fontSize=12,
+            textColor=colors.HexColor("#1F3A6E"),
+            spaceBefore=12,
+            spaceAfter=6
+        )
+        normal_style = styles['Normal']
+        normal_style.fontSize = 9
+        normal_style.leading = 13
+        
+        elements = []
+        
+        # Header / Title
+        elements.append(Paragraph(college_name.upper(), ParagraphStyle('Coll', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor("#6C63FF"), alignment=TA_CENTER, fontName="Helvetica-Bold", spaceAfter=3)))
+        elements.append(Paragraph("OFFICIAL ELECTION RESULTS", title_style))
+        elements.append(Paragraph(f"{election_name} ({election_year})", subtitle_style))
+        
+        # Meta Info Box
+        meta_data = [
+            [Paragraph("<b>Election ID:</b>", normal_style), Paragraph(election_id, normal_style),
+             Paragraph("<b>Publication ID:</b>", normal_style), Paragraph(publication_id, normal_style)],
+            [Paragraph("<b>Published By:</b>", normal_style), Paragraph(published_by_email, normal_style),
+             Paragraph("<b>Published At:</b>", normal_style), Paragraph(published_at_str, normal_style)]
+        ]
+        meta_table = Table(meta_data, colWidths=[90, 170, 100, 170])
+        meta_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+            ('PADDING', (0, 0), (-1, -1), 5),
+            ('BOX', (0, 0), (-1, -1), 0.75, colors.HexColor("#E2E8F0")),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#F1F5F9")),
+        ]))
+        elements.append(meta_table)
+        elements.append(Spacer(1, 10))
+        
+        # Position-wise Results
+        for pos_res in results:
+            pos_title = pos_res["position"]
+            candidates = pos_res["candidates"]
+            
+            # Determine winner(s)
+            winners = [c["name"] for c in candidates if c.get("is_winner")]
+            winners_str = ", ".join(winners) if winners else "None"
+            
+            elements.append(Paragraph(f"Position: {pos_title}", heading_style))
+            elements.append(Paragraph(f"<b>Winner(s):</b> <font color='#22c55e'><b>{winners_str}</b></font>", ParagraphStyle('Winners', parent=normal_style, fontSize=10, spaceAfter=6)))
+            
+            # Candidates Table
+            table_data = [["Candidate Name", "Votes Received", "Percentage"]]
+            for c in candidates:
+                cand_name = c["name"]
+                if c.get("is_winner"):
+                    cand_name += "  🏆"
+                table_data.append([
+                    cand_name,
+                    str(c["votes"]),
+                    f"{c.get('percentage', 0.0)}%"
+                ])
+                
+            cand_table = Table(table_data, colWidths=[280, 120, 130])
+            cand_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1F3A6E")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+                ('TOPPADDING', (0, 0), (-1, 0), 5),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+                ('PADDING', (0, 0), (-1, -1), 5),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ]))
+            
+            elements.append(cand_table)
+            elements.append(Spacer(1, 10))
+            
+        # Integrity Info Section
+        elements.append(Spacer(1, 5))
+        integrity_data = [
+            [Paragraph("<b>Cryptographic Security Audit Hash:</b>", normal_style)],
+            [Paragraph(f"<font face='Courier' size='8'>{audit_hash}</font>", normal_style)]
+        ]
+        integrity_table = Table(integrity_data, colWidths=[530])
+        integrity_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#FEF2F2")),
+            ('PADDING', (0, 0), (-1, -1), 6),
+            ('BOX', (0, 0), (-1, -1), 0.75, colors.HexColor("#FCA5A5")),
+        ]))
+        elements.append(integrity_table)
+        
+        # Footer text
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph(
+            "This document is officially signed and sealed. The cryptographic hash above verifies that the vote counts, "
+            "voter ledger signatures, and result aggregation match the original immutable blockchain-style ledger exactly.",
+            ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.gray, alignment=TA_CENTER)
+        ))
+        
+        def draw_watermark(canvas, doc):
+            canvas.saveState()
+            canvas.setFont('Helvetica-Bold', 40)
+            canvas.setFillColor(colors.HexColor("#F8FAFC"))
+            canvas.translate(300, 400)
+            canvas.rotate(30)
+            canvas.drawCentredString(0, 0, "OFFICIAL RESULTS")
+            canvas.restoreState()
+            
+        doc.build(elements, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
+        buffer.seek(0)
+        return buffer
+

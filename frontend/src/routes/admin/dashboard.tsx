@@ -12,7 +12,8 @@ import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { resolveAiAlert, publishResults } from "@/lib/api";
+import { resolveAiAlert, publishResults, fetchElectionResults } from "@/lib/api";
+import { useEffect } from "react";
 
 function Page() {
   const navigate = useNavigate();
@@ -32,6 +33,16 @@ function Page() {
 
   const [sealing, setSealing] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [publishedResults, setPublishedResults] = useState<any>(null);
+
+  useEffect(() => {
+    if (election?.status === "RESULTS_PUBLISHED" && election?.election_id) {
+      fetchElectionResults(election.election_id)
+        .then((data) => setPublishedResults(data))
+        .catch((err) => console.error("Error fetching results for dashboard:", err));
+    }
+  }, [election]);
+
 
   if (loadingKpi || loadingElection || (canManageAlerts && loadingAlerts) || !kpi) {
     return <PageLoader />;
@@ -115,6 +126,56 @@ function Page() {
           delay={200}
         />
       </div>
+
+      {election?.status === "RESULTS_PUBLISHED" && publishedResults && (
+        <SectionCard delay={220} className="border-success/30 bg-success/5">
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-[#1F3A6E] flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-success" />
+                Results Published ✓
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Published: {election.results_published_at ? new Date(election.results_published_at).toLocaleString() : "Just now"}
+              </p>
+            </div>
+            <Badge className="bg-success text-white">Sealed</Badge>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Winner Summary</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {publishedResults.results?.map((r: any) => {
+                const winners = r.candidates?.filter((c: any) => c.is_winner === true) || [];
+                const winnerNames = winners.map((w: any) => w.name).join(", ");
+                return (
+                  <div key={r.position} className="bg-card p-3 rounded-xl border border-border/50 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase">{r.position}</p>
+                      <p className="font-bold text-sm text-[#1F3A6E] mt-1 flex items-center gap-1.5">
+                        {winners.length > 0 ? (
+                          <>
+                            <span>🏆</span>
+                            <span>{winnerNames}</span>
+                          </>
+                        ) : (
+                          "No winner declared"
+                        )}
+                      </p>
+                    </div>
+                    {winners.length > 0 && (
+                      <div className="text-right">
+                        <p className="text-[10px] text-muted-foreground">Highest votes</p>
+                        <p className="text-xs font-mono font-bold text-success">{winners[0].votes} votes</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </SectionCard>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Phase title="Registration" status="OPEN" tone="bg-success/15 text-success" delay={250} />

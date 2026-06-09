@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { resolveApiAssetUrl, fetchMyPartyInvitations, acceptPartyInvitation, rejectPartyInvitation } from "@/lib/api";
+import { resolveApiAssetUrl, resolveVoterPhotoUrl, fetchMyPartyInvitations, acceptPartyInvitation, rejectPartyInvitation } from "@/lib/api";
 import { useAntiAbuse } from "@/hooks/useAntiAbuse";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 // ── Election phase helpers ─────────────────────────────────────
@@ -351,7 +351,7 @@ function VoterDash() {
             <div className="relative">
               <Avatar className="h-20 w-20 ring-2 ring-[#6C63FF]/30 rounded-xl">
                 <AvatarImage
-                  src={resolveApiAssetUrl(voter.reference_image_url)}
+                  src={resolveVoterPhotoUrl(voter.voter_id)}
                   alt="Reference photo"
                   className="object-cover rounded-xl"
                 />

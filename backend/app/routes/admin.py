@@ -477,11 +477,16 @@ async def cluster_concerns(
     assigned_count = 0
     for concern in unclustered:
         if concern.content in text_to_cluster_id:
-            concern.cluster_id = str(text_to_cluster_id[concern.content])
+            try:
+                concern.cluster_id = int(text_to_cluster_id[concern.content])
+            except (ValueError, TypeError):
+                # Fallback to integer representation if text_to_cluster_id is not integer-like
+                concern.cluster_id = concern.concern_id.int % 2147483647
             assigned_count += 1
         else:
-            # Unclustered items get standalone cluster_id based on their index
-            concern.cluster_id = f"singleton_{concern.concern_id[:8]}"
+            # Unclustered items get standalone cluster_id based on their UUID int representation
+            # Modulo with 2^31 - 1 ensures it fits within a signed 32-bit Postgres INTEGER.
+            concern.cluster_id = concern.concern_id.int % 2147483647
     
     await db.commit()
     
@@ -681,7 +686,7 @@ async def get_ip_clusters(
     # Group by /24 subnet
     subnets = Counter()
     for ip in all_ips:
-        parts = ip.split(".")
+        parts = str(ip).split(".")
         if len(parts) == 4:
             subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.x/24"
             subnets[subnet] += 1
@@ -699,6 +704,34 @@ async def get_ip_clusters(
         "clusters": clusters,
         "total_unique_ips": len(set(all_ips)),
     }
+
+
+@router.get("/stats/vote-ips")
+async def get_vote_ips(
+    db: AsyncSession = Depends(get_db),
+    current_admin: dict = Depends(require_admin_roles(["SUPER_ADMIN", "ELECTION_MANAGER", "AUDIT_SECURITY_ADMIN"]))
+):
+    """Aggregate votes cast by IP address for security auditing."""
+    from app.models.audit_log import AuditLog
+    from sqlalchemy import func
+    
+    query = (
+        select(
+            AuditLog.ip_address,
+            func.count(AuditLog.log_id).label("count")
+        )
+        .where(AuditLog.event_type == "VOTE_CAST_SUCCESS")
+        .group_by(AuditLog.ip_address)
+        .order_by(func.count(AuditLog.log_id).desc())
+    )
+    
+    result = await db.execute(query)
+    
+    ips = [
+        {"ip": str(row[0]) if row[0] is not None else "Unknown", "votes": row[1]}
+        for row in result.all()
+    ]
+    return ips
 
 
 # ==============================================================================

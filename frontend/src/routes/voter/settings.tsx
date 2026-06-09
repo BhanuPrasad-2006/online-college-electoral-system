@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { PageLoader } from "@/components/PageLoader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useVoterProfile } from "@/hooks/use-election-data";
-import { requestPasswordChange, confirmPasswordChange, uploadVoterOwnPhoto, resolveApiAssetUrl } from "@/lib/api";
+import { requestPasswordChange, confirmPasswordChange, uploadVoterOwnPhoto, resolveApiAssetUrl, resolveVoterPhotoUrl } from "@/lib/api";
 import { toast } from "sonner";
 import Webcam from "react-webcam";
 import { ShieldCheck, Mail, KeyRound, Camera, Upload, AlertTriangle, Clock, CheckCircle2, AlertCircle, X, Video } from "lucide-react";
@@ -158,7 +158,7 @@ function Page() {
               <div className="relative">
                 <Avatar className="h-20 w-20 ring-2 ring-[#6C63FF]/30 rounded-xl">
                   <AvatarImage
-                    src={resolveApiAssetUrl(voter.reference_image_url)}
+                    src={resolveVoterPhotoUrl(voter.voter_id)}
                     alt="Profile photo"
                     className="object-cover rounded-xl"
                   />

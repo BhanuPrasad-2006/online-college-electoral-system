@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
 
     # Check/run dynamic migrations
     migration_start = time.perf_counter()
-    TARGET_VERSION = 1
+    TARGET_VERSION = 2
     run_migrations = False
     current_version = 0
 
@@ -352,6 +352,32 @@ async def lifespan(app: FastAPI):
                                 "ALTER TABLE candidates ADD COLUMN party_role VARCHAR(100);"
                             ))
 
+                        if "is_winner" not in cand_cols:
+                            logger.info("Adding is_winner column to candidates...")
+                            connection.execute(text(
+                                "ALTER TABLE candidates ADD COLUMN is_winner BOOLEAN DEFAULT FALSE NOT NULL;"
+                            ))
+
+                        if "winner_announced_at" not in cand_cols:
+                            logger.info("Adding winner_announced_at column to candidates...")
+                            connection.execute(text(
+                                "ALTER TABLE candidates ADD COLUMN winner_announced_at TIMESTAMP WITH TIME ZONE NULL;"
+                            ))
+
+                        election_cols = [c["name"] for c in inspector.get_columns("elections")]
+                        if "results_published" not in election_cols:
+                            logger.info("Adding results_published column to elections...")
+                            connection.execute(text(
+                                "ALTER TABLE elections ADD COLUMN results_published BOOLEAN DEFAULT FALSE NOT NULL;"
+                            ))
+
+                        if "results_published_at" not in election_cols:
+                            logger.info("Adding results_published_at column to elections...")
+                            connection.execute(text(
+                                "ALTER TABLE elections ADD COLUMN results_published_at TIMESTAMP WITH TIME ZONE NULL;"
+                            ))
+
+
                         if connection.dialect.name == "postgresql":
                             connection.execute(text("""
                                 DO $$
@@ -418,7 +444,7 @@ async def lifespan(app: FastAPI):
                         tables = inspector.get_table_names()
                         errors = []
 
-                        required_tables = ["parties", "party_members", "party_invitations", "candidates", "voters", "admin_users"]
+                        required_tables = ["parties", "party_members", "party_invitations", "candidates", "voters", "admin_users", "result_publications"]
                         for tbl in required_tables:
                             if tbl not in tables:
                                 errors.append(f"Table '{tbl}' is missing from the database schema!")
@@ -438,9 +464,21 @@ async def lifespan(app: FastAPI):
 
                             if "candidates" in tables:
                                 cand_cols = get_cached_columns("candidates")
-                                for col in ["candidate_type", "party_id", "party_role"]:
+                                for col in ["candidate_type", "party_id", "party_role", "is_winner", "winner_announced_at"]:
                                     if col not in cand_cols:
                                         errors.append(f"Column 'candidates.{col}' is missing!")
+
+                            if "elections" in tables:
+                                el_cols = get_cached_columns("elections")
+                                for col in ["results_published", "results_published_at"]:
+                                    if col not in el_cols:
+                                        errors.append(f"Column 'elections.{col}' is missing!")
+
+                            if "result_publications" in tables:
+                                pub_cols = get_cached_columns("result_publications")
+                                for col in ["publication_id", "election_id", "published_by", "published_at", "pdf_url", "audit_hash"]:
+                                    if col not in pub_cols:
+                                        errors.append(f"Column 'result_publications.{col}' is missing!")
 
                             if "parties" in tables:
                                 parties_cols = get_cached_columns("parties")
@@ -468,6 +506,12 @@ async def lifespan(app: FastAPI):
                                 cand_cols = [c["name"] for c in inspector.get_columns("candidates")]
                                 if "party_id" not in cand_cols:
                                     errors.append("Column 'candidates.party_id' is missing!")
+                                if "is_winner" not in cand_cols:
+                                    errors.append("Column 'candidates.is_winner' is missing!")
+                            if "elections" in tables:
+                                el_cols = [c["name"] for c in inspector.get_columns("elections")]
+                                if "results_published" not in el_cols:
+                                    errors.append("Column 'elections.results_published' is missing!")
 
                         if errors:
                             for err in errors:

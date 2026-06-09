@@ -276,3 +276,40 @@ select option {
   animation: fade-in 0.5s ease both;
 }
 
+@media print {
+  /* Hide layout components and non-printable elements */
+  aside,
+  header,
+  .fixed,
+  .absolute,
+  button,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Reset layout margins for standard print width */
+  .md\:ml-\[260px\],
+  .flex-col {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  body, html, main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Optimize card appearance for print */
+  .bg-card {
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    page-break-inside: avoid;
+  }
+}
+
+

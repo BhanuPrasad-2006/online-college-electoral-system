@@ -30,6 +30,8 @@ class Election(Base):
         nullable=False,
     )
     result_integrity_hash = Column(String(64), nullable=True)
+    results_published     = Column(Boolean, default=False, nullable=False)
+    results_published_at  = Column(DateTime(timezone=True), nullable=True)
     created_by            = Column(UUID(as_uuid=True), ForeignKey("admin_users.admin_id"), nullable=True)
     auto_transition       = Column(Boolean, default=True, nullable=False)
     is_paused             = Column(Boolean, default=False, nullable=False)

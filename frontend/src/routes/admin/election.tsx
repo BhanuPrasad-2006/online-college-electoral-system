@@ -19,6 +19,9 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  CheckCircle2,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -41,6 +44,9 @@ import {
   getAuthToken,
   getCsrfToken,
   resolveApiAssetUrl,
+  resolveVoterPhotoUrl,
+  fetchCandidates,
+  updateCandidateStatus,
 } from "@/lib/api";
 
 function Page() {
@@ -64,6 +70,18 @@ function Page() {
   // Face ID upload states
   const [uploadingFaceId, setUploadingFaceId] = useState<string | null>(null);
   const [selectedPreviewImage, setSelectedPreviewImage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"voters" | "candidates" | "settings">("voters");
+
+  // Candidates registry states
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(true);
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState("");
+  const [selectedCandidateStatus, setSelectedCandidateStatus] = useState("All");
+  const [actionLoadingCandidateId, setActionLoadingCandidateId] = useState<string | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [previewCandidate, setPreviewCandidate] = useState<any | null>(null);
+  const [rejectCandidateId, setRejectCandidateId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const [election, setElection] = useState<any>(null);
   const [loadingElection, setLoadingElection] = useState(true);
@@ -322,9 +340,39 @@ function Page() {
     }
   }
 
+  async function loadCandidates() {
+    setLoadingCandidates(true);
+    try {
+      const data = await fetchCandidates();
+      setCandidates(data);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to load candidates list");
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }
+
+  async function handleRejectCandidateConfirm() {
+    if (!rejectCandidateId) return;
+    setActionLoadingCandidateId(rejectCandidateId);
+    try {
+      await updateCandidateStatus(rejectCandidateId, "REJECTED", rejectReason);
+      toast.success("Application rejected successfully");
+      await loadCandidates();
+      setRejectCandidateId(null);
+      setRejectReason("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reject candidate");
+    } finally {
+      setActionLoadingCandidateId(null);
+    }
+  }
+
   useEffect(() => {
     loadVoters();
     loadElection();
+    loadCandidates();
   }, []);
 
   async function handleSaveVerificationId(voterId: string) {
@@ -447,6 +495,19 @@ function Page() {
     return map;
   }, [voters]);
 
+  const filteredCandidates = useMemo(() => {
+    return candidates.filter((c) => {
+      const matchesSearch =
+        (c.full_name || "").toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+        (c.college_email || "").toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+        (c.position || "").toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+        (c.department || "").toLowerCase().includes(candidateSearchQuery.toLowerCase());
+      const matchesStatus =
+        selectedCandidateStatus === "All" || c.status === selectedCandidateStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [candidates, candidateSearchQuery, selectedCandidateStatus]);
+
   async function handleBulkPermission(dept: string, grant: boolean) {
     const targets = (
       dept === "All" ? voters : voters.filter((v) => (v.department || "").trim() === dept)
@@ -507,9 +568,47 @@ function Page() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Voter Voting Permission Control Section */}
+      {/* ── Sub Navigation Tabs ── */}
+      <div className="flex border-b border-border/60 gap-4">
+        <button
+          onClick={() => setActiveTab("voters")}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all -mb-px flex items-center gap-2 ${
+            activeTab === "voters"
+              ? "border-[#6C63FF] text-[#6C63FF]"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          Voter Registry & Permissions
+        </button>
+        <button
+          onClick={() => setActiveTab("candidates")}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all -mb-px flex items-center gap-2 ${
+            activeTab === "candidates"
+              ? "border-[#6C63FF] text-[#6C63FF]"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <UserCheck className="h-4 w-4" />
+          Candidates Registry
+        </button>
+        <button
+          onClick={() => setActiveTab("settings")}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all -mb-px flex items-center gap-2 ${
+            activeTab === "settings"
+              ? "border-[#6C63FF] text-[#6C63FF]"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Edit2 className="h-4 w-4" />
+          Configure Schedule & Settings
+        </button>
+      </div>
+
+      <div className={activeTab === "settings" ? "grid grid-cols-1 lg:grid-cols-3 gap-6" : "w-full"}>
+        <div className={activeTab === "settings" ? "lg:col-span-2 space-y-6" : "w-full"}>
+          {activeTab === "voters" ? (
+            /* Voter Voting Permission Control Section */
           <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             {/* ── Header ── */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -779,11 +878,11 @@ function Page() {
                                 {v.reference_image_url && (
                                   <div
                                     className="relative group cursor-pointer h-10 w-10 rounded-full overflow-hidden border border-[#6C63FF]/30 hover:border-[#6C63FF] transition-all"
-                                    onClick={() => setSelectedPreviewImage(resolveApiAssetUrl(v.reference_image_url))}
+                                    onClick={() => setSelectedPreviewImage(resolveVoterPhotoUrl(v.voter_id))}
                                     title="Click to zoom reference photo"
                                   >
                                     <img
-                                      src={resolveApiAssetUrl(v.reference_image_url)}
+                                      src={resolveVoterPhotoUrl(v.voter_id)}
                                       alt="Face preview"
                                       className="h-full w-full object-cover"
                                       onError={(e) => {
@@ -901,8 +1000,204 @@ function Page() {
               </div>
             )}
           </div>
+          ) : activeTab === "candidates" ? (
+            /* Candidates Registry Section */
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4 animate-in fade-in duration-200">
+              {/* ── Header ── */}
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-base font-semibold flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-[#6C63FF]" />
+                    Candidates Registry
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Approve, reject, or preview candidate applications.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={loadCandidates}
+                  disabled={loadingCandidates}
+                  className="gap-2"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingCandidates ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              </div>
 
-          <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
+              {/* ── Summary stats row ── */}
+              {!loadingCandidates && candidates.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Total Candidates", value: candidates.length, color: "text-foreground" },
+                    {
+                      label: "Approved",
+                      value: candidates.filter((c) => c.status === "Approved").length,
+                      color: "text-emerald-500",
+                    },
+                    {
+                      label: "Pending Review",
+                      value: candidates.filter((c) => c.status === "Pending" || c.status === "Under Review").length,
+                      color: "text-[#6C63FF]",
+                    },
+                    {
+                      label: "Rejected",
+                      value: candidates.filter((c) => c.status === "Rejected").length,
+                      color: "text-destructive",
+                    },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="bg-muted/40 rounded-xl p-3 border border-border/40 text-center"
+                    >
+                      <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Search & Filter pills ── */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={candidateSearchQuery}
+                    onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                    placeholder="Search candidates by name, email, department, or position..."
+                    className="pl-9 h-10 rounded-xl"
+                  />
+                </div>
+                <div className="flex gap-2 overflow-x-auto select-none font-mono">
+                  {["All", "Pending", "Under Review", "Approved", "Rejected"].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSelectedCandidateStatus(s)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                        selectedCandidateStatus === s
+                          ? "bg-[#1F3A6E] text-white border-[#1F3A6E] shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-border hover:border-[#1F3A6E]/40 hover:text-foreground"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {loadingCandidates ? (
+                <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                  <RefreshCw className="h-8 w-8 animate-spin text-[#6C63FF] mb-2" />
+                  <p className="text-sm">Fetching candidates...</p>
+                </div>
+              ) : filteredCandidates.length === 0 ? (
+                <div className="text-center py-10 border border-dashed border-border rounded-xl">
+                  <Users className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    No candidates found{selectedCandidateStatus !== "All" ? ` with status ${selectedCandidateStatus}` : ""}.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-border/60 rounded-xl">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground border-b border-border/60">
+                        <th className="p-3">Candidate Details</th>
+                        <th className="p-3">Dept / Sem</th>
+                        <th className="p-3">Applied For (Position)</th>
+                        <th className="p-3">Contact</th>
+                        <th className="p-3 text-center">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60 text-sm">
+                      {filteredCandidates.map((c) => (
+                        <tr key={c.candidate_id} className="hover:bg-muted/35 transition-colors">
+                          <td className="p-3">
+                            <p className="font-medium text-foreground">{c.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{c.college_email}</p>
+                          </td>
+                          <td className="p-3">
+                            <p className="text-sm font-medium text-foreground">{c.department}</p>
+                            <p className="text-xs text-muted-foreground">Semester {c.semester}</p>
+                          </td>
+                          <td className="p-3">
+                            <Badge variant="outline" className="bg-[#6C63FF]/5 text-[#6C63FF] border-[#6C63FF]/20 px-2 py-0.5 font-medium">
+                              {c.position}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-xs font-mono text-muted-foreground">
+                            {c.mobile_number || "—"}
+                          </td>
+                          <td className="p-3 text-center">
+                            <Badge
+                              className={
+                                c.status === "Approved"
+                                  ? "bg-success/15 text-success border-0 font-medium"
+                                  : c.status === "Rejected"
+                                    ? "bg-destructive/15 text-destructive border-0 font-medium"
+                                    : c.status === "Under Review"
+                                      ? "bg-[#6C63FF]/15 text-[#6C63FF] border-0 font-medium"
+                                      : "bg-warning/15 text-amber-600 border-0 font-medium"
+                              }
+                            >
+                              {c.status}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs"
+                                onClick={() => setPreviewCandidate(c)}
+                              >
+                                Preview
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="bg-success hover:bg-success/90 text-white h-8 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={() => {
+                                  setSelectedCandidateId(c.candidate_id);
+                                  setReconfirmDescription(`Approving candidate ${c.full_name} is a sensitive action. Please confirm your password to proceed.`);
+                                  setReconfirmAction("candidate_approve");
+                                  setReconfirmOpen(true);
+                                }}
+                                disabled={actionLoadingCandidateId === c.candidate_id || c.status === "Approved"}
+                              >
+                                {actionLoadingCandidateId === c.candidate_id && selectedCandidateId === c.candidate_id ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  "Approve"
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-8 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={() => {
+                                  setSelectedCandidateId(c.candidate_id);
+                                  setReconfirmDescription(`Rejecting candidate ${c.full_name} is a sensitive action. Please confirm your password to proceed.`);
+                                  setReconfirmAction("candidate_reject");
+                                  setReconfirmOpen(true);
+                                }}
+                                disabled={actionLoadingCandidateId === c.candidate_id || c.status === "Rejected"}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Create / Edit Election Section */
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             <h2 className="text-base font-semibold">Create / Edit Election</h2>
             <Field label="Election Title">
               <Input
@@ -1053,10 +1348,12 @@ function Page() {
               )}
             </Button>
           </div>
+          )}
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
+        {activeTab === "settings" && (
+          <div className="space-y-6">
+            <div className="bg-card rounded-2xl shadow-sm border border-border/60 p-6 space-y-4">
             <h2 className="text-base font-semibold flex items-center gap-2">
               <RefreshCw
                 className={`h-4 w-4 ${loadingElection ? "animate-spin text-muted-foreground" : "text-[#6C63FF]"}`}
@@ -1066,106 +1363,154 @@ function Page() {
 
             {phaseData ? (
               <div className="space-y-4">
-                <div className="p-4 bg-[#1F3A6E]/5 rounded-xl border border-[#1F3A6E]/10 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Current Phase:
-                    </span>
-                    <Badge
-                      className={
-                        phaseData.is_paused
-                          ? "bg-amber-500/15 text-amber-600 border-0"
-                          : phaseData.phase === "voting_open"
-                            ? "bg-emerald-500/15 text-emerald-600 border-0"
-                            : "bg-[#6C63FF]/15 text-[#6C63FF] border-0"
-                      }
-                    >
-                      {phaseData.is_paused
-                        ? "PAUSED"
-                        : (phaseData.phase || "Unknown").toUpperCase().replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-
-                  {!phaseData.is_paused && phaseData.remaining_time && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Time Remaining:
-                      </span>
-                      <span className="text-sm font-mono font-bold text-[#1F3A6E]">
-                        {phaseData.remaining_time}
-                      </span>
+                {phaseData.phase === "results_announced" ? (
+                  /* Election Concluded / Results Published State */
+                  <div className="space-y-4">
+                    <div className="p-5 bg-success/5 rounded-2xl border border-success/20 text-center space-y-3">
+                      <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-success">
+                        <CheckCircle2 className="h-6 w-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-success text-base">Election Concluded</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Results have been officially tallied and published.
+                        </p>
+                      </div>
+                      {election?.results_published_at && (
+                        <p className="text-[11px] text-muted-foreground bg-muted/50 py-1.5 px-3 rounded-lg inline-block">
+                          Published: {new Date(election.results_published_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
-                  )}
 
-                  {!phaseData.is_paused && phaseData.next_phase && (
-                    <div className="flex justify-between items-center pt-2 border-t border-[#1F3A6E]/10">
-                      <span className="text-xs font-medium text-muted-foreground">Next Phase:</span>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {phaseData.next_phase.replace(/_/g, " ")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  <Button
-                    className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full"
-                    onClick={() => {
-                      setReconfirmDescription("Announcing the election schedule will send emails to all users.");
-                      setReconfirmAction("announce");
-                      setReconfirmOpen(true);
-                    }}
-                    disabled={updatingStatus}
-                  >
-                    Announce Schedule
-                  </Button>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {phaseData.is_paused ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setReconfirmDescription("Resume the election from its current phase.");
-                          setReconfirmAction("resume");
-                          setReconfirmOpen(true);
-                        }}
-                        disabled={updatingStatus}
-                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                      >
-                        Resume
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setReconfirmDescription("Pause the election to temporarily halt all voting activity.");
-                          setReconfirmAction("pause");
-                          setReconfirmOpen(true);
-                        }}
-                        disabled={updatingStatus}
-                        className="border-amber-200 text-amber-700 hover:bg-amber-50"
-                      >
-                        Pause
-                      </Button>
+                    {election?.result_integrity_hash && (
+                      <div className="p-4 bg-muted/40 rounded-xl border border-border/60 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <ShieldCheck className="h-3.5 w-3.5 text-success" />
+                            Security Integrity Hash
+                          </span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(election.result_integrity_hash);
+                              toast.success("Integrity hash copied to clipboard!");
+                            }}
+                            className="text-[#6C63FF] hover:underline"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        <p className="font-mono text-[10px] break-all text-foreground bg-background p-2 rounded border border-border/40 select-all">
+                          {election.result_integrity_hash}
+                        </p>
+                      </div>
                     )}
-
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        setReconfirmDescription("Emergency Stop will immediately close voting. This cannot be undone.");
-                        setReconfirmAction("emergency_stop");
-                        setReconfirmOpen(true);
-                      }}
-                      disabled={
-                        updatingStatus ||
-                        phaseData.phase === "voting_closed" ||
-                        phaseData.phase === "results_announced"
-                      }
-                    >
-                      Emergency Stop
-                    </Button>
                   </div>
-                </div>
+                ) : (
+                  /* Standard Phase Tracker States */
+                  <div className="space-y-4">
+                    <div className="p-4 bg-[#1F3A6E]/5 rounded-xl border border-[#1F3A6E]/10 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Current Phase:
+                        </span>
+                        <Badge
+                          className={
+                            phaseData.is_paused
+                              ? "bg-amber-500/15 text-amber-600 border-0"
+                              : phaseData.phase === "voting_open"
+                                ? "bg-emerald-500/15 text-emerald-600 border-0"
+                                : "bg-[#6C63FF]/15 text-[#6C63FF] border-0"
+                          }
+                        >
+                          {phaseData.is_paused
+                            ? "PAUSED"
+                            : (phaseData.phase || "Unknown").toUpperCase().replace(/_/g, " ")}
+                        </Badge>
+                      </div>
+
+                      {!phaseData.is_paused && phaseData.remaining_time && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Time Remaining:
+                          </span>
+                          <span className="text-sm font-mono font-bold text-[#1F3A6E]">
+                            {phaseData.remaining_time}
+                          </span>
+                        </div>
+                      )}
+
+                      {!phaseData.is_paused && phaseData.next_phase && (
+                        <div className="flex justify-between items-center pt-2 border-t border-[#1F3A6E]/10">
+                          <span className="text-xs font-medium text-muted-foreground">Next Phase:</span>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {phaseData.next_phase.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-2">
+                      <Button
+                        className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 w-full"
+                        onClick={() => {
+                          setReconfirmDescription("Announcing the election schedule will send emails to all users.");
+                          setReconfirmAction("announce");
+                          setReconfirmOpen(true);
+                        }}
+                        disabled={updatingStatus}
+                      >
+                        Announce Schedule
+                      </Button>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {phaseData.is_paused ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setReconfirmDescription("Resume the election from its current phase.");
+                              setReconfirmAction("resume");
+                              setReconfirmOpen(true);
+                            }}
+                            disabled={updatingStatus}
+                            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Resume
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setReconfirmDescription("Pause the election to temporarily halt all voting activity.");
+                              setReconfirmAction("pause");
+                              setReconfirmOpen(true);
+                            }}
+                            disabled={updatingStatus}
+                            className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                          >
+                            Pause
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="destructive"
+                          onClick={() => {
+                            setReconfirmDescription("Emergency Stop will immediately close voting. This cannot be undone.");
+                            setReconfirmAction("emergency_stop");
+                            setReconfirmOpen(true);
+                          }}
+                          disabled={
+                            updatingStatus ||
+                            phaseData.phase === "voting_closed" ||
+                            phaseData.phase === "results_announced"
+                          }
+                        >
+                          Emergency Stop
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground py-4 text-center flex flex-col items-center justify-center">
@@ -1174,57 +1519,64 @@ function Page() {
               </div>
             )}
 
-            <div className="pt-4 border-t border-border mt-2">
-              <p className="text-xs text-muted-foreground font-medium mb-2">
-                Manual Fallback Overrides
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setReconfirmDescription("Force open voting to allow all eligible voters to cast their ballots.");
-                    setReconfirmAction("open_voting");
-                    setReconfirmOpen(true);
-                  }}
-                  disabled={
-                    updatingStatus ||
-                    !election ||
-                    phaseData?.phase === "voting_open" ||
-                    phaseData?.phase === "voting_closed"
-                  }
-                >
-                  Force Open Voting
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setReconfirmDescription("Force close voting to end the election voting phase immediately.");
-                    setReconfirmAction("close_voting");
-                    setReconfirmOpen(true);
-                  }}
-                  disabled={updatingStatus || !election || phaseData?.phase !== "voting_open"}
-                >
-                  Force Close Voting
-                </Button>
-                <Button
-                  className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 mt-2"
-                  onClick={() => {
-                    setReconfirmDescription("Publishing results will make them visible to all voters and candidates.");
-                    setReconfirmAction("publish_results");
-                    setReconfirmOpen(true);
-                  }}
-                  disabled={updatingStatus || !election || phaseData?.phase !== "voting_closed"}
-                >
-                  Publish Results & Notify
-                </Button>
+            {phaseData && phaseData.phase !== "results_announced" && (
+              <div className="pt-4 border-t border-border mt-2">
+                <p className="text-xs text-muted-foreground font-medium mb-2">
+                  Manual Fallback Overrides
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setReconfirmDescription("Force open voting to allow all eligible voters to cast their ballots.");
+                      setReconfirmAction("open_voting");
+                      setReconfirmOpen(true);
+                    }}
+                    disabled={
+                      updatingStatus ||
+                      !election ||
+                      phaseData?.phase === "voting_open" ||
+                      phaseData?.phase === "voting_closed"
+                    }
+                    className="disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Force Open Voting
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setReconfirmDescription("Force close voting to end the election voting phase immediately.");
+                      setReconfirmAction("close_voting");
+                      setReconfirmOpen(true);
+                    }}
+                    disabled={updatingStatus || !election || phaseData?.phase !== "voting_open"}
+                    className="disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Force Close Voting
+                  </Button>
+                  <Button
+                    className="bg-[#6C63FF] text-white hover:bg-[#6C63FF]/90 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      setReconfirmDescription("Publishing results will make them visible to all voters and candidates.");
+                      setReconfirmAction("publish_results");
+                      setReconfirmOpen(true);
+                    }}
+                    disabled={updatingStatus || !election || phaseData?.phase !== "voting_closed"}
+                  >
+                    Publish Results & Notify
+                  </Button>
+                </div>
               </div>
+            )}
             </div>
+          </div>
+        )}
       {/* Password Reconfirmation Modal */}
       <ReconfirmPasswordModal
         open={reconfirmOpen}
-        onOpenChange={(o) => { setReconfirmOpen(o); if (!o) setReconfirmAction(null); }}
+        onOpenChange={(o) => { setReconfirmOpen(o); if (!o) { setReconfirmAction(null); setSelectedCandidateId(null); } }}
         title={{
           announce: "Announce Schedule",
           pause: "Pause Election",
@@ -1233,6 +1585,8 @@ function Page() {
           open_voting: "Force Open Voting",
           close_voting: "Force Close Voting",
           publish_results: "Publish Results",
+          candidate_approve: "Approve Candidate",
+          candidate_reject: "Reject Candidate",
         }[reconfirmAction ?? ""] || "Confirm Action"}
         description={reconfirmDescription}
         actionLabel={{
@@ -1243,9 +1597,12 @@ function Page() {
           open_voting: "Confirm & Open",
           close_voting: "Confirm & Close",
           publish_results: "Confirm & Publish",
+          candidate_approve: "Confirm Approve",
+          candidate_reject: "Confirm Reject",
         }[reconfirmAction ?? ""] || "Confirm & Continue"}
         onVerified={async () => {
-          if (!election || !reconfirmAction) return;
+          if (!reconfirmAction) return;
+          if (reconfirmAction !== "candidate_approve" && reconfirmAction !== "candidate_reject" && !election) return;
           setUpdatingStatus(true);
           try {
             let res;
@@ -1280,8 +1637,32 @@ function Page() {
                 res = await publishResults(election.election_id);
                 toast.success(res.message || "Results successfully published!");
                 break;
+              case "candidate_approve":
+                if (selectedCandidateId) {
+                  setActionLoadingCandidateId(selectedCandidateId);
+                  try {
+                    const name = candidates.find((c) => c.candidate_id === selectedCandidateId)?.full_name || "";
+                    await updateCandidateStatus(selectedCandidateId, "APPROVED");
+                    toast.success(`${name} approved successfully`);
+                    await loadCandidates();
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to approve candidate");
+                  } finally {
+                    setActionLoadingCandidateId(null);
+                    setSelectedCandidateId(null);
+                  }
+                }
+                break;
+              case "candidate_reject":
+                if (selectedCandidateId) {
+                  setRejectCandidateId(selectedCandidateId);
+                  setSelectedCandidateId(null);
+                }
+                break;
             }
-            await loadElection();
+            if (reconfirmAction !== "candidate_approve" && reconfirmAction !== "candidate_reject") {
+              await loadElection();
+            }
           } catch (e: any) {
             toast.error(e.message || "Action failed");
           } finally {
@@ -1290,16 +1671,130 @@ function Page() {
           }
         }}
       />
-
-            <div className="bg-muted/50 rounded-lg p-3 font-mono text-[10px] break-all mt-4">
-              <span className="text-muted-foreground">SHA-256 Hash: </span>
-              {election?.result_integrity_hash ||
-                "a3f1e9b87c4d2e1a5f6b9c8d7e2a1f4b3c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f"}
-            </div>
-          </div>
-        </div>
       </div>
       
+      {/* ── Candidate Preview Modal ── */}
+      <Dialog open={!!previewCandidate} onOpenChange={(b) => !b && setPreviewCandidate(null)}>
+        <DialogContent className="max-w-md p-6 rounded-2xl border border-border/80 bg-card">
+          {previewCandidate && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 border-b border-border/40 pb-3">
+                <img
+                  src={
+                    previewCandidate.party_symbol_url ||
+                    "https://api.dicebear.com/7.x/identicon/svg?seed=symbol"
+                  }
+                  alt="Party Symbol"
+                  className="h-12 w-12 rounded-xl bg-muted p-1 border border-border"
+                />
+                <div>
+                  <DialogTitle className="text-lg font-bold">
+                    {previewCandidate.full_name}
+                  </DialogTitle>
+                  <p className="text-xs text-muted-foreground">{previewCandidate.college_email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40 font-mono">
+                  <span className="text-muted-foreground block font-medium font-sans">Position</span>
+                  <span className="font-bold text-foreground mt-0.5 block">
+                    {previewCandidate.position}
+                  </span>
+                </div>
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40 font-mono">
+                  <span className="text-muted-foreground block font-medium font-sans">Department</span>
+                  <span className="font-bold text-foreground mt-0.5 block">
+                    {previewCandidate.department} (Sem {previewCandidate.semester})
+                  </span>
+                </div>
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40 font-mono">
+                  <span className="text-muted-foreground block font-medium font-sans">Mobile Contact</span>
+                  <span className="font-bold text-foreground mt-0.5 block">
+                    {previewCandidate.mobile_number}
+                  </span>
+                </div>
+                <div className="bg-muted/30 p-2.5 rounded-xl border border-border/40 font-mono">
+                  <span className="text-muted-foreground block font-medium font-sans">Applied On</span>
+                  <span className="font-bold text-foreground mt-0.5 block">
+                    {previewCandidate.applied_at
+                      ? new Date(previewCandidate.applied_at).toLocaleDateString()
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1 bg-muted/20 border border-border/40 p-4 rounded-xl">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-foreground">Candidate Manifesto</span>
+                  {previewCandidate.manifesto_status && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {previewCandidate.manifesto_status}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground italic leading-relaxed mt-1 whitespace-pre-wrap">
+                  "{previewCandidate.manifesto || "No manifesto submitted."}"
+                </p>
+                {previewCandidate.manifesto_status === "Pending Review" && (
+                  <p className="text-[10px] text-amber-600 mt-2 font-sans">
+                    Approve this manifesto under Admin → Manifesto Approval.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  className="bg-[#1F3A6E] text-white hover:bg-[#1F3A6E]/90 text-xs font-semibold px-4"
+                  onClick={() => setPreviewCandidate(null)}
+                >
+                  Close Preview
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Candidate Rejection dialog ── */}
+      <Dialog open={!!rejectCandidateId} onOpenChange={(b) => !b && setRejectCandidateId(null)}>
+        <DialogContent className="max-w-md p-6 bg-card border border-border/80 rounded-2xl">
+          <DialogTitle className="text-lg font-bold">Reject Candidate Application</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Provide a reason for rejection. This feedback will be sent directly to the candidate.
+          </p>
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Reason for rejection..."
+            className="w-full h-28 p-3 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/50 bg-background mt-4 resize-none text-foreground"
+          />
+          <div className="flex gap-2 justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRejectCandidateId(null);
+                setRejectReason("");
+              }}
+              disabled={actionLoadingCandidateId === rejectCandidateId}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={!rejectReason.trim() || actionLoadingCandidateId === rejectCandidateId}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+              onClick={handleRejectCandidateConfirm}
+            >
+              {actionLoadingCandidateId === rejectCandidateId ? (
+                <RefreshCw className="h-4 w-4 animate-spin text-white" />
+              ) : (
+                "Confirm Reject"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Voter reference photo zoom preview dialog ── */}
       <Dialog open={!!selectedPreviewImage} onOpenChange={(b) => !b && setSelectedPreviewImage(null)}>
         <DialogContent className="max-w-md p-6 flex flex-col items-center gap-4">
