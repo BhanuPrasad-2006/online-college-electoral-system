@@ -239,8 +239,10 @@ async def verify_face_passive(
     if not voter_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    # Fetch active election first to get election_id for logging
-    # Must filter by VOTING_OPEN so we always pick the election that is actually open for voting.
+    # Fetch active election first to get election_id for logging.
+    # Primary: filter by VOTING_OPEN status.
+    # Fallback: use PhaseEngine date-based check (handles elections where status
+    # column is not explicitly VOTING_OPEN but the voting window is active by date).
     election_query = (
         select(Election)
         .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
@@ -248,6 +250,13 @@ async def verify_face_passive(
     )
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
+    if not election:
+        # Fallback: check all recent elections by date range
+        all_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+        for e in all_res.scalars().all():
+            if PhaseEngine.is_voting_allowed(e):
+                election = e
+                break
     election_id_str = str(election.election_id) if election else "None"
 
     # Log FACE_VERIFICATION_STARTED
@@ -767,8 +776,10 @@ async def verify_face(
     if not voter_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
-    # Fetch active election first to get election_id for logging
-    # Must filter by VOTING_OPEN so we always pick the election that is actually open for voting.
+    # Fetch active election first to get election_id for logging.
+    # Primary: filter by VOTING_OPEN status.
+    # Fallback: use PhaseEngine date-based check (handles elections where status
+    # column is not explicitly VOTING_OPEN but the voting window is active by date).
     election_query = (
         select(Election)
         .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
@@ -776,6 +787,13 @@ async def verify_face(
     )
     election_result = await db.execute(election_query)
     election = election_result.scalars().first()
+    if not election:
+        # Fallback: check all recent elections by date range
+        all_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+        for e in all_res.scalars().all():
+            if PhaseEngine.is_voting_allowed(e):
+                election = e
+                break
     election_id_str = str(election.election_id) if election else "None"
 
     # Log FACE_VERIFICATION_STARTED
@@ -1050,6 +1068,8 @@ async def cast_vote(
 
     # Fetch the active election — filter by VOTING_OPEN status so we always
     # pick the election that is actually open for voting (not just the latest created).
+    # Fallback: use PhaseEngine date-based check for elections open by date but
+    # not yet explicitly set to VOTING_OPEN status.
     election_query = (
         select(Election)
         .where(Election.status == ElectionStatusEnum.VOTING_OPEN)
@@ -1059,20 +1079,24 @@ async def cast_vote(
     election = election_result.scalars().first()
 
     if not election:
-        # Check if any election exists at all (might be in a different status)
-        any_elec_res = await db.execute(
-            select(Election).order_by(Election.created_at.desc())
-        )
-        any_election = any_elec_res.scalars().first()
-        if not any_election:
+        # Fallback: check all recent elections via PhaseEngine date logic
+        all_elec_res = await db.execute(select(Election).order_by(Election.created_at.desc()))
+        all_elections = all_elec_res.scalars().all()
+        for e in all_elections:
+            if PhaseEngine.is_voting_allowed(e):
+                election = e
+                break
+        if not election:
+            # No election open at all
+            if not all_elections:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No active election found. Please contact the election admin."
+                )
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No active election found. Please contact the election admin."
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Voting is not currently open."
             )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Voting is not currently open."
-        )
 
     # Extract client metadata for audit logging
     user_agent = request.headers.get("user-agent", "unknown")
