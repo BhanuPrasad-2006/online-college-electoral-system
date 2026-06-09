@@ -380,6 +380,7 @@ async def get_voter_profile(
         year_str = "—"
 
     return {
+        "voter_id": str(voter.voter_id),
         "name": voter.full_name,
         "email": voter.college_email,
         "department": voter.department or "—",

@@ -182,6 +182,7 @@ export async function reviewCampaignMedia(
 // ── Voter Profile ─────────────────────────────────────────────
 
 export interface VoterProfile {
+  voter_id: string;
   name: string;
   email: string;
   department: string;

@@ -61,8 +61,8 @@ class PhaseEngine:
                 if vote_start <= now < vote_end:
                     return "voting_open"        # dates agree
                 if now >= vote_end:
-                    # Dates say closed, but admin forced open → respect admin override
-                    return "voting_open"
+                    # Even if status is open, if the time is past vote_end, it's closed
+                    return "voting_closed"
             # voting_end is None or dates are missing → respect admin status
             return "voting_open"
 
@@ -98,9 +98,6 @@ class PhaseEngine:
             if vote_start <= now < vote_end:
                 return "voting_open"
             if now >= vote_end:
-                # Fallback status check — if status says open, respect it
-                if election.status == ElectionStatusEnum.VOTING_OPEN.value:
-                    return "voting_open"
                 return "voting_closed"
 
         # 5. Status fallback (no valid dates configured)

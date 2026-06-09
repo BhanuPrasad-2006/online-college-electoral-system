@@ -6,6 +6,7 @@ import {
   approvePendingPhoto,
   rejectPendingPhoto,
   resolveApiAssetUrl,
+  resolveVoterPhotoUrl,
   fetchReuploadRequests,
   requestPhotoReupload,
   clearReuploadRequest,
@@ -211,7 +212,7 @@ function Page() {
                       <p className="text-[10px] text-muted-foreground mb-1 font-medium">Current</p>
                       <div className="aspect-square rounded-xl bg-muted overflow-hidden border border-border/40">
                         {voter.current_image_url ? (
-                          <img src={resolveApiAssetUrl(voter.current_image_url)} alt="Current" className="w-full h-full object-cover"
+                          <img src={resolveVoterPhotoUrl(voter.voter_id)} alt="Current" className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=current"; }} />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
@@ -225,7 +226,7 @@ function Page() {
                       <p className="text-[10px] text-muted-foreground mb-1 font-medium">Pending</p>
                       <div className="aspect-square rounded-xl bg-muted overflow-hidden border-2 border-[#6C63FF]/40 ring-2 ring-[#6C63FF]/10">
                         {voter.pending_image_url ? (
-                          <img src={resolveApiAssetUrl(voter.pending_image_url)} alt="Pending" className="w-full h-full object-cover"
+                          <img src={resolveVoterPhotoUrl(voter.voter_id, true)} alt="Pending" className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=pending"; }} />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
@@ -283,7 +284,7 @@ function Page() {
                       <p className="text-[10px] text-muted-foreground mb-1 font-medium">Current Photo</p>
                       <div className="aspect-square rounded-xl bg-muted overflow-hidden border border-border/40">
                         {voter.current_image_url ? (
-                          <img src={resolveApiAssetUrl(voter.current_image_url)} alt="Current" className="w-full h-full object-cover"
+                          <img src={resolveVoterPhotoUrl(voter.voter_id)} alt="Current" className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=current"; }} />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
@@ -375,7 +376,7 @@ function Page() {
                     <div className="flex items-center justify-center py-3">
                       <div className="w-28 aspect-[3/4] rounded-xl bg-muted overflow-hidden border border-border/60 shadow-sm relative group">
                         {voter.reference_image_url ? (
-                          <img src={resolveApiAssetUrl(voter.reference_image_url)} alt={voter.full_name} className="w-full h-full object-cover"
+                          <img src={resolveVoterPhotoUrl(voter.voter_id)} alt={voter.full_name} className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + voter.full_name; }} />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
@@ -425,7 +426,7 @@ function Page() {
                   </div>
                   <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border border-border/60">
                     {reviewVoter.current_image_url ? (
-                      <img src={resolveApiAssetUrl(reviewVoter.current_image_url)} alt="Current" className="w-full h-full object-cover"
+                      <img src={resolveVoterPhotoUrl(reviewVoter.voter_id)} alt="Current" className="w-full h-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=current"; }} />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/40 gap-2">
@@ -444,7 +445,7 @@ function Page() {
                     </div>
                     <div className="aspect-[3/4] rounded-xl bg-muted overflow-hidden border-2 border-[#6C63FF]/40 ring-2 ring-[#6C63FF]/10">
                       <img
-                        src={resolveApiAssetUrl(reviewVoter.pending_image_url)}
+                        src={resolveVoterPhotoUrl(reviewVoter.voter_id, true)}
                         alt="Pending"
                         className="w-full h-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).src = "https://api.dicebear.com/7.x/avataaars/svg?seed=pending"; }}

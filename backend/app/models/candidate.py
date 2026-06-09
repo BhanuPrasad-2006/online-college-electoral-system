@@ -75,6 +75,18 @@ class Candidate(Base):
         nullable=False,
     )
 
+    is_winner = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    winner_announced_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
     admin_remarks = Column(
         String(500),
         nullable=True,

@@ -189,6 +189,13 @@ export function resolveApiAssetUrl(path?: string | null) {
   return `${API_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+export function resolveVoterPhotoUrl(voterId: string, isPending: boolean = false) {
+  if (!voterId) return "";
+  const type = isPending ? "pending-photo" : "reference-photo";
+  return `${API_ORIGIN}/api/v1/vote/voters/${voterId}/${type}`;
+}
+
+
 // ── Generic fetch wrapper ────────────────────────────────────
 async function post<T>(path: string, body: object): Promise<T> {
   const token = getAuthToken();
@@ -966,6 +973,15 @@ export async function clusterConcerns() {
     {},
   );
 }
+
+export async function fetchVoteIps() {
+  return get<{ ip: string; votes: number }[]>("/admin/stats/vote-ips");
+}
+
+export async function fetchHourlyVoteStats() {
+  return get<{ hour: string; votes: number }[]>("/election/stats/hourly");
+}
+
 
 export async function fetchCampusReport() {
   return get<{

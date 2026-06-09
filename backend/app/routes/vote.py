@@ -1910,3 +1910,72 @@ async def verify_voter_id(
     anti_replay_token = await AntiReplayService.generate_token(user_id=str(voter.voter_id), db_session=db)
 
     return {"success": True, "anti_replay_token": anti_replay_token}
+
+
+@router.get("/voters/{voter_id}/reference-photo")
+async def get_voter_reference_photo(
+    voter_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Serve a voter's reference photo from local disk or Supabase."""
+    from fastapi import Response
+    from app.services.face_storage import load_reference_image_bytes
+    try:
+        voter_uuid = uuid.UUID(voter_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid voter UUID format")
+
+    query = select(Voter).where(Voter.voter_id == voter_uuid)
+    result = await db.execute(query)
+    voter = result.scalar_one_or_none()
+
+    if not voter or not voter.reference_image_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter reference photo not found")
+
+    photo_bytes = await load_reference_image_bytes(voter.reference_image_url)
+    if not photo_bytes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter reference photo content not found")
+
+    content_type = "image/jpeg"
+    lower_url = voter.reference_image_url.lower()
+    if lower_url.endswith(".png"):
+        content_type = "image/png"
+    elif lower_url.endswith(".webp"):
+        content_type = "image/webp"
+
+    return Response(content=photo_bytes, media_type=content_type)
+
+
+@router.get("/voters/{voter_id}/pending-photo")
+async def get_voter_pending_photo(
+    voter_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Serve a voter's pending photo from local disk or Supabase."""
+    from fastapi import Response
+    from app.services.face_storage import load_reference_image_bytes
+    try:
+        voter_uuid = uuid.UUID(voter_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid voter UUID format")
+
+    query = select(Voter).where(Voter.voter_id == voter_uuid)
+    result = await db.execute(query)
+    voter = result.scalar_one_or_none()
+
+    if not voter or not voter.pending_image_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter pending photo not found")
+
+    photo_bytes = await load_reference_image_bytes(voter.pending_image_url)
+    if not photo_bytes:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voter pending photo content not found")
+
+    content_type = "image/jpeg"
+    lower_url = voter.pending_image_url.lower()
+    if lower_url.endswith(".png"):
+        content_type = "image/png"
+    elif lower_url.endswith(".webp"):
+        content_type = "image/webp"
+
+    return Response(content=photo_bytes, media_type=content_type)
+
