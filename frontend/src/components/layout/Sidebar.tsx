@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useNotifications } from "@/context/NotificationStore";
 import { useCandidateProfile } from "@/hooks/use-election-data";
 import { fetchPendingPhotos } from "@/lib/api";
+import { SUPPORT_EMAIL } from "@/lib/app-config";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -220,7 +221,7 @@ export function Sidebar({ kind, onNavigate }: { kind: SidebarKind; onNavigate?: 
           <div className="min-w-0">
             <p className="text-[10px] text-sidebar-foreground/50 leading-none">Need Help?</p>
             <a
-              href={`mailto:support@collegevote.com?subject=${encodeURIComponent("Election Support Request")}&body=${encodeURIComponent("Name:\nStudent ID:\nRole:\nIssue:\n")}`}
+              href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Election Support Request")}&body=${encodeURIComponent("Name:\nStudent ID:\nRole:\nIssue:\n")}`}
               className="text-xs font-bold text-white hover:underline truncate block"
             >Contact Support</a>
           </div>

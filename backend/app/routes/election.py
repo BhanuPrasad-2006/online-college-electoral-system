@@ -342,30 +342,46 @@ async def get_department_stats(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Dynamically fetch voting statistics for all departments from the database."""
-    from sqlalchemy import func, case
+    """Fetch voting statistics per department, scoped to the active election.
+
+    - `total_voters` per department comes from the Voter table (global).
+    - `voted` per department is 0 because votes are stored anonymously
+      (voter_token_hash, not voter_id), so per-department breakdown is unavailable.
+    - `total_election_votes` provides the overall election-wide vote count.
+    """
+    from sqlalchemy import func
     
-    query = select(
+    # Count total voters per department (correct — voters are global)
+    dept_query = select(
         func.coalesce(Voter.department, "Unknown").label("department"),
         func.count(Voter.voter_id).label("total_voters"),
-        func.sum(case((Voter.has_voted == True, 1), else_=0)).label("voted")
     ).group_by(Voter.department)
 
-    result = await db.execute(query)
+    dept_result = await db.execute(dept_query)
+    dept_rows = dept_result.all()
     
+    # Count votes cast specifically in the current election (election-isolated)
+    election = await _get_latest_election_row(db)
+    total_election_votes = 0
+    if election:
+        vote_count_query = select(func.count(Vote.vote_id)).where(
+            Vote.election_id == election.election_id
+        )
+        vote_count_result = await db.execute(vote_count_query)
+        total_election_votes = vote_count_result.scalar() or 0
+    
+    # Per-department voted is 0 because anonymous votes can't be linked to departments.
+    # The true election-wide count is `total_election_votes`.
     stats = []
-    for row in result.all():
+    for row in dept_rows:
         total = row.total_voters
-        voted = row.voted or 0
-        not_voted = total - voted
-        turnout = (voted / total * 100) if total > 0 else 0
-        
         stats.append({
             "department": row.department,
             "total_voters": total,
-            "voted": voted,
-            "not_voted": not_voted,
-            "turnout_percentage": round(turnout, 1)
+            "total_election_votes": total_election_votes,
+            "voted": 0,
+            "not_voted": total,
+            "turnout_percentage": 0.0,
         })
         
     # Sort alphabetically by department name
@@ -378,22 +394,21 @@ async def get_hourly_stats(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Fetch hourly vote distribution for the current election."""
+    """Fetch hourly vote distribution for the current election (election-isolated)."""
     from sqlalchemy import func as sa_func
     
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
-    election = result.scalars().first()
+    election = await _get_latest_election_row(db)
     if not election or not election.voting_start:
         return []
 
-    # Query votes grouped by hour since voting started
-    # Use timestamp_utc column which exists on Vote model
+    # Query votes grouped by hour — filtered to the current election only
     from sqlalchemy import literal_column
     hourly_query = select(
         sa_func.date_trunc(literal_column("'hour'"), Vote.timestamp_utc).label('hour'),
         sa_func.count(Vote.vote_id).label('count')
     ).where(
-        Vote.timestamp_utc >= election.voting_start
+        Vote.timestamp_utc >= election.voting_start,
+        Vote.election_id == election.election_id
     ).group_by(
         sa_func.date_trunc(literal_column("'hour'"), Vote.timestamp_utc)
     ).order_by(
@@ -417,19 +432,27 @@ async def get_election_kpi(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Fetch high-level KPI metrics for the election (real-time)."""
-    from sqlalchemy import func, case
+    """Fetch high-level KPI metrics for the current election (real-time, election-isolated)."""
+    from sqlalchemy import func
     from app.models.ai_alert import AIAlert
     
-    query = select(
-        func.count(Voter.voter_id).label("registered"),
-        func.sum(case((Voter.has_voted == True, 1), else_=0)).label("voted")
-    )
-    result = await db.execute(query)
-    row = result.first()
+    # Get the current election
+    election = await _get_latest_election_row(db)
+    election_id = election.election_id if election else None
     
-    registered = row.registered or 0
-    votesCast = row.voted or 0
+    # Count registered voters (global — voters exist across all elections)
+    voter_query = select(func.count(Voter.voter_id))
+    voter_result = await db.execute(voter_query)
+    registered = voter_result.scalar() or 0
+    
+    # Count votes cast specifically in the current election (election-isolated)
+    if election_id:
+        vote_query = select(func.count(Vote.vote_id)).where(Vote.election_id == election_id)
+        vote_result = await db.execute(vote_query)
+        votesCast = vote_result.scalar() or 0
+    else:
+        votesCast = 0
+    
     turnout = round((votesCast / registered * 100), 1) if registered > 0 else 0.0
     
     # Query count of unresolved security alerts

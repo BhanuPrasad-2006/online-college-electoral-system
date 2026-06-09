@@ -106,7 +106,15 @@ function VotePage() {
       }
     }
 
-    // 2. Check 5-minute session recovery
+    // 2. Check 5-minute session recovery — but ONLY restore progress
+    //    if a verification session exists (prevents bypassing verification).
+    const hasVerificationSession = sessionStorage.getItem("collegevote-verification-session") === "true";
+    if (!hasVerificationSession) {
+      // No verification session — clear any stale recovery data and start fresh
+      clearRecoverySession();
+      return;
+    }
+
     const recoveryTsStr = sessionStorage.getItem("collegevote-recovery-timestamp");
     if (recoveryTsStr) {
       const ts = parseInt(recoveryTsStr, 10);
@@ -120,12 +128,13 @@ function VotePage() {
         if (rVerificationCode) setVerificationCode(rVerificationCode);
         if (rAntiReplayToken) setAntiReplayToken(rAntiReplayToken);
         if (rSelected) setSelected(rSelected === "" ? null : rSelected);
-        // DO NOT restore faceSessionToken from recovery — it may have expired
-        // in the biometric token cache (120s TTL) since it was issued.
-        // The user will need to do face verification again.
-        // faceSessionToken is intentionally NOT restored from recovery here.
 
-        if (rStep && ["ballot", "confirm_vote", "face_verification"].includes(rStep)) {
+        // SECURITY: Restore to confirm_vote or face_verification only.
+        // "ballot" (candidate selection) is intentionally excluded — the user
+        // must always pass through verification ID validation first.
+        // faceSessionToken is also intentionally NOT restored — it may have
+        // expired in the biometric token cache (120s TTL).
+        if (rStep && ["confirm_vote", "face_verification"].includes(rStep)) {
           setStep(rStep as any);
         }
       } else {
@@ -141,6 +150,7 @@ function VotePage() {
     sessionStorage.removeItem("collegevote-recovery-antiReplayToken");
     sessionStorage.removeItem("collegevote-recovery-faceSessionToken");
     sessionStorage.removeItem("collegevote-recovery-step");
+    sessionStorage.removeItem("collegevote-verification-session");
   };
 
   // Sync recovery state to sessionStorage whenever it changes, if we are past the verification step
@@ -306,6 +316,9 @@ function VotePage() {
     try {
       const res = await verifyVoterId(idToVerify);
       if (res.success) {
+        // Mark verification session so route guards and recovery know
+        // the user properly passed through verification ID validation.
+        sessionStorage.setItem("collegevote-verification-session", "true");
         if (res.anti_replay_token) {
           setAntiReplayToken(res.anti_replay_token);
         }
@@ -326,6 +339,36 @@ function VotePage() {
       setIsVerifying(false);
     }
   }
+
+  // ── Verification session guard: ensures no step is restored past ──
+  //    verification_id without a valid verification session.
+  //    Also ensures candidate selection exists before face_verification.
+  useEffect(() => {
+    // Don't interfere with the verification_id or success steps
+    if (step === "verification_id") return;
+    // Cast needed because TS narrows step after the first check and removes "success"
+    // from the union, even though the useEffect runs in a fresh closure each time.
+    if ((step as string) === "success") return;
+
+    const hasVerificationSession = sessionStorage.getItem("collegevote-verification-session") === "true";
+    if (!hasVerificationSession) {
+      toast.error("Verification session missing. Please start over.");
+      // Reset everything back to the verification step
+      clearRecoverySession();
+      setAntiReplayToken("");
+      setSelected(null);
+      setPassive("idle");
+      setStep("verification_id");
+      return;
+    }
+
+    // Face verification requires a selected candidate
+    if (step === "face_verification" && !selected) {
+      toast.error("No candidate selected. Please start over.");
+      setStep("ballot");
+      return;
+    }
+  }, [step, selected]);
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {

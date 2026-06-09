@@ -207,6 +207,33 @@ function Page() {
               </p>
             </div>
           </div>
+          {/* Quick action buttons — consistent with emerald primary + glass secondary */}
+          <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4 flex-wrap">
+            <Link
+              to="/candidate/ai-report"
+              className="btn-shine btn-lift btn-glow btn-icon-slide inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#0F8A5F] to-[#16A34A] text-white shadow-lg shadow-[#16A34A]/25 hover:shadow-xl hover:shadow-[#16A34A]/30 hover:-translate-y-0.5 transition-all duration-200 text-xs font-bold"
+            >
+              <Brain className="h-3.5 w-3.5" />
+              AI Diagnostics
+            </Link>
+            {phaseData?.phase === "registration_open" || phaseData?.phase === "campaign_period" ? (
+              <Link
+                to="/candidate/manifesto"
+                className="btn-lift btn-glow btn-icon-slide inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-white/20 bg-white/5 backdrop-blur-sm text-white hover:bg-white/15 hover:border-white/30 transition-all duration-200 text-xs font-medium"
+              >
+                <FileCheck className="h-3.5 w-3.5" />
+                Edit Manifesto
+              </Link>
+            ) : (
+              <span
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-white/10 bg-white/[0.03] text-white/40 text-xs font-medium cursor-not-allowed"
+                title="Manifesto editing is only allowed during registration and campaign periods"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Manifesto Locked
+              </span>
+            )}
+          </div>
         </div>
 
         {/* ── Status Alerts ── */}

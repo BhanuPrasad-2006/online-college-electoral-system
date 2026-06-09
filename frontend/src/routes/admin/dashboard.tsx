@@ -135,12 +135,11 @@ function Page() {
             </div>
           </div>
 
-          {/* Quick links & actions */}
+          {/* Quick links & actions — redesigned with emerald primary + glass secondary */}
           <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4 flex-wrap">
             <Button
               size="sm"
-              variant="outline"
-              className="border-white/20 text-white hover:bg-white/10 hover:text-white rounded-xl"
+              className="btn-shine btn-lift btn-glow btn-icon-slide bg-gradient-to-r from-[#0F8A5F] to-[#16A34A] text-white shadow-lg shadow-[#16A34A]/25 hover:shadow-xl hover:shadow-[#16A34A]/30 hover:-translate-y-0.5 transition-all duration-200 rounded-xl font-bold border-0"
               onClick={() => navigate({ to: "/admin/election" })}
             >
               <Cog className="h-3.5 w-3.5 mr-1.5" />
@@ -149,7 +148,7 @@ function Page() {
             <Button
               size="sm"
               variant="outline"
-              className="border-white/20 text-white hover:bg-white/10 hover:text-white rounded-xl"
+              className="btn-lift btn-glow btn-icon-slide border-white/20 bg-white/5 backdrop-blur-sm text-white hover:bg-white/15 hover:text-white hover:border-white/30 transition-all duration-200 rounded-xl font-medium"
               onClick={() => navigate({ to: "/admin/results" })}
             >
               <BarChart3 className="h-3.5 w-3.5 mr-1.5" />

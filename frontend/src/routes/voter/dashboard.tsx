@@ -3,26 +3,18 @@ import { useState, useEffect, useMemo } from "react";
 import { useElection, useCandidates, useVoterProfile, useKpi, useCurrentPhase } from "@/hooks/use-election-data";
 import { useNotifications } from "@/context/NotificationStore";
 import { PageLoader } from "@/components/PageLoader";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SectionCard } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
 import {
-  CheckCircle2,
   Users,
   TrendingUp,
-  AlertCircle,
-  Bell,
   ChevronRight,
   Lock,
   Clock,
   Vote,
-  Sparkles,
-  Camera,
-  AlertTriangle,
   ShieldCheck,
   Megaphone,
   UserCheck,
-  Fingerprint,
+  ScanFace,
   Calendar,
   Shield,
   Music,
@@ -33,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { resolveApiAssetUrl, resolveVoterPhotoUrl, fetchMyPartyInvitations, acceptPartyInvitation, rejectPartyInvitation } from "@/lib/api";
+import { fetchMyPartyInvitations, acceptPartyInvitation, rejectPartyInvitation } from "@/lib/api";
 import { useAntiAbuse } from "@/hooks/useAntiAbuse";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -57,12 +49,11 @@ function VoterDash() {
   const { data: election } = useElection();
   const { data: phaseData } = useCurrentPhase();
   const { notifications = [] } = useNotifications();
-  const [timeLeft, setTimeLeft] = useState<string>("");
   const antiAbuse = useAntiAbuse();
   const qc = useQueryClient();
 
   // Party invitations query
-  const { data: partyInvitations = [], refetch: refetchInvitations } = useQuery({
+  const { data: partyInvitations = [] } = useQuery({
     queryKey: ["voter-party-invitations"],
     queryFn: fetchMyPartyInvitations,
     staleTime: 60_000,
@@ -93,13 +84,7 @@ function VoterDash() {
 
   // Reconcile and setup parameters
   const effectivePhase = reconcilePhase(phaseData);
-  const isRegOpen = effectivePhase?.phase === "registration_open";
   const isVoteOpen = effectivePhase?.phase === "voting_open";
-  const regOpensSoon = effectivePhase?.phase === "pre_registration";
-  const voteOpensSoon =
-    effectivePhase?.phase === "registration_closed" || effectivePhase?.phase === "campaign_period";
-  const isPaused = phaseData?.is_paused;
-
   // ── Live countdown driven by election voting_end timestamp ────────────
   const [countdown, setCountdown] = useState<{ days: string; hours: string; minutes: string; seconds: string } | null>(null);
   const [countdownLabel, setCountdownLabel] = useState<string>("Voting Ends In");
@@ -172,7 +157,7 @@ function VoterDash() {
     if (!token) return;
     const jwtToken = token;
 
-    function updateTimer() {
+    function checkSession() {
       try {
         const base64Url = jwtToken.split(".")[1];
         const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
@@ -184,32 +169,23 @@ function VoterDash() {
         const diff = exp - nowSec;
 
         if (diff <= 0) {
-          setTimeLeft("Expired");
           logout();
           nav({ to: "/" });
           toast.error("Session expired. Please login again.");
-        } else {
-          const minutes = Math.floor(diff / 60);
-          const seconds = diff % 60;
-          setTimeLeft(`${minutes}m ${seconds}s`);
         }
       } catch (e) {
-        console.error("Failed to decode token for timer", e);
+        console.error("Failed to decode token for session check", e);
       }
     }
 
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
+    checkSession();
+    const interval = setInterval(checkSession, 30000); // check every 30s instead of 1s (no UI timer to update)
     return () => clearInterval(interval);
   }, [logout, nav]);
 
   // Early return for loaders AFTER all hooks have executed unconditionally
   if (isPending || !voter) return <PageLoader />;
 
-  const approvedCandidates = candidates.filter(
-    (c) => (c.status || "").toLowerCase() === "approved",
-  );
-  const matched = [...approvedCandidates].sort((a, b) => (b.match || 75) - (a.match || 75));
   const firstName = voter.name.split(" ")[0];
 
   const hasVoted = Boolean(
@@ -224,9 +200,6 @@ function VoterDash() {
     if (!hasVoted && votePermission) nav({ to: "/voter/vote" });
     antiAbuse.startCooldown("go-vote", 2);
   }
-
-  const phaseLabel = effectivePhase?.phase?.replace(/_/g, " ") || "Loading...";
-  const phaseDisp = phaseLabel.charAt(0).toUpperCase() + phaseLabel.slice(1);
 
   // Dynamic style helper for contested positions list
   const getPositionStyle = (name: string) => {
@@ -387,6 +360,29 @@ function VoterDash() {
               </div>
             )}
           </div>
+
+          {/* Quick action buttons — consistent with emerald primary + glass secondary */}
+          <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4 flex-wrap">
+            <Button
+              size="sm"
+              className="btn-shine btn-lift btn-glow btn-icon-slide bg-gradient-to-r from-[#0F8A5F] to-[#16A34A] text-white shadow-lg shadow-[#16A34A]/25 hover:shadow-xl hover:shadow-[#16A34A]/30 hover:-translate-y-0.5 transition-all duration-200 rounded-xl font-bold border-0"
+              onClick={handleVoteNowClick}
+              disabled={!votePermission || hasVoted}
+              title={hasVoted ? "You have already cast your vote" : !votePermission ? "Vote permission not granted by the election coordinator" : "Cast your vote now"}
+            >
+              <Vote className="h-3.5 w-3.5 mr-1.5" />
+              {hasVoted ? "Already Voted" : "Cast Vote"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="btn-lift btn-glow btn-icon-slide border-white/20 bg-white/5 backdrop-blur-sm text-white hover:bg-white/15 hover:text-white hover:border-white/30 transition-all duration-200 rounded-xl font-medium"
+              onClick={() => nav({ to: "/voter/candidates" })}
+            >
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              View Candidates
+            </Button>
+          </div>
         </div>
 
         {/* ── 4 Status Cards Row (Horizontal align) ── */}
@@ -406,7 +402,7 @@ function VoterDash() {
           {/* Verification Status Card */}
           <div className="bg-white rounded-[24px] border border-[#E6ECE9] p-5 shadow-sm hover:translate-y-[-2px] transition-all duration-200 flex items-center gap-4 h-28">
             <div className="h-12 w-12 rounded-full bg-[#16A34A]/10 text-[#16A34A] flex items-center justify-center shrink-0">
-              <Fingerprint className="h-6 w-6" />
+              <ScanFace className="h-6 w-6" />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-none">Verification</p>
@@ -488,7 +484,7 @@ function VoterDash() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Positions</p>
-                  <p className="text-lg font-extrabold text-[#102A27] mt-0.5 font-mono">8</p>
+                  <p className="text-lg font-extrabold text-[#102A27] mt-0.5 font-mono">{positionsWithCounts.length || "—"}</p>
                 </div>
               </div>
             </div>
