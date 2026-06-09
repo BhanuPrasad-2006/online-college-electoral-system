@@ -140,7 +140,7 @@ function Page() {
             <Button
               size="sm"
               variant="outline"
-              className="border-white/20 text-white hover:bg-white/10 hover:text-white rounded-xl"
+              className="bg-transparent border-white/20 text-white hover:bg-white/10 hover:text-white rounded-xl shadow-none"
               onClick={() => navigate({ to: "/admin/election" })}
             >
               <Cog className="h-3.5 w-3.5 mr-1.5" />
@@ -149,7 +149,7 @@ function Page() {
             <Button
               size="sm"
               variant="outline"
-              className="border-white/20 text-white hover:bg-white/10 hover:text-white rounded-xl"
+              className="bg-transparent border-white/20 text-white hover:bg-white/10 hover:text-white rounded-xl shadow-none"
               onClick={() => navigate({ to: "/admin/results" })}
             >
               <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
