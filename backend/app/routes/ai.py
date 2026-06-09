@@ -480,7 +480,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         # Get or create a Gemini Chat session for this session_id
         if session_id not in _chat_sessions or _chat_sessions[session_id] is None:
             chat_session = client.chats.create(
-                model="gemini-2.5-flash",
+                model="gemini-1.5-flash",
                 config=genai_types.GenerateContentConfig(
                     system_instruction=instruction,
                     temperature=0.3,        # Lower = more factual, less creative
