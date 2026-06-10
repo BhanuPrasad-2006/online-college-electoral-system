@@ -185,7 +185,7 @@ function Page() {
     }
   }
 
-  const isLocked = manifestoStatus === "Pending Review" || manifestoStatus === "Approved";
+  const isLocked = manifestoStatus === "Pending Review";
 
   return (
     <div className="space-y-6">

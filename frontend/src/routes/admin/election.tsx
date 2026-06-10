@@ -186,6 +186,9 @@ function Page() {
         setEligibleDepartment(data.eligible_department || "");
         // clear errors on fresh load
         setValidationErrors({});
+        if (data.positions && Array.isArray(data.positions)) {
+          setPositions(data.positions.map((p: any) => p.title));
+        }
       }
 
       const phaseRes = await getCurrentPhase();
@@ -219,6 +222,7 @@ function Page() {
         voting_start: votingStart ? new Date(votingStart).toISOString() : null,
         voting_end: votingEnd ? new Date(votingEnd).toISOString() : null,
         eligible_department: eligibleDepartment || null,
+        positions,
       };
 
       if (election?.election_id) {

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -38,4 +38,6 @@ class ElectionSaveRequest(BaseModel):
     voting_start: Optional[datetime] = None
     voting_end: Optional[datetime] = None
     eligible_department: Optional[str] = None
+    positions: Optional[List[str]] = None
+
 

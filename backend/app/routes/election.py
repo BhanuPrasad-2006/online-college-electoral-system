@@ -43,7 +43,11 @@ async def _get_latest_election_row(db: AsyncSession) -> Election | None:
     if cached is not None and now < _election_row_cache["expires_at"]:
         return cached
 
-    result = await db.execute(select(Election).order_by(Election.created_at.desc()))
+    result = await db.execute(
+        select(Election)
+        .options(joinedload(Election.positions))
+        .order_by(Election.created_at.desc())
+    )
     election = result.scalars().first()
     _election_row_cache["row"] = election
     _election_row_cache["expires_at"] = now + _ELECTION_CACHE_TTL_SEC
@@ -576,6 +580,14 @@ async def create_election(
     )
 
     db.add(election)
+    await db.flush()
+
+    if payload.positions:
+        for title in payload.positions:
+            if title.strip():
+                pos = Position(election_id=election.election_id, title=title.strip())
+                db.add(pos)
+
     # Reset has_voted status for all voters for the new election session
     await db.execute(update(Voter).values(has_voted=False))
     await db.commit()
@@ -1279,6 +1291,29 @@ async def update_election_dates(
     election.voting_start = payload.voting_start
     election.voting_end = payload.voting_end
     election.eligible_department = payload.eligible_department
+
+    # Update positions if provided
+    if payload.positions is not None:
+        # Fetch existing positions for this election
+        existing_res = await db.execute(
+            select(Position).where(Position.election_id == election.election_id)
+        )
+        existing_positions = existing_res.scalars().all()
+        existing_titles = {p.title: p for p in existing_positions}
+        
+        # New titles
+        new_titles = {t.strip() for t in payload.positions if t.strip()}
+        
+        # Add positions that do not exist yet
+        for title in new_titles:
+            if title not in existing_titles:
+                pos = Position(election_id=election.election_id, title=title)
+                db.add(pos)
+                
+        # Delete positions that are no longer in the payload
+        for title, pos in existing_titles.items():
+            if title not in new_titles:
+                await db.delete(pos)
     
     # If the election was already closed or results were published, reset state to UPCOMING to allow a fresh schedule/re-run
     if election.status in [ElectionStatusEnum.CLOSED.value, ElectionStatusEnum.RESULTS_PUBLISHED.value]:

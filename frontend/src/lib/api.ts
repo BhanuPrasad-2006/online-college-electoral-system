@@ -838,8 +838,11 @@ export async function updateElectionDates(
     title: string;
     registration_start: string | null;
     registration_end: string | null;
+    document_deadline: string | null;
     voting_start: string | null;
     voting_end: string | null;
+    eligible_department: string | null;
+    positions: string[];
   },
 ) {
   return put<{ message: string; election: any }>(`/election/${electionId}`, details);
@@ -849,8 +852,11 @@ export async function createElection(details: {
   title: string;
   registration_start: string | null;
   registration_end: string | null;
+  document_deadline: string | null;
   voting_start: string | null;
   voting_end: string | null;
+  eligible_department: string | null;
+  positions: string[];
 }) {
   return post<{ message: string; election: any }>("/election/", details);
 }
