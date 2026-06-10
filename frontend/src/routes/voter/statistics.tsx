@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PageLoader } from "@/components/PageLoader";
-import { useDeptTurnout, useHourlyVotes, useCurrentPhase, useElection, usePublicResults } from "@/hooks/use-election-data";
+import { useDeptTurnout, useHourlyVotes, useCurrentPhase, useElection, usePublicResults, useKpi } from "@/hooks/use-election-data";
 import {
   ResponsiveContainer,
   LineChart,
@@ -24,6 +24,7 @@ function Page() {
   const nav = useNavigate();
   const { data: deptTurnout = [], isPending: loadingDept } = useDeptTurnout();
   const { data: hourlyVotes = [], isPending: loadingHourly } = useHourlyVotes();
+  const { data: kpi, isPending: loadingKpi } = useKpi();
   const { data: phaseData } = useCurrentPhase();
   const { data: election } = useElection();
   const { data: publicResults } = usePublicResults();
@@ -36,7 +37,7 @@ function Page() {
     }
   }, [phaseData]);
 
-  if ((loadingDept || loadingHourly) && gatedPhase !== "pre_registration" && gatedPhase !== "registration_open" && gatedPhase !== "registration_closed" && gatedPhase !== "campaign_period") {
+  if ((loadingDept || loadingHourly || loadingKpi) && gatedPhase !== "pre_registration" && gatedPhase !== "registration_open" && gatedPhase !== "registration_closed" && gatedPhase !== "campaign_period") {
     return <PageLoader />;
   }
 
@@ -54,13 +55,18 @@ function Page() {
   // Show full results (with candidate rankings) only after published
   const showFullResults = isResultsAnnounced;
 
+  const registered = kpi?.registered ?? 0;
+  const votesCast = kpi?.votesCast ?? 0;
+  const votedPct = registered > 0 ? Math.round((votesCast / registered) * 100) : 0;
+  const remainingPct = 100 - votedPct;
+
   const turnoutData = [
-    { name: "Voted", value: 43 },
-    { name: "Remaining", value: 57 },
+    { name: "Voted", value: votedPct },
+    { name: "Remaining", value: remainingPct },
   ];
   const COLORS = ["#0F8A5F", "#E5E7EB"];
   const totalVotes = turnoutData.reduce((sum, item) => sum + item.value, 0);
-  const votedPercent = Math.round((turnoutData[0].value / totalVotes) * 100);
+  const votedPercent = totalVotes > 0 ? Math.round((turnoutData[0].value / totalVotes) * 100) : 0;
 
   // Filter department stats based on search
   const filteredDepts = deptTurnout.filter((d: any) =>
