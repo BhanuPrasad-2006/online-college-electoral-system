@@ -164,22 +164,21 @@ async def list_candidates(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List candidates. Voters only see approved candidates from the active election."""
+    """List candidates from the active election. Voters only see approved candidates."""
     is_admin = current_user.get("role") == UserRoleEnum.ADMIN.value
     
-    # Get active election if not admin
+    # Get active election
     active_election_id = None
-    if not is_admin:
-        elec_res = await db.execute(
-            select(Election)
-            .order_by(Election.created_at.desc())
-            .limit(1)
-        )
-        active_election = elec_res.scalar_one_or_none()
-        if active_election:
-            active_election_id = active_election.election_id
-        else:
-            return []
+    elec_res = await db.execute(
+        select(Election)
+        .order_by(Election.created_at.desc())
+        .limit(1)
+    )
+    active_election = elec_res.scalar_one_or_none()
+    if active_election:
+        active_election_id = active_election.election_id
+    else:
+        return []
 
     query = (
         select(Candidate)
@@ -1116,13 +1115,31 @@ async def list_manifestos_for_admin(
     status_filter: Optional[str] = None,
 ):
     """List manifestos for admin review."""
+    # Get active election
+    active_election_id = None
+    elec_res = await db.execute(
+        select(Election)
+        .order_by(Election.created_at.desc())
+        .limit(1)
+    )
+    active_election = elec_res.scalar_one_or_none()
+    if active_election:
+        active_election_id = active_election.election_id
+    else:
+        return []
+
     query = (
         select(Manifesto, Candidate, Voter, Position)
         .join(Candidate, Manifesto.candidate_id == Candidate.candidate_id)
         .join(Voter, Candidate.voter_id == Voter.voter_id)
         .join(Position, Candidate.position_id == Position.position_id)
-        .order_by(Manifesto.submitted_at.desc())
     )
+    
+    if active_election_id:
+        query = query.where(Manifesto.election_id == active_election_id)
+        
+    query = query.order_by(Manifesto.submitted_at.desc())
+    
     if status_filter:
         query = query.where(Manifesto.status == status_filter.lower().strip())
 
