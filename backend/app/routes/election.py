@@ -964,19 +964,40 @@ async def publish_results(
         results=pdf_results
     )
     
-    try:
-        uploaded_obj = await upload_election_results_pdf(
-            election_id=str(election.election_id),
-            filename=f"results_{election.election_id}.pdf",
-            data=pdf_buffer.getvalue()
-        )
-        pdf_url = uploaded_obj.public_url
-    except Exception as upload_exc:
-        logger.error(f"Failed to upload results PDF to Supabase: {upload_exc}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to upload results PDF to Supabase Storage: {str(upload_exc)}"
-        )
+    from app.core.config import settings
+    supabase_enabled = bool(settings.supabase_project_url and settings.SUPABASE_SERVICE_ROLE_KEY)
+    
+    if supabase_enabled:
+        try:
+            uploaded_obj = await upload_election_results_pdf(
+                election_id=str(election.election_id),
+                filename=f"results_{election.election_id}.pdf",
+                data=pdf_buffer.getvalue()
+            )
+            pdf_url = uploaded_obj.public_url
+        except Exception as upload_exc:
+            logger.error(f"Failed to upload results PDF to Supabase: {upload_exc}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to upload results PDF to Supabase Storage: {str(upload_exc)}"
+            )
+    else:
+        # Local fallback for development
+        import os
+        upload_dir = "uploads/results"
+        os.makedirs(upload_dir, exist_ok=True)
+        unique_name = f"results_{election.election_id}_{uuid.uuid4().hex}.pdf"
+        file_path = os.path.join(upload_dir, unique_name)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(pdf_buffer.getvalue())
+            pdf_url = f"/uploads/results/{unique_name}"
+        except Exception as e:
+            logger.error(f"Failed to save results PDF locally: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save results PDF locally."
+            )
 
     # ── Create ResultPublication Track Record ────────────────
     publication = ResultPublication(
