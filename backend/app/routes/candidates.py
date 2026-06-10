@@ -172,7 +172,6 @@ async def list_candidates(
     if not is_admin:
         elec_res = await db.execute(
             select(Election)
-            .where(Election.status != ElectionStatusEnum.UPCOMING.value)
             .order_by(Election.created_at.desc())
             .limit(1)
         )
