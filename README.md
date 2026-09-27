@@ -1,13 +1,17 @@
 # 🗳️ College Election System
 
-A secure, AI-powered online voting platform for college elections with real-time analytics, fraud detection, and transparent governance.
+A secure, AI-powered online voting platform for college elections — **face-verified voting with liveness anti-spoofing**, anonymous hash-chained ballots, real-time analytics, fraud detection and transparent governance.
+
+![Face verification](https://img.shields.io/badge/Face%20verification-ArcFace-00ff9c?style=for-the-badge&labelColor=0a0e14)
+![Liveness](https://img.shields.io/badge/Anti--spoofing-passive%20liveness-00e5ff?style=for-the-badge&labelColor=0a0e14)
+![Ballots](https://img.shields.io/badge/Ballots-hash--chained-ff2e88?style=for-the-badge&labelColor=0a0e14)
 
 ## 🏗️ Architecture
 
 | Service       | Technology           | Port  |
 |---------------|----------------------|-------|
-| Frontend      | Next.js 14 + Tailwind CSS | 3000  |
-| Backend API   | FastAPI (Python)     | 8000  |
+| Frontend      | React 19 + TanStack Start + Vite + Tailwind CSS | 3000  |
+| Backend API   | FastAPI (Python) + DeepFace (ArcFace) + OpenCV | 8000  |
 | AI Service    | FastAPI + NLP/ML     | 8001  |
 | Database      | PostgreSQL 16        | 5432  |
 | Cache/Queue   | Redis 7              | 6379  |
@@ -32,11 +36,28 @@ A secure, AI-powered online voting platform for college elections with real-time
 - **Audit Logs** — Complete trail of all system actions
 - **User Management** — Approve candidates, manage voters
 
+## 🧬 Face Verification (Biometric Voting)
+
+Before a ballot can be cast, the voter has to prove they are the registered student — live, on camera.
+
+```
+webcam frames ──► liveness checks ──► ArcFace embeddings ──► majority match ──► one-time vote token
+                  (is it a real          (512-d face           (≥ 60 % of frames     (single-use JTI,
+                   live person?)          vectors)              match enrolment)      consumed on cast)
+```
+
+- **Face recognition** — DeepFace with the **ArcFace** model turns each frame into an embedding and compares it with the voter's enrolled photo by cosine similarity.
+- **Majority-vote matching** — a burst of frames is checked, and at least 60 % must match, so a single lucky or blurry frame can't pass or fail a voter.
+- **Passive liveness / anti-spoofing** — no blinking or head-turning needed. Frames are checked for real camera sensor noise, natural embedding drift, brightness flicker and identical frames, which rejects printed photos, screenshots and replayed images.
+- **Replay protection** — every submitted frame is SHA-256 hashed; a frame that has been seen before is rejected.
+- **Brute-force lockout** — failed face attempts lock the voter out with exponential backoff (15 min → 30 min → 1 h → 24 h), backed by Redis with a database fallback, and the endpoint is rate-limited.
+- **One-time vote token** — a successful match issues a short-lived, single-use token that the cast-vote endpoint consumes, so verification and voting can't be separated or reused.
+
 ## 🔐 Security Features
 
 - **Vote Anonymity** — No `voter_id` stored in vote records
 - **Hash Chain Integrity** — Blockchain-inspired vote hash chains
-- **JIT Verification** — Just-in-time identity verification before voting
+- **JIT Verification** — Just-in-time face + identity verification immediately before voting
 - **Anti-Replay** — Token-based replay attack prevention
 - **Rate Limiting** — API rate limiting per user/IP
 - **Audit Trail** — Comprehensive logging of all actions
@@ -53,8 +74,8 @@ A secure, AI-powered online voting platform for college elections with real-time
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/college-election-system.git
-cd college-election-system
+git clone https://github.com/BhanuPrasad-2006/online-college-electoral-system.git
+cd online-college-electoral-system
 
 # Copy environment files
 cp .env.example backend/.env
@@ -95,8 +116,8 @@ npm run dev
 ## 📁 Project Structure
 
 ```
-college-election-system/
-├── frontend/          # Next.js 14 + Tailwind CSS
+online-college-electoral-system/
+├── frontend/          # React 19 + TanStack Start + Vite
 ├── backend/           # FastAPI Main Backend
 ├── ai_service/        # AI/NLP Microservice
 ├── db/                # Migrations, seeds, SQL functions
