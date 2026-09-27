@@ -24,3 +24,6 @@ frontend/.env
 .DS_Store
 Thumbs.db
 .vercel
+
+# Generated analysis output
+graphify-out/
